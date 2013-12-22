@@ -1,0 +1,15 @@
+set up external dependencies:
+
+> cabal install gtk2hs-buildtools
+
+make sure these are in your PATH (e.g. include $HOME/.cabal/bin in your $PATH)
+
+
+install dependencies & configure app
+> cabal install --only-dependencies
+> cabal configure
+
+build
+> cabal build
+
+run file from dist/build/Pioneers/Pioneers
