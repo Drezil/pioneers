@@ -9,6 +9,8 @@ executable Pioneers
   main-is:         Main.hs
   build-depends:   
                   base >= 4,
-                  gtk
+                  gtk,
+                  OpenGL >=2.8.0 && <2.9,
+                  gtkglext >=0.12
   ghc-options:     -Wall
 

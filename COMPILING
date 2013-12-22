@@ -1,5 +1,6 @@
 set up external dependencies:
 
+> sudo apt-get install libgtkglext1-dev
 > cabal install gtk2hs-buildtools
 
 make sure these are in your PATH (e.g. include $HOME/.cabal/bin in your $PATH)
