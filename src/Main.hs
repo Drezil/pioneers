@@ -8,15 +8,23 @@ import Graphics.Rendering.OpenGL as GL
 animationWaitTime = 3
 
 -- OpenGL polygon-function for drawing stuff.
+display :: IO ()
 display = do
   loadIdentity
-  color (Color3 1 1 1 :: Color3 GLfloat)
+  color (Color3 1 0.5 0.5 :: Color3 GLfloat)
   -- Instead of glBegin ... glEnd there is renderPrimitive.  
+  renderPrimitive Polygon $ do
+    vertex (Vertex3 (-1.0) (-1.0) 0.0 :: Vertex3 GLfloat)
+    vertex (Vertex3  (1.0) (-1.0) 0.0 :: Vertex3 GLfloat)
+    vertex (Vertex3  (1.0)  (1.0) 0.0 :: Vertex3 GLfloat)
+    vertex (Vertex3 (-1.0)  (1.0) 0.0 :: Vertex3 GLfloat)
+  color (Color3 1 1 1 :: Color3 GLfloat)
   renderPrimitive Polygon $ do
     vertex (Vertex3 0.25 0.25 0.0 :: Vertex3 GLfloat)
     vertex (Vertex3 0.75 0.25 0.0 :: Vertex3 GLfloat)
     vertex (Vertex3 0.75 0.75 0.0 :: Vertex3 GLfloat)
     vertex (Vertex3 0.25 0.75 0.0 :: Vertex3 GLfloat)
+
 
 main :: IO ()
 main = do
@@ -34,7 +42,7 @@ main = do
   -- Create an OpenGL drawing area widget
   canvas <- GtkGL.glDrawingAreaNew glconfig
 
-  Gtk.widgetSetSizeRequest canvas 250 250
+  Gtk.widgetSetSizeRequest canvas 500 350
 
   -- Initialise some GL setting just before the canvas first gets shown
   -- (We can't initialise these things earlier since the GL resources that
@@ -83,8 +91,10 @@ main = do
                    Gtk.containerChild := exitButton
                 ]
 
-  Gtk.onClicked button (putStrLn "Hello World")
-  Gtk.onClicked exitButton Gtk.mainQuit
+  Gtk.afterClicked button (putStrLn "Hello World")
+  Gtk.afterClicked exitButton Gtk.mainQuit
   Gtk.onDestroy window Gtk.mainQuit
+
   Gtk.widgetShowAll window
   Gtk.mainGUI
+
