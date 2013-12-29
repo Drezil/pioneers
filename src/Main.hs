@@ -1,3 +1,4 @@
+module Main where
 
 import qualified Graphics.UI.Gtk as Gtk
 import Graphics.UI.Gtk (AttrOp((:=)))
