@@ -77,11 +77,11 @@ getTileVertices heights t = let p = (listArray (0,5) hexagon)
                                   ]
 
 getHeight :: PlayMap -> TileVertex -> Tile -> Float
-getHeight pm v t@(_,ty) =
+getHeight pm v t@(tx,_) =
         let 
                 h = heightLookup pm
                 ! tileheight = h t
-                ! y = if even ty then 1 else 0
+                ! y = if even tx then 0 else -1
         in
         case v of
                 VertexNW -> let
@@ -110,7 +110,7 @@ getHeight pm v t@(_,ty) =
                            in  (sw + nw + tileheight) / 3.0
 
 heightLookup :: PlayMap -> Tile -> Float
-heightLookup hs t@(x,y) = if inRange (bounds hs) t then h else 0
+heightLookup hs t = if inRange (bounds hs) t then h else 0
                 where 
                         (h,_) = hs ! t
 

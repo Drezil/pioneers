@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Main where
 
 import qualified Graphics.UI.Gtk as Gtk
@@ -13,11 +14,31 @@ import Map.Map
 
 import Data.Maybe (fromMaybe)
 import Debug.Trace
+import Data.IntSet as IS
+import Data.IORef
+
+import Prelude as P
+import Control.Monad
+import Control.Concurrent
+import Control.Concurrent.STM
+
+data ProgramState = PS { keysPressed :: IntSet
+                       , px          :: GLfloat
+                       , py          :: GLfloat
+                       , pz          :: GLfloat
+                       , heading     :: GLfloat
+                       , pitch       :: GLfloat
+                       , dx          :: GLfloat
+                       , dz          :: GLfloat
+                       , dheading    :: GLfloat
+                       , dpitch      :: GLfloat }
 
 animationWaitTime = 3   :: Int
 canvasWidth = 640       :: Int
 canvasHeight = 480      :: Int
 
+
+-- TODO: Put render-stuff in render-module 
 
 glTexCoord2f (x,y) = texCoord (TexCoord2 x y :: TexCoord2 GLfloat)
 glVertex3f (x,y,z) = vertex (Vertex3 x y z :: Vertex3 GLfloat)
@@ -27,10 +48,10 @@ glNormal3f (x,y,z) = normal (Normal3 x y z :: Normal3 GLfloat)
 prepareRenderTile :: PlayMap -> ((Int,Int),MapEntry) -> (Vector3 GLfloat, Color3 GLfloat, [Vertex3 GLfloat])
 prepareRenderTile m (c@(cx,cz),(_,t)) = 
                         (
-                        if even cz then
-                                Vector3 (3*(fromIntegral cx)) 0.0 ((fromIntegral cz))
+                        if even cx then
+                                Vector3 (1.5*(fromIntegral cx)) 0.0 (2*(fromIntegral cz))
                         else
-                                Vector3 (3*(fromIntegral cx)+1.5) 0.0 ((fromIntegral cz))
+                                Vector3 (1.5*(fromIntegral cx)) 0.0 (2*(fromIntegral cz)-1)
                         ,
                         case t of
                                 Water -> Color3 0.5 0.5 1 :: Color3 GLfloat 
@@ -58,28 +79,30 @@ drawSphere = do
                 (Sphere 1.0 48 48)
                 
 -- OpenGL polygon-function for drawing stuff.
-display :: PlayMap -> IO ()
-display t =
+display :: TVar ProgramState -> PlayMap -> IO ()
+display state t =
   let 
-     tiles = map (prepareRenderTile t) (A.assocs t)
+     tiles = P.map (prepareRenderTile t) (A.assocs t)
   in
       do
-      loadIdentity
-      GL.rotate (60) (Vector3 1.0 0.0 0.0 :: Vector3 GLfloat)
-      --GL.rotate (-20) (Vector3 0.0 1.0 0.0 :: Vector3 GLfloat)
-      translate (Vector3 (-15) (-10) (-15)::Vector3 GLfloat)
-      position (Light 0) $= Vertex4 0.0 0.0 (20.0) 1.0
+        ps@PS { 
+          px       = px
+        , py       = py
+        , pz       = pz
+        , pitch    = pitch
+        , heading  = heading }
+                <- readTVarIO state
+        loadIdentity
+        GL.rotate pitch (Vector3 1.0 0.0 0.0 :: Vector3 GLfloat)
+        GL.rotate heading (Vector3 0.0 1.0 0.0 :: Vector3 GLfloat)
+        translate (Vector3 (-px) (-py) (-pz)::Vector3 GLfloat)
 
-      -- Instead of glBegin ... glEnd there is renderPrimitive.
-      --trace (show tiles) $ 
-      mapM_ renderTile tiles
-      return ()
-      {- color (Color3 1 1 1 :: Color3 GLfloat)
-      renderPrimitive LineLoop $ do
-        vertex (Vertex3 0.25 0.25 0.0 :: Vertex3 GLfloat)
-        vertex (Vertex3 0.75 0.25 0.0 :: Vertex3 GLfloat)
-        vertex (Vertex3 0.75 0.75 0.0 :: Vertex3 GLfloat)
-        vertex (Vertex3 0.25 0.75 0.0 :: Vertex3 GLfloat) -}
+        position (Light 0) $= Vertex4 0.0 0.0 (20.0) 1.0
+
+        -- Instead of glBegin ... glEnd there is renderPrimitive.
+        --trace (show tiles) $ 
+        mapM_ renderTile tiles
+        return ()
 
 --Adjust size to given dimensions
 reconfigure :: Int -> Int -> IO (Int, Int)
@@ -105,14 +128,26 @@ reshape dims = do
   let (w, h) = if width <= height
                 then (fromIntegral height, fromIntegral width )
                 else (fromIntegral width,  fromIntegral height)
-  perspective 60.0 (fromIntegral canvasWidth / fromIntegral canvasHeight) 1.0 20.0
+  -- open, aspect-ratio, near-plane, far-plane
+  perspective 60.0 (fromIntegral canvasWidth / fromIntegral canvasHeight) 1.0 100.0
   matrixMode $= Modelview 0
   loadIdentity
 
 main :: IO ()
 main = do
-  terrain <- testmap
-  Gtk.initGUI
+  ! terrain <- testmap
+  -- create TVar using unsafePerformIO -> currently no other thread -> OK
+  state <- newTVarIO $ PS {    keysPressed = IS.empty
+                             , px          = 7.5
+                             , py          = 20
+                             , pz          = 15
+                             , heading     = 0
+                             , pitch       = 60
+                             , dx          = 0
+                             , dz          = 0
+                             , dheading    = 0
+                             , dpitch      = 0}
+  trace (show terrain) Gtk.initGUI
   -- Initialise the Gtk+ OpenGL extension
   -- (including reading various command line parameters)
   GtkGL.initGL
@@ -166,7 +201,7 @@ main = do
   Gtk.onExpose canvas $ \_ -> do
     GtkGL.withGLDrawingArea canvas $ \glwindow -> do
       GL.clear [GL.DepthBuffer, GL.ColorBuffer]
-      display terrain
+      display state terrain
       GtkGL.glDrawableSwapBuffers glwindow
     return True
  

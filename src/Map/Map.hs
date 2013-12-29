@@ -1,9 +1,12 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Map.Map 
 
 where
 
 import System.Random
 import Data.Array.IArray
+import Data.Text as T 
+import Prelude as P
 
 data TileType =
         Grass
@@ -19,33 +22,36 @@ type MapEntry = (
 
 type PlayMap = Array (Int, Int) MapEntry
 
-testMapTemplate :: [[String]]
-testMapTemplate = [
-                ["~~~~~~~~~~"],
-                ["~~SSSSSS~~"],
-                ["~SSGGGGS~~"],
-                ["~SSGGMMS~~"],
-                ["~SGGMMS~~~"],
-                ["~SGMMMS~~~"],
-                ["~GGGGGGS~~"],
-                ["~SGGGGGS~~"],
-                ["~~SSSS~~~~"],
-                ["~~~~~~~~~~"]
+-- if writing in ASCII-Format transpose so i,j -> y,x
+-- row-minor -> row-major
+testMapTemplate :: [Text]
+testMapTemplate = T.transpose [
+                "~~~~~~~~~~",
+                "~~SSSSSS~~",
+                "~SSGGGGS~~",
+                "~SSGGMMS~~",
+                "~SGGMMS~~~",
+                "~SGMMMS~~~",
+                "~GGGGGGS~~",
+                "~SGGGGGS~~",
+                "~~SSSS~~~~",
+                "~~~~~~~~~~"
                 ]
 
 testmap :: IO PlayMap
 testmap = do
                 g <- getStdGen
-                rawMap <- return $ map (parseTemplate (randoms g)) (concat $ concat testMapTemplate)
+                rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate)
                 return $ listArray ((0,0),(9,9)) rawMap
 
 
-parseTemplate :: [Int] -> Char -> MapEntry
-parseTemplate (r:_) t = 
-        case t of
+parseTemplate :: [Int] -> Text -> [MapEntry]
+parseTemplate (r:rs) t = 
+        (case T.head t of
                 '~' -> (0, Water)
                 'S' -> (0, Sand)
-                'G' -> ((fromIntegral $ r `mod` 3)/3,Grass)
-                'M' -> ((fromIntegral $ r `mod` 3 + 2)/3, Mountain)
+                'G' -> (fromIntegral (r `mod` 3) / 3,Grass)
+                'M' -> (fromIntegral (r `mod` 3 + 2) / 3, Mountain)
                 _ -> error "invalid template format for map"
-parseTemplate [] _ = error "out of randoms..."
+         ):parseTemplate rs (T.tail t)
+parseTemplate [] _ = error "out of randoms.."
