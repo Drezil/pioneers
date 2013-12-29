@@ -6,26 +6,80 @@ import qualified Graphics.UI.Gtk.OpenGL as GtkGL
 
 import Graphics.Rendering.OpenGL as GL
 import qualified Graphics.UI.Gtk.Gdk.Events as Event
+import qualified Data.Array.IArray as A
 
 import Map.Coordinates
+import Map.Map
 
 import Data.Maybe (fromMaybe)
+import Debug.Trace
 
-animationWaitTime = 3
-canvasWidth = 640
-canvasHeight = 480
+animationWaitTime = 3   :: Int
+canvasWidth = 640       :: Int
+canvasHeight = 480      :: Int
 
+
+glTexCoord2f (x,y) = texCoord (TexCoord2 x y :: TexCoord2 GLfloat)
+glVertex3f (x,y,z) = vertex (Vertex3 x y z :: Vertex3 GLfloat)
+glNormal3f (x,y,z) = normal (Normal3 x y z :: Normal3 GLfloat)
+
+
+prepareRenderTile :: PlayMap -> ((Int,Int),MapEntry) -> (Vector3 GLfloat, Color3 GLfloat, [Vertex3 GLfloat])
+prepareRenderTile m (c@(cx,cz),(_,t)) = 
+                        (
+                        if even cz then
+                                Vector3 (3*(fromIntegral cx)) 0.0 ((fromIntegral cz))
+                        else
+                                Vector3 (3*(fromIntegral cx)+1.5) 0.0 ((fromIntegral cz))
+                        ,
+                        case t of
+                                Water -> Color3 0.5 0.5 1 :: Color3 GLfloat 
+                                Grass -> Color3 0.3 0.9 0.1 :: Color3 GLfloat 
+                                Sand -> Color3 0.9 0.85 0.7 :: Color3 GLfloat 
+                                Mountain -> Color3 0.5 0.5 0.5 :: Color3 GLfloat 
+                        ,getTileVertices m c)
+
+renderTile :: (Vector3 GLfloat, Color3 GLfloat, [Vertex3 GLfloat]) -> IO ()
+renderTile (coord,c,ts) =
+        preservingMatrix $ do
+                color c
+                translate coord
+                _ <- renderPrimitive Polygon $ do
+                        glNormal3f(0.0,0.0,1.0)
+                        mapM vertex ts
+                return ()
+
+drawSphere = do
+  renderQuadric (QuadricStyle 
+                  (Just Smooth)
+                  GenerateTextureCoordinates
+                  Outside
+                  FillStyle)
+                (Sphere 1.0 48 48)
+                
 -- OpenGL polygon-function for drawing stuff.
-display :: IO ()
-display = do
-  loadIdentity
-  -- Instead of glBegin ... glEnd there is renderPrimitive.  
-  color (Color3 1 1 1 :: Color3 GLfloat)
-  renderPrimitive Polygon $ do
-    vertex (Vertex3 0.25 0.25 0.0 :: Vertex3 GLfloat)
-    vertex (Vertex3 0.75 0.25 0.0 :: Vertex3 GLfloat)
-    vertex (Vertex3 0.75 0.75 0.0 :: Vertex3 GLfloat)
-    vertex (Vertex3 0.25 0.75 0.0 :: Vertex3 GLfloat)
+display :: PlayMap -> IO ()
+display t =
+  let 
+     tiles = map (prepareRenderTile t) (A.assocs t)
+  in
+      do
+      loadIdentity
+      GL.rotate (60) (Vector3 1.0 0.0 0.0 :: Vector3 GLfloat)
+      --GL.rotate (-20) (Vector3 0.0 1.0 0.0 :: Vector3 GLfloat)
+      translate (Vector3 (-15) (-10) (-15)::Vector3 GLfloat)
+      position (Light 0) $= Vertex4 0.0 0.0 (2.0) 1.0
+
+      -- Instead of glBegin ... glEnd there is renderPrimitive.
+      --trace (show tiles) $ 
+      mapM_ renderTile tiles
+      return ()
+      {- color (Color3 1 1 1 :: Color3 GLfloat)
+      renderPrimitive LineLoop $ do
+        vertex (Vertex3 0.25 0.25 0.0 :: Vertex3 GLfloat)
+        vertex (Vertex3 0.75 0.25 0.0 :: Vertex3 GLfloat)
+        vertex (Vertex3 0.75 0.75 0.0 :: Vertex3 GLfloat)
+        vertex (Vertex3 0.25 0.75 0.0 :: Vertex3 GLfloat) -}
 
 --Adjust size to given dimensions
 reconfigure :: Int -> Int -> IO (Int, Int)
@@ -57,6 +111,7 @@ reshape dims = do
 
 main :: IO ()
 main = do
+  terrain <- testmap
   Gtk.initGUI
   -- Initialise the Gtk+ OpenGL extension
   -- (including reading various command line parameters)
@@ -77,18 +132,20 @@ main = do
   -- (We can't initialise these things earlier since the GL resources that
   -- we are using wouldn't heve been setup yet)
   Gtk.onRealize canvas $ GtkGL.withGLDrawingArea canvas $ \_ -> do
-    clearColor $= (Color4 0.0 0.0 0.0 0.0)
+    reconfigure canvasWidth canvasHeight
+    return ()
+    {-clearColor $= (Color4 0.0 0.0 0.0 0.0)
     matrixMode $= Projection
     loadIdentity
     ortho 0.0 1.0 0.0 1.0 (-1.0) 1.0
     depthFunc $= Just Less
-    drawBuffer $= BackBuffers
+    drawBuffer $= BackBuffers-}
  
   -- Set the repaint handler
   Gtk.onExpose canvas $ \_ -> do
     GtkGL.withGLDrawingArea canvas $ \glwindow -> do
       GL.clear [GL.DepthBuffer, GL.ColorBuffer]
-      display
+      display terrain
       GtkGL.glDrawableSwapBuffers glwindow
     return True
  
