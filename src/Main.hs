@@ -68,7 +68,7 @@ display t =
       GL.rotate (60) (Vector3 1.0 0.0 0.0 :: Vector3 GLfloat)
       --GL.rotate (-20) (Vector3 0.0 1.0 0.0 :: Vector3 GLfloat)
       translate (Vector3 (-15) (-10) (-15)::Vector3 GLfloat)
-      position (Light 0) $= Vertex4 0.0 0.0 (2.0) 1.0
+      position (Light 0) $= Vertex4 0.0 0.0 (20.0) 1.0
 
       -- Instead of glBegin ... glEnd there is renderPrimitive.
       --trace (show tiles) $ 
@@ -133,6 +133,27 @@ main = do
   -- we are using wouldn't heve been setup yet)
   Gtk.onRealize canvas $ GtkGL.withGLDrawingArea canvas $ \_ -> do
     reconfigure canvasWidth canvasHeight
+    materialAmbient   Front $= Color4 0.4 0.4 0.4 1.0
+    materialDiffuse   Front $= Color4 0.4 0.4 0.4 1.0
+    materialSpecular  Front $= Color4 0.8 0.8 0.8 1.0
+    materialShininess Front $= 25.0
+
+    ambient  (Light 0) $= Color4 0.3 0.3 0.3 1.0
+    diffuse  (Light 0) $= Color4 1.0 1.0 1.0 1.0
+    specular (Light 0) $= Color4 0.8 0.8 0.8 1.0
+    lightModelAmbient  $= Color4 0.2 0.2 0.2 1.0
+
+    lighting        $= Enabled 
+    light (Light 0) $= Enabled
+    depthFunc       $= Just Less
+
+    clearColor $= Color4 0.0 0.0 0.0 0.0
+    drawBuffer $= BackBuffers
+    colorMaterial $= Just (Front, Diffuse)
+
+    texture Texture2D $= Enabled
+
+    shadeModel $= Smooth
     return ()
     {-clearColor $= (Color4 0.0 0.0 0.0 0.0)
     matrixMode $= Projection
