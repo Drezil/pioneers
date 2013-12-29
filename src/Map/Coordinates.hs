@@ -7,10 +7,11 @@ module Map.Coordinates
 where
 
 import Graphics.Rendering.OpenGL as GL
-import Data.Map as M
-import Data.IntMap
+import Data.Map as M hiding ((!))
+import qualified Data.Map as M ((!))
 import Data.Maybe
 import Prelude as P
+import Data.Array.IArray as A
 
 
 
@@ -65,15 +66,15 @@ data TileVertex =
 --getGrid :: Coordinates -> Coordinates -> []
 
 getTileVertices :: MapHeights -> Tile -> [Vertex3 GLfloat]
-getTileVertices heights t@(x,y) = let p = P.map (+ tileToPos t) hexagon in
+getTileVertices heights t = let p = (listArray (0,5) $ P.map (+ tileToPos t) hexagon)::Array Int (Float,Float) in
                                         P.map floatToVertex $
                                   [
-                                        (fst $ p !! 0, snd $ p !! 0,fromMaybe 0.0 $ getHeight heights VertexNW t),
-                                        (fst $ p !! 1, snd $ p !! 1,fromMaybe 0.0 $ getHeight heights VertexNW t),
-                                        (fst $ p !! 2, snd $ p !! 2,fromMaybe 0.0 $ getHeight heights VertexNW t),
-                                        (fst $ p !! 3, snd $ p !! 3,fromMaybe 0.0 $ getHeight heights VertexNW t),
-                                        (fst $ p !! 4, snd $ p !! 4,fromMaybe 0.0 $ getHeight heights VertexNW t),
-                                        (fst $ p !! 5, snd $ p !! 5,fromMaybe 0.0 $ getHeight heights VertexNW t)
+                                        (fst $ p ! 0, snd $ p ! 0,fromMaybe 0.0 $ getHeight heights VertexNW t),
+                                        (fst $ p ! 1, snd $ p ! 1,fromMaybe 0.0 $ getHeight heights VertexNW t),
+                                        (fst $ p ! 2, snd $ p ! 2,fromMaybe 0.0 $ getHeight heights VertexNW t),
+                                        (fst $ p ! 3, snd $ p ! 3,fromMaybe 0.0 $ getHeight heights VertexNW t),
+                                        (fst $ p ! 4, snd $ p ! 4,fromMaybe 0.0 $ getHeight heights VertexNW t),
+                                        (fst $ p ! 5, snd $ p ! 5,fromMaybe 0.0 $ getHeight heights VertexNW t)
                                   ]
 
 getHeight :: MapHeights -> TileVertex -> Tile -> Maybe Float
@@ -115,15 +116,15 @@ getHeight h v t@(_,ty) =
                                 return $ (fromIntegral $ sw+nw+c) / 3.0
 
 
-hexagon :: IntMap (Float,Float)
-hexagon = undefined {- fromList [
+hexagon :: [(Float,Float)]
+hexagon = [
                 (0.2,0),
                 (0.6,0),
                 (0.5,1),
                 (1,0.6),
                 (1,0.2),
                 (0.5,0)
-                ]-}
+                ]
 
 
 -- | convert triple of floats to GLfloat (== CFloat)
