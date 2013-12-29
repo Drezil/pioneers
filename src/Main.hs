@@ -6,7 +6,7 @@ import Graphics.UI.Gtk (AttrOp((:=)))
 import qualified Graphics.UI.Gtk.OpenGL as GtkGL
 
 import Graphics.Rendering.OpenGL as GL
-import qualified Graphics.UI.Gtk.Gdk.Events as Event
+import qualified Graphics.UI.Gtk.Gdk.EventM as Event
 import qualified Data.Array.IArray as A
 
 import Map.Coordinates
@@ -21,6 +21,9 @@ import Prelude as P
 import Control.Monad
 import Control.Concurrent
 import Control.Concurrent.STM
+import System.IO.Unsafe (unsafePerformIO)
+import GHC.Conc.Sync (unsafeIOToSTM)
+import Control.Monad.IO.Class (liftIO)
 
 data ProgramState = PS { keysPressed :: IntSet
                        , px          :: GLfloat
@@ -29,14 +32,18 @@ data ProgramState = PS { keysPressed :: IntSet
                        , heading     :: GLfloat
                        , pitch       :: GLfloat
                        , dx          :: GLfloat
+                       , dy          :: GLfloat
                        , dz          :: GLfloat
                        , dheading    :: GLfloat
                        , dpitch      :: GLfloat }
+                       deriving (Show)
 
 animationWaitTime = 3   :: Int
-canvasWidth = 640       :: Int
-canvasHeight = 480      :: Int
-
+canvasWidth = 1024      :: Int
+canvasHeight = 768      :: Int
+deltaV = 0.10
+deltaH = 0.5
+deltaP = 0.15
 
 -- TODO: Put render-stuff in render-module 
 
@@ -79,7 +86,7 @@ drawSphere = do
                 (Sphere 1.0 48 48)
                 
 -- OpenGL polygon-function for drawing stuff.
-display :: TVar ProgramState -> PlayMap -> IO ()
+display :: MVar ProgramState -> PlayMap -> IO ()
 display state t =
   let 
      tiles = P.map (prepareRenderTile t) (A.assocs t)
@@ -91,7 +98,7 @@ display state t =
         , pz       = pz
         , pitch    = pitch
         , heading  = heading }
-                <- readTVarIO state
+                <- readMVar state
         loadIdentity
         GL.rotate pitch (Vector3 1.0 0.0 0.0 :: Vector3 GLfloat)
         GL.rotate heading (Vector3 0.0 1.0 0.0 :: Vector3 GLfloat)
@@ -103,6 +110,50 @@ display state t =
         --trace (show tiles) $ 
         mapM_ renderTile tiles
         return ()
+
+updateCamera :: MVar ProgramState -> IO ()
+updateCamera state = do
+        ps@PS { dx       = dx
+        , dy       = dy
+        , dz       = dz
+        , px       = px
+        , py       = py
+        , pz       = pz
+        , pitch    = pitch
+        , heading  = heading
+        , dpitch   = dpitch
+        , dheading = dheading }
+                <- takeMVar state
+
+        d@((dx,dy,dz),(heading',pitch')) <- 
+          if any (/= 0.0) [dx,dy,dz,dpitch,dheading] then
+            preservingMatrix $ do
+                putStrLn $ unwords $ P.map show [dx,dy,dz,dpitch,dheading]
+                loadIdentity
+ 
+                -- in direction of current heading and pitch
+                rotate (-heading) (Vector3 0.0 1.0 0.0 :: Vector3 GLfloat)
+                rotate (-pitch)   (Vector3 1.0 0.0 0.0 :: Vector3 GLfloat)
+
+                -- perform motion
+                translate (Vector3 (-dx) (-dy) (-dz))
+ 
+ 
+                -- get changes in location components
+                mat   <- get (matrix Nothing) :: IO (GLmatrix GLfloat)
+                comps <- getMatrixComponents ColumnMajor mat
+                putStrLn $ show $ comps
+                let [dx', dy', dz', _] = drop 12 comps
+                    (heading', pitch') = (heading + dheading, pitch + dpitch)
+                return ((dx',dy',dz'),(heading',pitch'))
+          else
+            return ((0,0,0),(heading, pitch))
+        putMVar state ps { px         = px + dx
+                           , py         = py + dy
+                           , pz         = pz + dz
+                           , pitch      = pitch'
+                           , heading    = heading'
+                           }
 
 --Adjust size to given dimensions
 reconfigure :: Int -> Int -> IO (Int, Int)
@@ -133,17 +184,77 @@ reshape dims = do
   matrixMode $= Modelview 0
   loadIdentity
 
+keyEvent state press = do
+  code <- Event.eventHardwareKeycode
+  val  <- Event.eventKeyVal
+  mods <- Event.eventModifier
+  name <- Event.eventKeyName
+  liftIO $ do
+          ps@PS { keysPressed = kp
+                , dx          = dx
+                , dy          = dy
+                , dz          = dz
+                , px          = px
+                , py          = py
+                , pz          = pz
+                , pitch       = pitch
+                , heading     = heading
+                , dpitch      = dpitch
+                , dheading    = dheading }
+            <- takeMVar state
+          -- Only process the key event if it is not a repeat
+          (ps',ret) <- if (fromIntegral code `member` kp && not press) ||
+             (fromIntegral code `notMember` kp && press)
+             then let 
+                      accept a = return (a, True)
+                      deny   a = return (a, False)
+                in do
+                -- keep list of pressed keys up2date
+                ps <- if not press
+                  then return ps { keysPressed = fromIntegral code `IS.delete` kp }
+                  else return ps { keysPressed = fromIntegral code `IS.insert` kp }
+                putStrLn $ unwords [name , show val, show code, show ps] -- trace (unwords [name , show val]) -- debugging
+                -- process keys
+                case press of
+                  -- on PRESS only
+                  True
+                    | code ==  9      -> Gtk.mainQuit >> deny ps
+                    | code == 26      -> accept $ ps { dz = dz + deltaV }
+                    | code == 40      -> accept $ ps { dz = dz - deltaV }
+                    | code == 39      -> accept $ ps { dx = dx + deltaV }
+                    | code == 41      -> accept $ ps { dx = dx - deltaV }
+                    | code == 65      -> accept $ ps { dy = dy - deltaV }
+                    | code == 66      -> accept $ ps { dy = dy + deltaV }
+                    | code == 25      -> accept $ ps { dheading = dheading - deltaH }
+                    | code == 27      -> accept $ ps { dheading = dheading + deltaH }
+                    | otherwise       -> deny ps
+                  -- on RELEASE only
+                  False
+                    | code == 26      -> accept $ ps { dz = dz - deltaV }
+                    | code == 40      -> accept $ ps { dz = dz + deltaV }
+                    | code == 39      -> accept $ ps { dx = dx - deltaV }
+                    | code == 41      -> accept $ ps { dx = dx + deltaV }
+                    | code == 65      -> accept $ ps { dy = dy + deltaV }
+                    | code == 66      -> accept $ ps { dy = dy - deltaV }
+                    | code == 25      -> accept $ ps { dheading = dheading + deltaH }
+                    | code == 27      -> accept $ ps { dheading = dheading - deltaH }
+                    | otherwise       -> deny ps
+             else return (ps, False)
+          putMVar state ps'
+          return ret
+
 main :: IO ()
 main = do
   ! terrain <- testmap
   -- create TVar using unsafePerformIO -> currently no other thread -> OK
-  state <- newTVarIO $ PS {    keysPressed = IS.empty
+  state <- newMVar $ PS {    keysPressed = IS.empty
                              , px          = 7.5
                              , py          = 20
                              , pz          = 15
                              , heading     = 0
                              , pitch       = 60
                              , dx          = 0
+                             , dy          = 0
                              , dz          = 0
                              , dheading    = 0
                              , dpitch      = 0}
@@ -207,6 +318,7 @@ main = do
  
   -- Setup the animation
   Gtk.timeoutAddFull (do
+      updateCamera state
       Gtk.widgetQueueDraw canvas
       return True)
     Gtk.priorityDefaultIdle animationWaitTime
@@ -224,34 +336,25 @@ main = do
   --Wrench them together
 
   Gtk.set window [ Gtk.containerBorderWidth := 10,
-                   Gtk.containerChild := vbox,
-                   Gtk.windowTitle := "Pioneer" ]
-  Gtk.set button [ Gtk.buttonLabel := "Hello World" ]
-  Gtk.set exitButton [ Gtk.buttonLabel := "Quit" ]
-  Gtk.set vbox [
                    Gtk.containerChild := canvas,
-                   Gtk.containerChild := button,
-                   Gtk.containerChild := exitButton,
-                   Gtk.containerChild := label
-                ]
+                   Gtk.windowTitle := "Pioneer" ]
 
+  ------
+  -- Events
+  --
   Gtk.afterClicked button (putStrLn "Hello World")
   Gtk.afterClicked exitButton Gtk.mainQuit
   Gtk.onDestroy window Gtk.mainQuit
 
+  Gtk.on window Gtk.keyPressEvent $ keyEvent state True
+ 
+  Gtk.on window Gtk.keyReleaseEvent $ keyEvent state False
+
  -- "reshape" event handler
-  Gtk.onConfigure canvas $ \ (Event.Configure _ _ _ w h) -> do
-    (w', h') <- reconfigure w h
-    {- texW   <- Gtk.pixbufGetWidth pb
-    texH   <- Gtk.pixbufGetHeight pb
-    texBPS <- Gtk.pixbufGetBitsPerSample pb
-    texRS  <- Gtk.pixbufGetRowstride pb
-    texNCh <- Gtk.pixbufGetNChannels pb-}
-    Gtk.labelSetText label $ unwords ["Width:",show w',"Height:",show h'{- ,
-                                      "TexW:",show texW,"TexH:",show texH,
-                                      "BPS:",show texBPS,"RS:",show texRS,
-                                      "NCh:",show texNCh-}]
-    return True
+  Gtk.on canvas Gtk.configureEvent $ Event.tryEvent $ do
+    (w, h)   <- Event.eventSize
+    (w', h') <- liftIO $ reconfigure w h
+    liftIO $ Gtk.labelSetText label $ unwords ["Width:",show w',"Height:",show h']
 
 
   Gtk.widgetShowAll window
