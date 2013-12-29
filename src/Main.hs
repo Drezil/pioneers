@@ -128,7 +128,7 @@ updateCamera state = do
         d@((dx,dy,dz),(heading',pitch')) <- 
           if any (/= 0.0) [dx,dy,dz,dpitch,dheading] then
             preservingMatrix $ do
-                putStrLn $ unwords $ P.map show [dx,dy,dz,dpitch,dheading]
+                -- putStrLn $ unwords $ P.map show [dx,dy,dz,dpitch,dheading]
                 loadIdentity
  
                 -- in direction of current heading and pitch
@@ -142,7 +142,7 @@ updateCamera state = do
                 -- get changes in location components
                 mat   <- get (matrix Nothing) :: IO (GLmatrix GLfloat)
                 comps <- getMatrixComponents ColumnMajor mat
-                putStrLn $ show $ comps
+                -- putStrLn $ show $ comps
                 let [dx', dy', dz', _] = drop 12 comps
                     (heading', pitch') = (heading + dheading, pitch + dpitch)
                 return ((dx',dy',dz'),(heading',pitch'))
@@ -213,7 +213,7 @@ keyEvent state press = do
                 ps <- if not press
                   then return ps { keysPressed = fromIntegral code `IS.delete` kp }
                   else return ps { keysPressed = fromIntegral code `IS.insert` kp }
-                putStrLn $ unwords [name , show val, show code, show ps] -- trace (unwords [name , show val]) -- debugging
+                -- putStrLn $ unwords [name , show val, show code, show ps] -- trace (unwords [name , show val]) -- debugging
                 -- process keys
                 case press of
                   -- on PRESS only
