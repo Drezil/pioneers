@@ -63,17 +63,18 @@ data TileVertex =
         deriving (Show, Eq, Ord)
 
 
+--Culling is done with GL_CCW
 getTileVertices :: PlayMap -> Tile -> [Vertex3 GLfloat]
 getTileVertices heights t = let p = (listArray (0,5) hexagon)
                                         ::Array Int (Float,Float) in
                                        P.map floatToVertex $
                                   [
-                                        (fst $ p ! 0, getHeight heights VertexNW t, snd $ p ! 0),
-                                        (fst $ p ! 1, getHeight heights VertexNE t, snd $ p ! 1),
-                                        (fst $ p ! 2, getHeight heights VertexE  t, snd $ p ! 2),
-                                        (fst $ p ! 3, getHeight heights VertexSE t, snd $ p ! 3),
+                                        (fst $ p ! 5, getHeight heights VertexW  t, snd $ p ! 5),
                                         (fst $ p ! 4, getHeight heights VertexSW t, snd $ p ! 4),
-                                        (fst $ p ! 5, getHeight heights VertexW  t, snd $ p ! 5)
+                                        (fst $ p ! 3, getHeight heights VertexSE t, snd $ p ! 3),
+                                        (fst $ p ! 2, getHeight heights VertexE  t, snd $ p ! 2),
+                                        (fst $ p ! 1, getHeight heights VertexNE t, snd $ p ! 1),
+                                        (fst $ p ! 0, getHeight heights VertexNW t, snd $ p ! 0)
                                   ]
 
 getHeight :: PlayMap -> TileVertex -> Tile -> Float

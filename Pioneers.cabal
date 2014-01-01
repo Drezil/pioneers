@@ -10,7 +10,7 @@ executable Pioneers
   build-depends:   
                   base >= 4,
                   gtk,
-                  OpenGL >=2.8.0 && <2.9,
+                  OpenGL >=2.9,
                   gtkglext >=0.12,
                   containers >=0.5 && <0.6,
                   array >=0.4.0 && <0.5,
@@ -19,7 +19,6 @@ executable Pioneers
                   text >=0.11.3 && <0.12,
                   stm >=2.4.2 && <2.5,
                   transformers >=0.3.0 && <0.4,
-                  List >=0.5.1 && <0.6,
                   List >=0.5.1 && <0.6
   ghc-options:     -Wall
   other-modules:   

@@ -26,23 +26,33 @@ type PlayMap = Array (Int, Int) MapEntry
 -- row-minor -> row-major
 testMapTemplate :: [Text]
 testMapTemplate = T.transpose [
-                "~~~~~~~~~~",
-                "~~SSSSSS~~",
-                "~SSGGGGS~~",
-                "~SSGGMMS~~",
-                "~SGGMMS~~~",
-                "~SGMMMS~~~",
-                "~GGGGGGS~~",
-                "~SGGGGGS~~",
-                "~~SSSS~~~~",
-                "~~~~~~~~~~"
+                "~~~~~~~~~~~~~~~~~~~~",
+                "~~SSSSSSSSSSSSSS~~~~",
+                "~SSGGGGGGGSGSGGS~~~~",
+                "~SSGGGGGGMSGSGMS~~~~",
+                "~SGGGGGGMMMGGGS~~~S~",
+                "~SGGGMGMMMMMGGS~~~SS",
+                "~GGGGGGGGGGGGGGS~~~~",
+                "~SGGGGGGGGGGGGGS~~~~",
+                "~~SSSSGGGSSSSS~~~~~~",
+                "~~~~~SGGGGS~~~~~~~~~",
+                "~~~~SSGGGGSS~~~~~~~~",
+                "~~SSSGGGGGGSSSSS~~~~",
+                "~SSGSGSGGGSGSGGS~~~~",
+                "~SSGSGSGGMSGSGMS~~~~",
+                "~SGGMMMMGGGGGGS~~~~~",
+                "~SGMMMMMGGGGSSS~~~~~",
+                "~GGMMMMMGGGSSSSS~~~~",
+                "~SGGGGGGGSSSSSSS~~~~",
+                "~~SSSSSSSSSSSS~~~~~~",
+                "~~~~~~~~~~~~~~~~~~~~"
                 ]
 
 testmap :: IO PlayMap
 testmap = do
                 g <- getStdGen
                 rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate)
-                return $ listArray ((0,0),(9,9)) rawMap
+                return $ listArray ((0,0),(19,19)) rawMap
 
 
 parseTemplate :: [Int] -> Text -> [MapEntry]
