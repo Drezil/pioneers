@@ -37,7 +37,8 @@ data ProgramState = PS { keysPressed :: IntSet
                        , dy          :: GLfloat
                        , dz          :: GLfloat
                        , dheading    :: GLfloat
-                       , dpitch      :: GLfloat }
+                       , dpitch      :: GLfloat
+                       , showShadowMap :: Bool }
                        deriving (Show)
 
 type RenderObject = (Vector3 GLfloat, Color3 GLfloat, [Vertex3 GLfloat])
@@ -53,7 +54,7 @@ deltaH = 0.5
 deltaP = 0.15
 black = Color3 0 0 0 :: Color3 GLfloat
 shadowMapSize :: TextureSize2D
-shadowMapSize = TextureSize2D 256 256
+shadowMapSize = TextureSize2D 512 512
 
 up :: Vector3 GLdouble
 up = Vector3 0 1 0
@@ -124,12 +125,13 @@ drawObjects map ent shadowRender = do
         translate $ fmap (+ (-15.0)) pos
         drawSphere
     --draw sun-indicator
-    preservingMatrix $ do
+    {- preservingMatrix $ do
         pos <- getSunPos Vector3
         translate pos
         color (Color4 1.0 1.0 0.0 1.0 :: Color4 GLfloat)
         drawSphere
         --putStrLn $ unwords ["sun at", show pos]
+        -- -}
     --draw map
     mapM_ renderTile map
 
@@ -150,7 +152,8 @@ display state t =
         , py       = py
         , pz       = pz
         , pitch    = pitch
-        , heading  = heading }
+        , heading  = heading
+        , showShadowMap = showShadowMap }
                 <- readMVar state
         loadIdentity
         GL.rotate pitch (Vector3 1.0 0.0 0.0 :: Vector3 GLfloat)
@@ -159,9 +162,10 @@ display state t =
 
         generateShadowMap tiles []
         generateTextureMatrix
-        clear [ ColorBuffer, DepthBuffer ]
-        preservingMatrix $ do
-                drawObjects tiles [] False
+        unless showShadowMap $ do
+                clear [ ColorBuffer, DepthBuffer ]
+                preservingMatrix $ do
+                        drawObjects tiles [] False
 
         return ()
 
@@ -176,7 +180,8 @@ updateCamera state = do
         , pitch    = pitch
         , heading  = heading
         , dpitch   = dpitch
-        , dheading = dheading }
+        , dheading = dheading
+        }
                 <- takeMVar state
 
         d@((dx,dy,dz),(heading',pitch')) <-
@@ -228,7 +233,7 @@ generateTextureMatrix = do
           scalef = scale :: GLfloat -> GLfloat -> GLfloat -> IO ()
       translatef (Vector3 0.5 0.5 0.0)
       scalef 0.5 0.5 1.0
-      perspective 60 1 1 1000
+      ortho (-20) 20 (-20) 20 1 100
       lightPos' <- getSunPos Vertex3
       lookAt lightPos' origin up
       get (matrix (Just (Modelview 0)))
@@ -253,11 +258,13 @@ generateShadowMap tiles obj = do
       viewport $= (Position 0 0, shadowMapSize')
 
       clear [ ColorBuffer, DepthBuffer ]
+      
+      --cullFace $= Just Front -- only backsides cast shadows -> less polys
 
       matrixMode $= Projection
       preservingMatrix $ do
          loadIdentity
-         perspective 80 1 10 1000
+         ortho (-20) 20 (-20) 20 10 100
          matrixMode $= Modelview 0
          preservingMatrix $ do
             loadIdentity
@@ -267,6 +274,8 @@ generateShadowMap tiles obj = do
       matrixMode $= Modelview 0
 
       copyTexImage2D Texture2D 0 DepthComponent' (Position 0 0) shadowMapSize 0
+      
+      --cullFace $= Just Back
 
    when True $ do
       let numShadowMapPixels = fromIntegral (shadowMapWidth * shadowMapHeight)
@@ -322,7 +331,8 @@ keyEvent state press = do
                 , pitch       = pitch
                 , heading     = heading
                 , dpitch      = dpitch
-                , dheading    = dheading }
+                , dheading    = dheading
+                , showShadowMap = showShadowMap }
             <- takeMVar state
           -- Only process the key event if it is not a repeat
           (ps',ret) <- if (fromIntegral code `member` kp && not press) ||
@@ -350,6 +360,7 @@ keyEvent state press = do
                     | code == 66      -> accept $ ps { dy = dy + deltaV }
                     | code == 25      -> accept $ ps { dheading = dheading - deltaH }
                     | code == 27      -> accept $ ps { dheading = dheading + deltaH }
+                    | code == 42      -> accept $ ps { showShadowMap = not showShadowMap }
                     | otherwise       -> deny ps
                   -- on RELEASE only
                   False
@@ -380,7 +391,8 @@ main = do
                              , dy          = 0
                              , dz          = 0
                              , dheading    = 0
-                             , dpitch      = 0}
+                             , dpitch      = 0
+                             , showShadowMap = False }
   trace (show terrain) Gtk.initGUI
   -- Initialise the Gtk+ OpenGL extension
   -- (including reading various command line parameters)
