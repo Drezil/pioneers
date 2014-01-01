@@ -118,10 +118,19 @@ drawObjects map ent shadowRender = do
     when shadowRender $
         texture Texture2D $= Disabled --disable textures if we render shadows.
 
-    --draw objects
+    --draw something throwing shadows
     preservingMatrix $ do
-        translate (Vector3 15.0 15.0 25.0 :: Vector3 GLfloat)
+        pos <- getSunPos Vector3
+        translate $ fmap (+ (-15.0)) pos
         drawSphere
+    --draw sun-indicator
+    preservingMatrix $ do
+        pos <- getSunPos Vector3
+        translate pos
+        color (Color4 1.0 1.0 0.0 1.0 :: Color4 GLfloat)
+        drawSphere
+        --putStrLn $ unwords ["sun at", show pos]
+    --draw map
     mapM_ renderTile map
 
 
@@ -148,7 +157,7 @@ display state t =
         GL.rotate heading (Vector3 0.0 1.0 0.0 :: Vector3 GLfloat)
         translate (Vector3 (-px) (-py) (-pz)::Vector3 GLfloat)
 
-        generateShadowMap tiles [] True
+        generateShadowMap tiles []
         generateTextureMatrix
         clear [ ColorBuffer, DepthBuffer ]
         preservingMatrix $ do
@@ -234,8 +243,8 @@ generateTextureMatrix = do
    textureGenMode R $= Just (ObjectLinear (Plane rx ry rz rw))
    textureGenMode Q $= Just (ObjectLinear (Plane qx qy qz qw))
 
-generateShadowMap :: [RenderObject] -> [RenderObject] -> Bool -> IO ()
-generateShadowMap tiles obj showShadow' = do
+generateShadowMap :: [RenderObject] -> [RenderObject] -> IO ()
+generateShadowMap tiles obj = do
    lightPos' <- getSunPos Vertex3
    let (TextureSize2D shadowMapWidth shadowMapHeight) = shadowMapSize
        shadowMapSize' = Size shadowMapWidth shadowMapHeight
@@ -259,7 +268,7 @@ generateShadowMap tiles obj showShadow' = do
 
       copyTexImage2D Texture2D 0 DepthComponent' (Position 0 0) shadowMapSize 0
 
-   when showShadow' $ do
+   when True $ do
       let numShadowMapPixels = fromIntegral (shadowMapWidth * shadowMapHeight)
       allocaArray numShadowMapPixels $ \depthImage -> do
         let pixelData fmt = PixelData fmt Float depthImage :: PixelData GLfloat
@@ -406,8 +415,8 @@ main = do
     diffuse  sun $= Color4 1.0 1.0 1.0 1.0
     specular sun $= Color4 0.8 0.8 0.8 1.0
     lightModelAmbient  $= Color4 0.2 0.2 0.2 1.0
-    position sun $= (Vertex4 2.0 1.0 1.3 1.0 :: Vertex4 GLfloat) .* 5
-    spotDirection sun $= (Normal3 (-2.0) (-1.0) (-1.3) :: Normal3 GLfloat)
+    position sun $= (Vertex4 2.0 1.0 1.3 1.0 :: Vertex4 GLfloat) .* (1/2.5865) .* 45
+    spotDirection sun $= (Normal3 (2.0) (1.0) (1.3) :: Normal3 GLfloat)
     --spotExponent sun $= 1.0
     --attenuation sun $= (1.0, 0.0, 0.0)
 
@@ -426,8 +435,14 @@ main = do
     cullFace $= Just Back
 
     texture Texture2D $= Enabled
+    
+    --textureWrapMode Texture2D S $= (Repeated, ClampToEdge)
+    --textureWrapMode Texture2D T $= (Repeated, ClampToEdge)
+    textureFilter Texture2D $= ((Linear', Nothing), Linear')
+    textureCompareMode Texture2D $= Just Lequal
+    depthTextureMode Texture2D $= Luminance'
 
-    shadeModel $= Flat
+    shadeModel $= Smooth
 
     fog $= Enabled
     fogMode $= Linear 45.0 50.0
