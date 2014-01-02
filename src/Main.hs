@@ -26,6 +26,7 @@ import           GHC.Conc.Sync              (unsafeIOToSTM)
 import           Prelude                    as P
 import           System.IO.Unsafe           (unsafePerformIO)
 import Foreign.Marshal.Array (allocaArray)
+import Render.Misc (dumpInfo)
 
 data ProgramState = PS { keysPressed :: IntSet
                        , px          :: GLfloat
@@ -365,6 +366,7 @@ keyEvent state press = do
                     | code == 25      -> accept $ ps { dheading = dheading - deltaH }
                     | code == 27      -> accept $ ps { dheading = dheading + deltaH }
                     | code == 42      -> accept $ ps { showShadowMap = not showShadowMap }
+                    | code == 31      -> dumpInfo >> accept ps
                     | otherwise       -> deny ps
                   -- on RELEASE only
                   False
@@ -521,7 +523,6 @@ main = do
     (w, h)   <- Event.eventSize
     (w', h') <- liftIO $ reconfigure w h
     liftIO $ Gtk.labelSetText label $ unwords ["Width:",show w',"Height:",show h']
-
 
   Gtk.widgetShowAll window
   Gtk.mainGUI

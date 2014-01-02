@@ -1,17 +1,19 @@
 {-# LANGUAGE BangPatterns #-}
 module Render.Render where
 
-import Graphics.Rendering.OpenGL.GL.BufferObjects
-import Graphics.Rendering.OpenGL.GL.ObjectName
-import Graphics.Rendering.OpenGL.GL.StateVar
-import Render.Misc
-import Graphics.Rendering.OpenGL.Raw.Core31.Types (GLfloat)
-import Foreign.Storable (sizeOf)
-import Foreign.Marshal.Array (withArray)
-import Graphics.Rendering.OpenGL.GL.VertexSpec
-import Graphics.Rendering.OpenGL.GL.Shaders
-import Graphics.Rendering.OpenGL.GL.VertexArrays (Capability(..), vertexAttribArray)
-import qualified Data.ByteString as B
+import qualified Data.ByteString                            as B
+import           Foreign.Marshal.Array                      (withArray)
+import           Foreign.Storable                           (sizeOf)
+import           Graphics.Rendering.OpenGL.GL.BufferObjects
+import           Graphics.Rendering.OpenGL.GL.Framebuffer   (clearColor)
+import           Graphics.Rendering.OpenGL.GL.ObjectName
+import           Graphics.Rendering.OpenGL.GL.Shaders
+import           Graphics.Rendering.OpenGL.GL.StateVar
+import           Graphics.Rendering.OpenGL.GL.VertexArrays  (Capability (..),
+                                                             vertexAttribArray)
+import           Graphics.Rendering.OpenGL.GL.VertexSpec
+import           Graphics.Rendering.OpenGL.Raw.Core31.Types (GLfloat)
+import           Render.Misc
 
 vertexShaderFile :: String
 vertexShaderFile = "shaders/vertex.shader"
@@ -19,7 +21,7 @@ fragmentShaderFile :: String
 fragmentShaderFile = "shaders/fragment.shader"
 
 initBuffer :: [GLfloat] -> IO BufferObject
-initBuffer varray = 
+initBuffer varray =
         let
                 sizeOfVarray = length varray * sizeOfComponent
                 sizeOfComponent = sizeOf (head varray)
@@ -50,3 +52,8 @@ initShader = do
 
    checkError "initShader"
    return (projectionMatrixIndex, colorIndex, vertexIndex)
+
+initRendering :: IO ()
+initRendering = do
+        clearColor $= Color4 0 0 0 0
+        checkError "initRendering"

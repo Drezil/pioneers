@@ -1,24 +1,24 @@
 module Render.Misc where
 
-import Graphics.Rendering.OpenGL.GL.StringQueries
-import Graphics.Rendering.OpenGL.GL.StateVar
-import Graphics.Rendering.OpenGL.GLU.Errors
-import System.IO (hPutStrLn, stderr)
-import Control.Monad
-import Graphics.Rendering.OpenGL.GL.Shaders
-import qualified Data.ByteString as B (ByteString)
+import           Control.Monad
+import qualified Data.ByteString                            as B (ByteString)
+import           Graphics.Rendering.OpenGL.GL.Shaders
+import           Graphics.Rendering.OpenGL.GL.StateVar
+import           Graphics.Rendering.OpenGL.GL.StringQueries
+import           Graphics.Rendering.OpenGL.GLU.Errors
+import           System.IO                                  (hPutStrLn, stderr)
 
 
 checkError :: String -> IO ()
 checkError functionName = get errors >>= mapM_ reportError
-   where reportError e = 
+   where reportError e =
             hPutStrLn stderr (showError e ++ " detected in " ++ functionName)
          showError (Error category message) =
             "GL error " ++ show category ++ " (" ++ message ++ ")"
 
 dumpInfo :: IO ()
 dumpInfo = do
-        let dump message var = putStrLn . ((message ++ ": ") ++) =<< get var 
+        let dump message var = putStrLn . ((message ++ ": ") ++) =<< get var
         dump "Vendor" vendor
         dump "Renderer" renderer
         dump "Version" glVersion

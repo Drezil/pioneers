@@ -105,11 +105,11 @@ colorLookup hs t = if inRange (bounds hs) t then c else (0.0, 0.0, 0.0)
                                 Mountain        -> (0.5, 0.5, 0.5)
 
 coordLookup :: (Int,Int) -> GLfloat -> (GLfloat, GLfloat, GLfloat)
-coordLookup (x,y) h = 
+coordLookup (x,z) y = 
                 if even x then
-                        (fromIntegral $ x `div` 2, fromIntegral (2 * y) * lineHeight, h)
+                        (fromIntegral $ x `div` 2, y, fromIntegral (2 * z) * lineHeight)
                 else
-                        (fromIntegral (x `div` 2) / 2.0, fromIntegral (2 * y + 1) * lineHeight, h)
+                        (fromIntegral (x `div` 2) / 2.0, y, fromIntegral (2 * z + 1) * lineHeight)
 
 
 -- if writing in ASCII-Format transpose so i,j -> y,x
