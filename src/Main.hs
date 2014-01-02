@@ -124,6 +124,10 @@ drawObjects map ent shadowRender = do
         pos <- getSunPos Vector3
         translate $ fmap (+ (-15.0)) pos
         drawSphere
+    preservingMatrix $ do
+        pos <- getSunPos Vector3
+        translate $ fmap (+ (-10.0)) pos
+        drawSphere
     --draw sun-indicator
     {- preservingMatrix $ do
         pos <- getSunPos Vector3
@@ -259,7 +263,7 @@ generateShadowMap tiles obj = do
 
       clear [ ColorBuffer, DepthBuffer ]
       
-      --cullFace $= Just Front -- only backsides cast shadows -> less polys
+      cullFace $= Just Front -- only backsides cast shadows -> less polys
 
       matrixMode $= Projection
       preservingMatrix $ do
@@ -275,7 +279,7 @@ generateShadowMap tiles obj = do
 
       copyTexImage2D Texture2D 0 DepthComponent' (Position 0 0) shadowMapSize 0
       
-      --cullFace $= Just Back
+      cullFace $= Just Back
 
    when True $ do
       let numShadowMapPixels = fromIntegral (shadowMapWidth * shadowMapHeight)
@@ -441,15 +445,15 @@ main = do
 
     clearColor $= Color4 0.0 0.0 0.0 0.0
     drawBuffer $= BackBuffers
-    colorMaterial $= Just (Front, Diffuse)
+    colorMaterial $= Just (FrontAndBack, AmbientAndDiffuse)
 
     frontFace $= CCW
     cullFace $= Just Back
 
     texture Texture2D $= Enabled
     
-    --textureWrapMode Texture2D S $= (Repeated, ClampToEdge)
-    --textureWrapMode Texture2D T $= (Repeated, ClampToEdge)
+    textureWrapMode Texture2D S $= (Repeated, ClampToEdge)
+    textureWrapMode Texture2D T $= (Repeated, ClampToEdge)
     textureFilter Texture2D $= ((Linear', Nothing), Linear')
     textureCompareMode Texture2D $= Just Lequal
     depthTextureMode Texture2D $= Luminance'

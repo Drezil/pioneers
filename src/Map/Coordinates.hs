@@ -10,19 +10,14 @@ Tile
 where
 
 import Graphics.Rendering.OpenGL as GL
-import Data.Map as M hiding ((!))
-import qualified Data.Map as M ((!))
-import Data.Maybe
 import Prelude as P
 import Data.Array.IArray as A
-import Map.Map as PMap
-import Debug.Trace
+import Map.Map as PMap hiding (heightLookup)
 
 
 type Coordinates = (Int, Int)
 type Pos = (Float, Float)
 
--- | a Tile is 1 unit in size. Due to hexagonality the real rendered Area is less.
 type Tile = Coordinates
 
 instance Num Tile where
@@ -52,7 +47,7 @@ data Neighbours =
         | SouthWest
         deriving (Show, Eq)
 
--- | Ordered Vertice-List for rendering (clockwise)
+-- | Ordered Vertice-List for rendering (Counterclockwise)
 data TileVertex =
           VertexNW
         | VertexNE
