@@ -81,6 +81,7 @@ lookupVertex map' x y =
                         (cr, cg, cb) = colorLookup map' (x,y)
                         (vx, vy, vz) = coordLookup (x,y) $ heightLookup map' (x,y)
                         (nx, ny, nz) = (0.0, 1.0, 0.0) :: (GLfloat, GLfloat, GLfloat)
+                        --TODO: calculate normals correctly!
                 in
                 [
                         (vx, cr, nx),
