@@ -69,6 +69,7 @@ getMapBufferObject = do
         map' <- return $ generateTriangles map'
         putStrLn $ P.unlines $ P.map show (prettyMap map')
         len <- return $ fromIntegral $ P.length map' `div` numComponents
+        putStrLn $ P.unwords ["num verts",show len]
         bo <- genObjectName                     -- create a new buffer
         bindBuffer ArrayBuffer $= Just bo       -- bind buffer
         withArray map' $ \buffer ->
@@ -182,7 +183,6 @@ testMapTemplate = T.transpose [
 
 testMapTemplate2 :: [Text]
 testMapTemplate2 = T.transpose [
-                "~~~~~~",
                 "~~~~~~"
                 ]
 
@@ -190,7 +190,7 @@ testmap :: IO PlayMap
 testmap = do
                 g <- getStdGen
                 rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate2)
-                return $ listArray ((0,0),(5,1)) rawMap
+                return $ listArray ((0,0),(5,0)) rawMap
 
 
 parseTemplate :: [Int] -> Text -> [MapEntry]

@@ -75,7 +75,13 @@ lookAtUniformMatrix4fv :: (Double, Double, Double)  --origin
                         -> GLint -> GLsizei -> IO () --rest of GL-call
 lookAtUniformMatrix4fv o c u frust num size = allocaArray 16 $ \projMat ->
                                                 do
-                                                        pokeArray projMat $ (lookAt o c u) >< frust
+                                                        pokeArray projMat $
+                                                                [1,  0,  0,  0,
+                                                                 0,  0,  1,  0.1,
+                                                                 0,  1,  0,  0,
+                                                                 0,  0,  0,  1
+                                                                ]
+                                                                --(lookAt o c u) >< frust
                                                         glUniformMatrix4fv num size 1 projMat
 
 infixl 5 ><
@@ -121,7 +127,7 @@ _ >< _ = error "non-conformat matrix-multiplication"
 
 -- generates 4x4-Projection-Matrix
 lookAt :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double) -> [GLfloat]
-lookAt origin eye up = 
+lookAt at eye up = 
         map (fromRational . toRational) [
          xx, yx, zx, 0,
          xy, yy, zy, 0,
@@ -129,7 +135,7 @@ lookAt origin eye up =
          -(x *. eye), -(y *. eye), -(z *. eye), 1
         ]
         where
-                z@(zx,zy,zz) = normal (origin .- eye)
+                z@(zx,zy,zz) = normal (at .- eye)
                 x@(xx,xy,xz) = normal (up *.* z)
                 y@(yx,yy,yz) = z *.* x
 

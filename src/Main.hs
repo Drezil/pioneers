@@ -104,8 +104,8 @@ main = do
         GL.position (GL.Light 0) GL.$= GL.Vertex4 5 5 10 0
         GL.light    (GL.Light 0) GL.$= GL.Enabled
         GL.lighting   GL.$= GL.Enabled
-        GL.cullFace   GL.$= Just GL.Back
-        GL.depthFunc  GL.$= Just GL.Less
+        GL.cullFace   GL.$= Just GL.FrontAndBack -- Back
+        GL.depthFunc  GL.$= Just GL.Always       -- Less
         GL.clearColor GL.$= GL.Color4 0.05 0.05 0.05 1
         GL.normalize  GL.$= GL.Enabled
         
@@ -407,14 +407,13 @@ draw = do
         map' = stateMap state
         frust = stateFrustum state
     liftIO $ do
-        GL.clearColor GL.$= GL.Color4 0.5 0.2 1 1
         GL.clear [GL.ColorBuffer, GL.DepthBuffer]
-        lookAtUniformMatrix4fv (0.0,0.0,0.0) (15, 15, 30) up frust proj 1
+        lookAtUniformMatrix4fv (0.0,0.0,0.0) (0, 15, 0) up frust proj 1
         GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
         GL.vertexAttribPointer ci GL.$= fgColorIndex
         GL.vertexAttribPointer ni GL.$= fgNormalIndex
         GL.vertexAttribPointer vi GL.$= fgVertexIndex
-        
+
         GL.drawArrays GL.Triangles 0 numVert
 
 getCursorKeyDirections :: GLFW.Window -> IO (Double, Double)
