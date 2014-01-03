@@ -15,7 +15,14 @@ import System.Random
 import Data.Array.IArray
 import Data.Text as T 
 import Prelude as P
-import Graphics.Rendering.OpenGL.GL
+--import Graphics.Rendering.OpenGL.GL
+import           Graphics.Rendering.OpenGL.GL.BufferObjects
+import           Graphics.Rendering.OpenGL.GL.ObjectName
+import           Graphics.Rendering.OpenGL.GL.StateVar
+import           Graphics.Rendering.OpenGL.GL.VertexArrays
+import           Graphics.Rendering.OpenGL.GL.VertexSpec
+import           Graphics.Rendering.OpenGL.Raw.Core31
+
 import Foreign.Marshal.Array (withArray)
 import Foreign.Storable (sizeOf)
 import Foreign.Ptr (Ptr, nullPtr, plusPtr)
