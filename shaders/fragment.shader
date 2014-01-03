@@ -1,4 +1,4 @@
-#version 140
+#version 330
 
 //color from earlier stages
 smooth in vec4 fg_SmoothColor;

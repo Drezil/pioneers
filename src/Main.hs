@@ -15,7 +15,7 @@ import qualified Graphics.UI.GLFW          as GLFW
 
 import Map.Map
 import Render.Render (initShader)
-import Render.Misc (up, lookAtUniformMatrix4fv)
+import Render.Misc (up, lookAtUniformMatrix4fv, createFrustum)
 
 --------------------------------------------------------------------------------
 
@@ -23,8 +23,6 @@ import Render.Misc (up, lookAtUniformMatrix4fv)
 data Env = Env
     { envEventsChan    :: TQueue Event
     , envWindow        :: !GLFW.Window
-    , envMap           :: !GL.BufferObject
-    , mapVert          :: !GL.NumArrayIndices
     , envZDistClosest  :: !Double
     , envZDistFarthest :: !Double
     }
@@ -43,12 +41,16 @@ data State = State
     , stateDragStartY      :: !Double
     , stateDragStartXAngle :: !Double
     , stateDragStartYAngle :: !Double
+    , stateFrustum         :: [GL.GLfloat]
     -- pointer to bindings for locations inside the compiled shader
     -- mutable because shaders may be changed in the future.
     , shdrColorIndex       :: !GL.AttribLocation
     , shdrNormalIndex      :: !GL.AttribLocation
     , shdrVertexIndex      :: !GL.AttribLocation
     , shdrProjMatIndex     :: !GL.UniformLocation
+    -- the map
+    , stateMap             :: !GL.BufferObject
+    , mapVert              :: !GL.NumArrayIndices
     }
 
 type Pioneer = RWST Env () State IO
@@ -81,7 +83,7 @@ main = do
 
     eventsChan <- newTQueueIO :: IO (TQueue Event)
 
-    withWindow width height "GLFW-b-demo" $ \win -> do
+    withWindow width height "Pioneers" $ \win -> do
         GLFW.setErrorCallback               $ Just $ errorCallback           eventsChan
         GLFW.setWindowPosCallback       win $ Just $ windowPosCallback       eventsChan
         GLFW.setWindowSizeCallback      win $ Just $ windowSizeCallback      eventsChan
@@ -118,11 +120,14 @@ main = do
         let zDistClosest  = 10
             zDistFarthest = zDistClosest + 20
             zDist         = zDistClosest + ((zDistFarthest - zDistClosest) / 2)
+            fov           = 90  --field of view
+            near          = 1   --near plane
+            far           = 100 --far plane
+            ratio         = fromIntegral fbWidth / fromIntegral fbHeight
+            frust         = createFrustum fov near far ratio
             env = Env
               { envEventsChan    = eventsChan
               , envWindow        = win
-              , envMap           = mapBuffer
-              , mapVert          = vert
               , envZDistClosest  = zDistClosest
               , envZDistFarthest = zDistFarthest
               }
@@ -143,6 +148,9 @@ main = do
               , shdrNormalIndex      = ni
               , shdrVertexIndex      = vi
               , shdrProjMatIndex     = pi
+              , stateMap             = mapBuffer
+              , mapVert              = vert
+              , stateFrustum         = frust
               }
         runDemo env state
 
@@ -316,9 +324,9 @@ processEvent ev =
                   }
 
       (EventCursorPos _ x y) -> do
-          let x' = round x :: Int
+          {-let x' = round x :: Int
               y' = round y :: Int
-          printEvent "cursor pos" [show x', show y']
+          printEvent "cursor pos" [show x', show y']-}
           state <- get
           when (stateMouseDown state && not (stateDragging state)) $
             put $ state
@@ -395,10 +403,13 @@ draw = do
         ci = shdrColorIndex state
         ni = shdrNormalIndex state
         vi = shdrVertexIndex state
-        numVert = mapVert env
-        map' = envMap env 
+        numVert = mapVert state
+        map' = stateMap state
+        frust = stateFrustum state
     liftIO $ do
-        lookAtUniformMatrix4fv (0.0,0.0,0.0) (xa, ya, za) up proj 1
+        GL.clearColor GL.$= GL.Color4 0.5 0.2 1 1
+        GL.clear [GL.ColorBuffer, GL.DepthBuffer]
+        lookAtUniformMatrix4fv (0.0,0.0,0.0) (15, 15, 30) up frust proj 1
         GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
         GL.vertexAttribPointer ci GL.$= fgColorIndex
         GL.vertexAttribPointer ni GL.$= fgNormalIndex

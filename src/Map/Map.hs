@@ -44,6 +44,9 @@ numComponents = 4  --color
                 +3 --normal
                 +3 --vertex
 
+mapStride :: Stride
+mapStride = fromIntegral (sizeOf (0.0 :: GLfloat)) * fromIntegral numComponents
+
 bufferObjectPtr :: Integral a => a -> Ptr b
 bufferObjectPtr = plusPtr (nullPtr :: Ptr GLchar) . fromIntegral
 
@@ -60,13 +63,11 @@ fgNormalIndex = (ToFloat, mapVertexArrayDescriptor 3 4) --normal after color
 fgVertexIndex :: (IntegerHandling, VertexArrayDescriptor a)
 fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 
-mapStride :: Stride
-mapStride = fromIntegral (sizeOf (0.0 :: GLfloat)) * fromIntegral numComponents
-
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
         map' <- testmap
         map' <- return $ generateTriangles map'
+        putStrLn $ P.unlines $ P.map show (prettyMap map')
         len <- return $ fromIntegral $ P.length map' `div` numComponents
         bo <- genObjectName                     -- create a new buffer
         bindBuffer ArrayBuffer $= Just bo       -- bind buffer
@@ -75,6 +76,9 @@ getMapBufferObject = do
         checkError "initBuffer"
         return (bo,len)
 
+prettyMap :: [GLfloat] -> [(GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat)]
+prettyMap (a:b:c:d:x:y:z:u:v:w:ms) = (a,b,c,d,x,y,z,u,v,w):(prettyMap ms)
+prettyMap _ = []
 
 generateTriangles :: PlayMap -> [GLfloat] 
 generateTriangles map' =
@@ -176,11 +180,17 @@ testMapTemplate = T.transpose [
                 "~~~~~~~~~~~~~~~~~~~~"
                 ]
 
+testMapTemplate2 :: [Text]
+testMapTemplate2 = T.transpose [
+                "~~~~~~",
+                "~~~~~~"
+                ]
+
 testmap :: IO PlayMap
 testmap = do
                 g <- getStdGen
-                rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate)
-                return $ listArray ((0,0),(19,19)) rawMap
+                rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate2)
+                return $ listArray ((0,0),(5,1)) rawMap
 
 
 parseTemplate :: [Int] -> Text -> [MapEntry]

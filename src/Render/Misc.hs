@@ -57,16 +57,69 @@ createProgramUsing shaders = do
    linkAndCheck program
    return program
 
+createFrustum :: Float -> Float -> Float -> Float -> [GLfloat]
+createFrustum fov n f rat =
+                let s = recip (tan $ fov*0.5 * pi / 180) in
+
+                map (fromRational . toRational) [
+                        rat*s,0,0,0,
+                        0,rat*s,0,0,
+                        0,0,-(f/(f-n)), -1,
+                        0,0,-((f*n)/(f-n)), 1
+                ]
+
 lookAtUniformMatrix4fv :: (Double, Double, Double)  --origin
                         -> (Double, Double, Double) --camera-pos
                         -> (Double, Double, Double) --up
+                        -> [GLfloat]                --frustum
                         -> GLint -> GLsizei -> IO () --rest of GL-call
-lookAtUniformMatrix4fv o c u num size = allocaArray 16 $ \projMat ->
+lookAtUniformMatrix4fv o c u frust num size = allocaArray 16 $ \projMat ->
                                                 do
-                                                        pokeArray projMat $ lookAt o c u
+                                                        pokeArray projMat $ (lookAt o c u) >< frust
                                                         glUniformMatrix4fv num size 1 projMat
 
--- generats 4x4-Projection-Matrix
+infixl 5 ><
+
+(><) :: [GLfloat] -> [GLfloat] -> [GLfloat]
+
+[   aa, ab, ac, ad,
+    ba, bb, bc, bd,
+    ca, cb, cc, cd,
+    da, db, dc, dd
+        ] >< 
+  [
+    xx, xy, xz, xw,
+    yx, yy, yz, yw,
+    zx, zy, zz, zw,
+    wx, wy, wz, ww
+        ] = [
+                --first row
+                aa*xx + ab*yx + ac*zx + ad * wx,
+                aa*xy + ab*yy + ac*zy + ad * wy,
+                aa*xz + ab*yz + ac*zz + ad * wz,
+                aa*xw + ab*yw + ac*zw + ad * ww,
+
+                --second row
+                ba*xx + bb*yx + bc*zx + bd * wx,
+                ba*xy + bb*yy + bc*zy + bd * wy,
+                ba*xz + bb*yz + bc*zz + bd * wz,
+                ba*xw + bb*yw + bc*zw + bd * ww,
+
+                --third row
+                ca*xx + cb*yx + cc*zx + cd * wx,
+                ca*xy + cb*yy + cc*zy + cd * wy,
+                ca*xz + cb*yz + cc*zz + cd * wz,
+                ca*xw + cb*yw + cc*zw + cd * ww,
+
+                --fourth row
+                da*xx + db*yx + dc*zx + dd * wx,
+                da*xy + db*yy + dc*zy + dd * wy,
+                da*xz + db*yz + dc*zz + dd * wz,
+                da*xw + db*yw + dc*zw + dd * ww
+                ]
+_ >< _ = error "non-conformat matrix-multiplication"
+
+-- generates 4x4-Projection-Matrix
 lookAt :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double) -> [GLfloat]
 lookAt origin eye up = 
         map (fromRational . toRational) [
