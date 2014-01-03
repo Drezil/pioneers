@@ -1,14 +1,14 @@
 #version 140
 
-#constant projection matrix
+//constant projection matrix
 uniform mat4 fg_ProjectionMatrix;
 
-#vertex-data
+//vertex-data
 in vec4 fg_Color;
 in vec4 fg_Vertex;
 in vec4 fg_Normal;
 
-#output-data for later stages
+//output-data for later stages
 smooth out vec4 fg_SmoothColor;
 
 void main()

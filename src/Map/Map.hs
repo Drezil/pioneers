@@ -1,13 +1,25 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Map.Map 
 
+(
+mapVertexArrayDescriptor,
+fgColorIndex,
+fgNormalIndex,
+fgVertexIndex,
+mapStride,
+getMapBufferObject
+)
 where
 
 import System.Random
 import Data.Array.IArray
 import Data.Text as T 
 import Prelude as P
-import Graphics.Rendering.OpenGL.Raw.Core31.Types (GLfloat)
+import Graphics.Rendering.OpenGL.GL
+import Foreign.Marshal.Array (withArray)
+import Foreign.Storable (sizeOf)
+import Foreign.Ptr (Ptr, nullPtr, plusPtr)
+import Render.Misc (checkError)
 
 
 data TileType =
@@ -27,25 +39,51 @@ type PlayMap = Array (Int, Int) MapEntry
 lineHeight :: GLfloat
 lineHeight = 0.8660254
 
--- | getMap returns the map as List of Vertices (rendered as triangles).
---   This promises to hold True for length v == length c == length n in
---   getMap -> (v,c,n) with length v `mod` 3 == 0.
---
---   v are Vertices, c are Colors and n are Normals. 
-getMap :: IO ([GLfloat], [GLfloat], [GLfloat])
-getMap = do
-                map' <- testmap
-                return $ unzip3 $ generateTriangles map'
+numComponents :: Int
+numComponents = 4  --color
+                +3 --normal
+                +3 --vertex
+
+bufferObjectPtr :: Integral a => a -> Ptr b
+bufferObjectPtr = plusPtr (nullPtr :: Ptr GLchar) . fromIntegral
+
+mapVertexArrayDescriptor :: NumComponents -> NumComponents -> VertexArrayDescriptor a
+mapVertexArrayDescriptor count' offset =
+   VertexArrayDescriptor count' Float mapStride (bufferObjectPtr (fromIntegral numComponents * offset))
+
+fgColorIndex :: (IntegerHandling, VertexArrayDescriptor a)
+fgColorIndex = (ToFloat, mapVertexArrayDescriptor 4 0)  --color first
+
+fgNormalIndex :: (IntegerHandling, VertexArrayDescriptor a)
+fgNormalIndex = (ToFloat, mapVertexArrayDescriptor 3 4) --normal after color
+
+fgVertexIndex :: (IntegerHandling, VertexArrayDescriptor a)
+fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
+
+mapStride :: Stride
+mapStride = fromIntegral (sizeOf (0.0 :: GLfloat)) * fromIntegral numComponents
+
+getMapBufferObject :: IO (BufferObject, NumArrayIndices)
+getMapBufferObject = do
+        map' <- testmap
+        map' <- return $ generateTriangles map'
+        len <- return $ fromIntegral $ P.length map' `div` numComponents
+        bo <- genObjectName                     -- create a new buffer
+        bindBuffer ArrayBuffer $= Just bo       -- bind buffer
+        withArray map' $ \buffer ->
+                bufferData ArrayBuffer $= (fromIntegral (sizeOf(P.head map')), buffer, StaticDraw)
+        checkError "initBuffer"
+        return (bo,len)
 
 
-generateTriangles :: PlayMap -> [(GLfloat, GLfloat, GLfloat)] 
+generateTriangles :: PlayMap -> [GLfloat] 
 generateTriangles map' =
                 let ((xl,yl),(xh,yh)) = bounds map' in
                 P.concat [P.concat $ P.map (generateFirstTriLine map' y) [xl .. xh - 2] 
-                                  ++ P.map (generateSecondTriLine map' (y == yh) y) [xl .. xh - 2]
+                          ++ P.map (generateSecondTriLine map' (y == yh) y) [xl .. xh - 2]
                          | y <- [yl..yh]]
 
-generateFirstTriLine :: PlayMap -> Int -> Int -> [(GLfloat, GLfloat, GLfloat)]
+generateFirstTriLine :: PlayMap -> Int -> Int -> [GLfloat]
 generateFirstTriLine map' y x =
                 P.concat $
                    if even x then
@@ -59,7 +97,7 @@ generateFirstTriLine map' y x =
                         lookupVertex map' (x + 1) y
                      ]
 
-generateSecondTriLine :: PlayMap -> Bool -> Int -> Int ->  [(GLfloat, GLfloat, GLfloat)]
+generateSecondTriLine :: PlayMap -> Bool -> Int -> Int ->  [GLfloat]
 generateSecondTriLine map' False y x  =
                 P.concat $
                    if even x then
@@ -75,7 +113,7 @@ generateSecondTriLine map' False y x  =
 generateSecondTriLine _ True _ _  = []
 
 
-lookupVertex :: PlayMap -> Int -> Int -> [(GLfloat, GLfloat, GLfloat)]
+lookupVertex :: PlayMap -> Int -> Int -> [GLfloat]
 lookupVertex map' x y = 
                 let 
                         (cr, cg, cb) = colorLookup map' (x,y)
@@ -84,9 +122,9 @@ lookupVertex map' x y =
                         --TODO: calculate normals correctly!
                 in
                 [
-                        (vx, cr, nx),
-                        (vy, cg, ny),
-                        (vz, cb, nz)
+                        cr, cg, cb, 1.0,        -- RGBA Color
+                        nx, ny, nz,             -- 3 Normal
+                        vx, vy, vz              -- 3 Vertex
                 ]
 
 heightLookup :: PlayMap -> (Int,Int) -> GLfloat

@@ -1,529 +1,592 @@
-{-# LANGUAGE BangPatterns #-}
-module Main where
+module Main (main) where
 
-import           Graphics.UI.Gtk            (AttrOp ((:=)))
-import qualified Graphics.UI.Gtk            as Gtk
-import qualified Graphics.UI.Gtk.OpenGL     as GtkGL
+--------------------------------------------------------------------------------
 
-import qualified Data.Array.IArray          as A
-import           Graphics.Rendering.OpenGL  as GL
-import qualified Graphics.UI.Gtk.Gdk.EventM as Event
+import Control.Concurrent.STM    (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue)
+import Control.Monad             (unless, when, void)
+import Control.Monad.RWS.Strict  (RWST, ask, asks, evalRWST, get, liftIO, modify, put)
+import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
+import Data.List                 (intercalate)
+import Data.Maybe                (catMaybes)
+import Text.PrettyPrint
 
-import           Map.Coordinates
-import           Map.Map
+import qualified Graphics.Rendering.OpenGL as GL
+import qualified Graphics.UI.GLFW          as GLFW
 
-import           Data.IntSet                as IS
-import           Data.IORef
-import           Data.Maybe                 (fromMaybe)
-import           Debug.Trace
+import Map.Map
+import Render.Render (initShader)
+import Render.Misc (up, lookAtUniformMatrix4fv)
 
-import           Control.Concurrent
-import           Control.Concurrent.STM
-import           Control.Monad
-import           Control.Monad.IO.Class     (liftIO)
-import           Foreign.Ptr                (nullPtr)
-import           GHC.Conc.Sync              (unsafeIOToSTM)
-import           Prelude                    as P
-import           System.IO.Unsafe           (unsafePerformIO)
-import Foreign.Marshal.Array (allocaArray)
-import Render.Misc (dumpInfo)
+--------------------------------------------------------------------------------
 
-data ProgramState = PS { keysPressed :: IntSet
-                       , px          :: GLfloat
-                       , py          :: GLfloat
-                       , pz          :: GLfloat
-                       , heading     :: GLfloat
-                       , pitch       :: GLfloat
-                       , dx          :: GLfloat
-                       , dy          :: GLfloat
-                       , dz          :: GLfloat
-                       , dheading    :: GLfloat
-                       , dpitch      :: GLfloat
-                       , showShadowMap :: Bool }
-                       deriving (Show)
+--Static Read-Only-State
+data Env = Env
+    { envEventsChan    :: TQueue Event
+    , envWindow        :: !GLFW.Window
+    , envMap           :: !GL.BufferObject
+    , mapVert          :: !GL.NumArrayIndices
+    , envZDistClosest  :: !Double
+    , envZDistFarthest :: !Double
+    }
 
-type RenderObject = (Vector3 GLfloat, Color3 GLfloat, [Vertex3 GLfloat])
+--Mutable State
+data State = State
+    { stateWindowWidth     :: !Int
+    , stateWindowHeight    :: !Int
+    , stateXAngle          :: !Double
+    , stateYAngle          :: !Double
+    , stateZAngle          :: !Double
+    , stateZDist           :: !Double
+    , stateMouseDown       :: !Bool
+    , stateDragging        :: !Bool
+    , stateDragStartX      :: !Double
+    , stateDragStartY      :: !Double
+    , stateDragStartXAngle :: !Double
+    , stateDragStartYAngle :: !Double
+    -- pointer to bindings for locations inside the compiled shader
+    -- mutable because shaders may be changed in the future.
+    , shdrColorIndex       :: !GL.AttribLocation
+    , shdrNormalIndex      :: !GL.AttribLocation
+    , shdrVertexIndex      :: !GL.AttribLocation
+    , shdrProjMatIndex     :: !GL.UniformLocation
+    }
 
-(Vertex4 a b c d) .+ (Vertex4 w x y z) = Vertex4 (a+w) (b+x) (c+y) (d+z)
-(Vertex4 a b c d) .* e = Vertex4 (a*e) (b*e) (c*e) (d*e)
+type Pioneer = RWST Env () State IO
 
-animationWaitTime = 3   :: Int
-canvasWidth = 1024      :: Int
-canvasHeight = 768      :: Int
-deltaV = 0.10
-deltaH = 0.5
-deltaP = 0.15
-black = Color3 0 0 0 :: Color3 GLfloat
-shadowMapSize :: TextureSize2D
-shadowMapSize = TextureSize2D 512 512
+--------------------------------------------------------------------------------
 
-up :: Vector3 GLdouble
-up = Vector3 0 1 0
+data Event =
+    EventError           !GLFW.Error !String
+  | EventWindowPos       !GLFW.Window !Int !Int
+  | EventWindowSize      !GLFW.Window !Int !Int
+  | EventWindowClose     !GLFW.Window
+  | EventWindowRefresh   !GLFW.Window
+  | EventWindowFocus     !GLFW.Window !GLFW.FocusState
+  | EventWindowIconify   !GLFW.Window !GLFW.IconifyState
+  | EventFramebufferSize !GLFW.Window !Int !Int
+  | EventMouseButton     !GLFW.Window !GLFW.MouseButton !GLFW.MouseButtonState !GLFW.ModifierKeys
+  | EventCursorPos       !GLFW.Window !Double !Double
+  | EventCursorEnter     !GLFW.Window !GLFW.CursorState
+  | EventScroll          !GLFW.Window !Double !Double
+  | EventKey             !GLFW.Window !GLFW.Key !Int !GLFW.KeyState !GLFW.ModifierKeys
+  | EventChar            !GLFW.Window !Char
+  deriving Show
 
-origin :: Vertex3 GLdouble
-origin   = Vertex3 0 0 0
-
-sun = Light 0 
-
--- TODO: Put render-stuff in render-modul
-
---gets Sun position in given format
-getSunPos :: (GLdouble -> GLdouble -> GLdouble -> a) -> IO a
-getSunPos f = do
-        Vertex4 x y z _ <- get (position sun)
-        return $ f (realToFrac x) (realToFrac y) (realToFrac z)
-
-glTexCoord2f (x,y) = texCoord (TexCoord2 x y :: TexCoord2 GLfloat)
-glVertex3f (x,y,z) = vertex (Vertex3 x y z :: Vertex3 GLfloat)
-glNormal3f (x,y,z) = normal (Normal3 x y z :: Normal3 GLfloat)
-
-prepareRenderTile :: PlayMap -> ((Int,Int),MapEntry) -> (Vector3 GLfloat, Color3 GLfloat, [Vertex3 GLfloat])
-prepareRenderTile m (c@(cx,cz),(_,t)) =
-                        (
-                        Vector3 (1.5 * fromIntegral cx) 0.0
-                                  (if even cx then 2 * fromIntegral cz else
-                                     2 * fromIntegral cz - 1)
-                        ,
-                        case t of
-                                Water -> Color3 0.5 0.5 1 :: Color3 GLfloat
-                                Grass -> Color3 0.3 0.9 0.1 :: Color3 GLfloat
-                                Sand -> Color3 0.9 0.85 0.7 :: Color3 GLfloat
-                                Mountain -> Color3 0.5 0.5 0.5 :: Color3 GLfloat
-                        ,getTileVertices m c)
-
-renderTile :: RenderObject -> IO ()
-renderTile (coord,c,ts) =
-        preservingMatrix $ do
-                translate coord
-                {-color black
-                lineWidth $= 4.0
-                lineSmooth $= Enabled
-                _ <- renderPrimitive LineLoop $ do
-                        glNormal3f(0.0,0.0,1.0)
-                        mapM vertex ts-}
-                color c
-                _ <- renderPrimitive Polygon $ do
-                        glNormal3f(0.0,1.0,0.0)
-                        mapM vertex ts
-                return ()
-
-drawSphere :: IO ()
-drawSphere = renderQuadric
-  (QuadricStyle (Just Smooth) GenerateTextureCoordinates Outside
-     FillStyle)
-  (Sphere 2.0 48 48)
-
-drawObjects :: [RenderObject] -> [RenderObject] -> Bool -> IO ()
-drawObjects map ent shadowRender = do
-    textureOn <- get (texture Texture2D) --are textures enabled?
-
-    when shadowRender $
-        texture Texture2D $= Disabled --disable textures if we render shadows.
-
-    --draw something throwing shadows
-    preservingMatrix $ do
-        pos <- getSunPos Vector3
-        translate $ fmap (+ (-15.0)) pos
-        drawSphere
-    preservingMatrix $ do
-        pos <- getSunPos Vector3
-        translate $ fmap (+ (-10.0)) pos
-        drawSphere
-    --draw sun-indicator
-    {- preservingMatrix $ do
-        pos <- getSunPos Vector3
-        translate pos
-        color (Color4 1.0 1.0 0.0 1.0 :: Color4 GLfloat)
-        drawSphere
-        --putStrLn $ unwords ["sun at", show pos]
-        -- -}
-    --draw map
-    mapM_ renderTile map
-
-
-    when (shadowRender && textureOn == Enabled) $ --reset texture-rendering
-        texture Texture2D $= Enabled
-
--- OpenGL polygon-function for drawing stuff.
-display :: MVar ProgramState -> PlayMap -> IO ()
-display state t =
-  let
-     -- Todo: have tiles static somewhere .. dont calculate every frame
-     tiles = P.map (prepareRenderTile t) (A.assocs t)
-  in
-      do
-        ps@PS {
-          px       = px
-        , py       = py
-        , pz       = pz
-        , pitch    = pitch
-        , heading  = heading
-        , showShadowMap = showShadowMap }
-                <- readMVar state
-        loadIdentity
-        GL.rotate pitch (Vector3 1.0 0.0 0.0 :: Vector3 GLfloat)
-        GL.rotate heading (Vector3 0.0 1.0 0.0 :: Vector3 GLfloat)
-        translate (Vector3 (-px) (-py) (-pz)::Vector3 GLfloat)
-
-        generateShadowMap tiles []
-        generateTextureMatrix
-        unless showShadowMap $ do
-                clear [ ColorBuffer, DepthBuffer ]
-                preservingMatrix $ do
-                        drawObjects tiles [] False
-
-        return ()
-
-updateCamera :: MVar ProgramState -> IO ()
-updateCamera state = do
-        ps@PS { dx       = dx
-        , dy       = dy
-        , dz       = dz
-        , px       = px
-        , py       = py
-        , pz       = pz
-        , pitch    = pitch
-        , heading  = heading
-        , dpitch   = dpitch
-        , dheading = dheading
-        }
-                <- takeMVar state
-
-        d@((dx,dy,dz),(heading',pitch')) <-
-          if any (/= 0.0) [dx,dy,dz,dpitch,dheading] then
-            preservingMatrix $ do
-                -- putStrLn $ unwords $ P.map show [dx,dy,dz,dpitch,dheading]
-                loadIdentity
-
-                -- in direction of current heading and pitch
-                rotate (-heading) (Vector3 0.0 1.0 0.0 :: Vector3 GLfloat)
-                rotate (-pitch)   (Vector3 1.0 0.0 0.0 :: Vector3 GLfloat)
-
-                -- perform motion
-                translate (Vector3 (-dx) (-dy) (-dz))
-
-
-                -- get changes in location components
-                mat   <- get (matrix Nothing) :: IO (GLmatrix GLfloat)
-                comps <- getMatrixComponents ColumnMajor mat
-                -- putStrLn $ show $ comps
-                let [dx', dy', dz', _] = drop 12 comps
-                    (heading', pitch') = (heading + dheading, pitch + dpitch)
-                return ((dx',dy',dz'),(heading',pitch'))
-          else
-            return ((0,0,0),(heading, pitch))
-        putMVar state ps { px         = px + dx
-                           , py         = py + dy
-                           , pz         = pz + dz
-                           , pitch      = pitch'
-                           , heading    = heading'
-                           }
-
--- Note: preservingViewport is not exception safe, but it doesn't matter here
-preservingViewport :: IO a -> IO a
-preservingViewport act = do
-   v <- get viewport
-   x <- act
-   viewport $= v
-   return x
-
-generateTextureMatrix :: IO ()
-generateTextureMatrix = do
-   -- Set up projective texture matrix. We use the Modelview matrix stack and
-   -- OpenGL matrix commands to make the matrix.
-   m <- preservingMatrix $ do
-      loadIdentity
-      -- resolve overloading, not needed in "real" programs
-      let translatef = translate :: Vector3 GLfloat -> IO ()
-          scalef = scale :: GLfloat -> GLfloat -> GLfloat -> IO ()
-      translatef (Vector3 0.5 0.5 0.0)
-      scalef 0.5 0.5 1.0
-      ortho (-20) 20 (-20) 20 1 100
-      lightPos' <- getSunPos Vertex3
-      lookAt lightPos' origin up
-      get (matrix (Just (Modelview 0)))
-
-   [ sx, sy, sz, sw,
-     tx, ty, tz, tw,
-     rx, ry, rz, rw,
-     qx, qy, qz, qw ] <- getMatrixComponents RowMajor (m :: GLmatrix GLdouble)
-
-   textureGenMode S $= Just (ObjectLinear (Plane sx sy sz sw))
-   textureGenMode T $= Just (ObjectLinear (Plane tx ty tz tw))
-   textureGenMode R $= Just (ObjectLinear (Plane rx ry rz rw))
-   textureGenMode Q $= Just (ObjectLinear (Plane qx qy qz qw))
-
-generateShadowMap :: [RenderObject] -> [RenderObject] -> IO ()
-generateShadowMap tiles obj = do
-   lightPos' <- getSunPos Vertex3
-   let (TextureSize2D shadowMapWidth shadowMapHeight) = shadowMapSize
-       shadowMapSize' = Size shadowMapWidth shadowMapHeight
-
-   preservingViewport $ do
-      viewport $= (Position 0 0, shadowMapSize')
-
-      clear [ ColorBuffer, DepthBuffer ]
-      
-      cullFace $= Just Front -- only backsides cast shadows -> less polys
-
-      matrixMode $= Projection
-      preservingMatrix $ do
-         loadIdentity
-         ortho (-20) 20 (-20) 20 10 100
-         matrixMode $= Modelview 0
-         preservingMatrix $ do
-            loadIdentity
-            lookAt lightPos' origin up
-            drawObjects tiles obj True
-         matrixMode $= Projection
-      matrixMode $= Modelview 0
-
-      copyTexImage2D Texture2D 0 DepthComponent' (Position 0 0) shadowMapSize 0
-      
-      cullFace $= Just Back
-
-   when True $ do
-      let numShadowMapPixels = fromIntegral (shadowMapWidth * shadowMapHeight)
-      allocaArray numShadowMapPixels $ \depthImage -> do
-        let pixelData fmt = PixelData fmt Float depthImage :: PixelData GLfloat
-        readPixels (Position 0 0) shadowMapSize' (pixelData DepthComponent)
-        (_, Size viewPortWidth _) <- get viewport
-        windowPos (Vertex2 (fromIntegral viewPortWidth / 2 :: GLfloat) 0)
-        drawPixels shadowMapSize' (pixelData Luminance)
-
---Adjust size to given dimensions
-reconfigure :: Int -> Int -> IO (Int, Int)
-reconfigure w h = do
-  -- maintain aspect ratio
-  let aspectRatio = fromIntegral canvasWidth / fromIntegral canvasHeight
-      (w1, h1)    = (fromIntegral w, fromIntegral w / aspectRatio)
-      (w2, h2)    = (fromIntegral h * aspectRatio, fromIntegral h)
-      (w', h')    = if h1 <= fromIntegral h
-                      then (floor w1, floor h1)
-                      else (floor w2, floor h2)
-  reshape $ Just (w', h')
-  return (w', h')
-
--- Called by reconfigure to fix the OpenGL viewport according to the
--- dimensions of the widget, appropriately.
-reshape :: Maybe (Int, Int) -> IO ()
-reshape dims = do
-  let (width, height) = fromMaybe (canvasWidth, canvasHeight) dims
-  viewport $= (Position 0 0, Size (fromIntegral width) (fromIntegral height))
-  matrixMode $= Projection
-  loadIdentity
-  let (w, h) = if width <= height
-                then (fromIntegral height, fromIntegral width )
-                else (fromIntegral width,  fromIntegral height)
-  -- open, aspect-ratio, near-plane, far-plane
-  perspective 60.0 (fromIntegral canvasWidth / fromIntegral canvasHeight) 1.0 100.0
-  matrixMode $= Modelview 0
-  loadIdentity
-
-keyEvent state press = do
-  code <- Event.eventHardwareKeycode
-  val  <- Event.eventKeyVal
-  mods <- Event.eventModifier
-  name <- Event.eventKeyName
-  liftIO $ do
-          ps@PS { keysPressed = kp
-                , dx          = dx
-                , dy          = dy
-                , dz          = dz
-                , px          = px
-                , py          = py
-                , pz          = pz
-                , pitch       = pitch
-                , heading     = heading
-                , dpitch      = dpitch
-                , dheading    = dheading
-                , showShadowMap = showShadowMap }
-            <- takeMVar state
-          -- Only process the key event if it is not a repeat
-          (ps',ret) <- if (fromIntegral code `member` kp && not press) ||
-             (fromIntegral code `notMember` kp && press)
-             then let
-                      accept a = return (a, True)
-                      deny   a = return (a, False)
-                in do
-                -- keep list of pressed keys up2date
-                ps <- return (if not press then
-                                (ps{keysPressed = fromIntegral code `delete` kp})
-                              else
-                                (ps{keysPressed = fromIntegral code `insert` kp}))
-                putStrLn $ unwords [name , show val, show code, show ps] -- trace (unwords [name , show val]) -- debugging
-                -- process keys
-                case press of
-                  -- on PRESS only
-                  True
-                    | code ==  9      -> Gtk.mainQuit >> deny ps
-                    | code == 26      -> accept $ ps { dz = dz + deltaV }
-                    | code == 40      -> accept $ ps { dz = dz - deltaV }
-                    | code == 39      -> accept $ ps { dx = dx + deltaV }
-                    | code == 41      -> accept $ ps { dx = dx - deltaV }
-                    | code == 65      -> accept $ ps { dy = dy - deltaV }
-                    | code == 66      -> accept $ ps { dy = dy + deltaV }
-                    | code == 25      -> accept $ ps { dheading = dheading - deltaH }
-                    | code == 27      -> accept $ ps { dheading = dheading + deltaH }
-                    | code == 42      -> accept $ ps { showShadowMap = not showShadowMap }
-                    | code == 31      -> dumpInfo >> accept ps
-                    | otherwise       -> deny ps
-                  -- on RELEASE only
-                  False
-                    | code == 26      -> accept $ ps { dz = dz - deltaV }
-                    | code == 40      -> accept $ ps { dz = dz + deltaV }
-                    | code == 39      -> accept $ ps { dx = dx - deltaV }
-                    | code == 41      -> accept $ ps { dx = dx + deltaV }
-                    | code == 65      -> accept $ ps { dy = dy + deltaV }
-                    | code == 66      -> accept $ ps { dy = dy - deltaV }
-                    | code == 25      -> accept $ ps { dheading = dheading + deltaH }
-                    | code == 27      -> accept $ ps { dheading = dheading - deltaH }
-                    | otherwise       -> deny ps
-             else return (ps, False)
-          putMVar state ps'
-          return ret
+--------------------------------------------------------------------------------
 
 main :: IO ()
 main = do
-  ! terrain <- testmap
-  -- create TVar using unsafePerformIO -> currently no other thread -> OK
-  state <- newMVar PS {        keysPressed = IS.empty
-                             , px          = 7.5
-                             , py          = 20
-                             , pz          = 15
-                             , heading     = 0
-                             , pitch       = 60
-                             , dx          = 0
-                             , dy          = 0
-                             , dz          = 0
-                             , dheading    = 0
-                             , dpitch      = 0
-                             , showShadowMap = False }
-  trace (show terrain) Gtk.initGUI
-  -- Initialise the Gtk+ OpenGL extension
-  -- (including reading various command line parameters)
-  GtkGL.initGL
+    let width  = 640
+        height = 480
 
-  -- We need a OpenGL frame buffer configuration to be able to create other
-  -- OpenGL objects.
-  glconfig <- GtkGL.glConfigNew [GtkGL.GLModeRGBA,
-                                 GtkGL.GLModeDepth,
-                                 GtkGL.GLModeDouble]
+    eventsChan <- newTQueueIO :: IO (TQueue Event)
 
-  -- Create an OpenGL drawing area widget
-  canvas <- GtkGL.glDrawingAreaNew glconfig
+    withWindow width height "GLFW-b-demo" $ \win -> do
+        GLFW.setErrorCallback               $ Just $ errorCallback           eventsChan
+        GLFW.setWindowPosCallback       win $ Just $ windowPosCallback       eventsChan
+        GLFW.setWindowSizeCallback      win $ Just $ windowSizeCallback      eventsChan
+        GLFW.setWindowCloseCallback     win $ Just $ windowCloseCallback     eventsChan
+        GLFW.setWindowRefreshCallback   win $ Just $ windowRefreshCallback   eventsChan
+        GLFW.setWindowFocusCallback     win $ Just $ windowFocusCallback     eventsChan
+        GLFW.setWindowIconifyCallback   win $ Just $ windowIconifyCallback   eventsChan
+        GLFW.setFramebufferSizeCallback win $ Just $ framebufferSizeCallback eventsChan
+        GLFW.setMouseButtonCallback     win $ Just $ mouseButtonCallback     eventsChan
+        GLFW.setCursorPosCallback       win $ Just $ cursorPosCallback       eventsChan
+        GLFW.setCursorEnterCallback     win $ Just $ cursorEnterCallback     eventsChan
+        GLFW.setScrollCallback          win $ Just $ scrollCallback          eventsChan
+        GLFW.setKeyCallback             win $ Just $ keyCallback             eventsChan
+        GLFW.setCharCallback            win $ Just $ charCallback            eventsChan
 
-  Gtk.widgetSetSizeRequest canvas canvasWidth canvasHeight
+        GLFW.swapInterval 1
 
-  -- Initialise some GL setting just before the canvas first gets shown
-  -- (We can't initialise these things earlier since the GL resources that
-  -- we are using wouldn't heve been setup yet)
-  Gtk.onRealize canvas $ GtkGL.withGLDrawingArea canvas $ \_ -> do
-    reconfigure canvasWidth canvasHeight
-    --set up shadow-map
-    texImage2D Texture2D NoProxy 0 DepthComponent' shadowMapSize 0
-              (PixelData DepthComponent UnsignedByte nullPtr)
+        GL.position (GL.Light 0) GL.$= GL.Vertex4 5 5 10 0
+        GL.light    (GL.Light 0) GL.$= GL.Enabled
+        GL.lighting   GL.$= GL.Enabled
+        GL.cullFace   GL.$= Just GL.Back
+        GL.depthFunc  GL.$= Just GL.Less
+        GL.clearColor GL.$= GL.Color4 0.05 0.05 0.05 1
+        GL.normalize  GL.$= GL.Enabled
+        
+        
 
-    materialAmbient   Front $= Color4 0.4 0.4 0.4 1.0
-    materialDiffuse   Front $= Color4 0.4 0.4 0.4 1.0
-    materialSpecular  Front $= Color4 0.8 0.8 0.8 1.0
-    materialShininess Front $= 25.0
+        (fbWidth, fbHeight) <- GLFW.getFramebufferSize win
 
-    ambient  sun $= Color4 0.3 0.3 0.3 1.0
-    diffuse  sun $= Color4 1.0 1.0 1.0 1.0
-    specular sun $= Color4 0.8 0.8 0.8 1.0
-    lightModelAmbient  $= Color4 0.2 0.2 0.2 1.0
-    position sun $= (Vertex4 2.0 1.0 1.3 1.0 :: Vertex4 GLfloat) .* (1/2.5865) .* 45
-    spotDirection sun $= (Normal3 (2.0) (1.0) (1.3) :: Normal3 GLfloat)
-    --spotExponent sun $= 1.0
-    --attenuation sun $= (1.0, 0.0, 0.0)
+        --generate map vertices
+        (mapBuffer, vert) <- getMapBufferObject
+        (ci, ni, vi, pi) <- initShader
 
-    lighting        $= Enabled
-    light sun       $= Enabled
-    depthFunc       $= Just Less
-    shadeModel      $= Smooth
-    --lightModelLocalViewer $= Enabled
-    --vertexProgramTwoSide $= Enabled
+        let zDistClosest  = 10
+            zDistFarthest = zDistClosest + 20
+            zDist         = zDistClosest + ((zDistFarthest - zDistClosest) / 2)
+            env = Env
+              { envEventsChan    = eventsChan
+              , envWindow        = win
+              , envMap           = mapBuffer
+              , mapVert          = vert
+              , envZDistClosest  = zDistClosest
+              , envZDistFarthest = zDistFarthest
+              }
+            state = State
+              { stateWindowWidth     = fbWidth
+              , stateWindowHeight    = fbHeight
+              , stateXAngle          = 0
+              , stateYAngle          = 0
+              , stateZAngle          = 0
+              , stateZDist           = 10
+              , stateMouseDown       = False
+              , stateDragging        = False
+              , stateDragStartX      = 0
+              , stateDragStartY      = 0
+              , stateDragStartXAngle = 0
+              , stateDragStartYAngle = 0
+              , shdrColorIndex       = ci
+              , shdrNormalIndex      = ni
+              , shdrVertexIndex      = vi
+              , shdrProjMatIndex     = pi
+              }
+        runDemo env state
 
-    clearColor $= Color4 0.0 0.0 0.0 0.0
-    drawBuffer $= BackBuffers
-    colorMaterial $= Just (FrontAndBack, AmbientAndDiffuse)
+    putStrLn "ended!"
 
-    frontFace $= CCW
-    cullFace $= Just Back
+--------------------------------------------------------------------------------
 
-    texture Texture2D $= Enabled
-    
-    textureWrapMode Texture2D S $= (Repeated, ClampToEdge)
-    textureWrapMode Texture2D T $= (Repeated, ClampToEdge)
-    textureFilter Texture2D $= ((Linear', Nothing), Linear')
-    textureCompareMode Texture2D $= Just Lequal
-    depthTextureMode Texture2D $= Luminance'
+-- GLFW-b is made to be very close to the C API, so creating a window is pretty
+-- clunky by Haskell standards. A higher-level API would have some function
+-- like withWindow.
 
-    shadeModel $= Smooth
+withWindow :: Int -> Int -> String -> (GLFW.Window -> IO ()) -> IO ()
+withWindow width height title f = do
+    GLFW.setErrorCallback $ Just simpleErrorCallback
+    r <- GLFW.init
+    when r $ do
+        m <- GLFW.createWindow width height title Nothing Nothing
+        case m of
+          (Just win) -> do
+              GLFW.makeContextCurrent m
+              f win
+              GLFW.setErrorCallback $ Just simpleErrorCallback
+              GLFW.destroyWindow win
+          Nothing -> return ()
+        GLFW.terminate
+  where
+    simpleErrorCallback e s =
+        putStrLn $ unwords [show e, show s]
 
-    fog $= Enabled
-    fogMode $= Linear 45.0 50.0
-    fogColor $= Color4 0.5 0.5 0.5 1.0
-    fogDistanceMode $= EyeRadial
+--------------------------------------------------------------------------------
 
+-- Each callback does just one thing: write an appropriate Event to the events
+-- TQueue.
 
-    return ()
-    {-clearColor $= (Color4 0.0 0.0 0.0 0.0)
-    matrixMode $= Projection
-    loadIdentity
-    ortho 0.0 1.0 0.0 1.0 (-1.0) 1.0
-    depthFunc $= Just Less
-    drawBuffer $= BackBuffers-}
+errorCallback           :: TQueue Event -> GLFW.Error -> String                                                            -> IO ()
+windowPosCallback       :: TQueue Event -> GLFW.Window -> Int -> Int                                                       -> IO ()
+windowSizeCallback      :: TQueue Event -> GLFW.Window -> Int -> Int                                                       -> IO ()
+windowCloseCallback     :: TQueue Event -> GLFW.Window                                                                     -> IO ()
+windowRefreshCallback   :: TQueue Event -> GLFW.Window                                                                     -> IO ()
+windowFocusCallback     :: TQueue Event -> GLFW.Window -> GLFW.FocusState                                                  -> IO ()
+windowIconifyCallback   :: TQueue Event -> GLFW.Window -> GLFW.IconifyState                                                -> IO ()
+framebufferSizeCallback :: TQueue Event -> GLFW.Window -> Int -> Int                                                       -> IO ()
+mouseButtonCallback     :: TQueue Event -> GLFW.Window -> GLFW.MouseButton   -> GLFW.MouseButtonState -> GLFW.ModifierKeys -> IO ()
+cursorPosCallback       :: TQueue Event -> GLFW.Window -> Double -> Double                                                 -> IO ()
+cursorEnterCallback     :: TQueue Event -> GLFW.Window -> GLFW.CursorState                                                 -> IO ()
+scrollCallback          :: TQueue Event -> GLFW.Window -> Double -> Double                                                 -> IO ()
+keyCallback             :: TQueue Event -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys            -> IO ()
+charCallback            :: TQueue Event -> GLFW.Window -> Char                                                             -> IO ()
 
-  -- Set the repaint handler
-  Gtk.onExpose canvas $ \_ -> do
-    GtkGL.withGLDrawingArea canvas $ \glwindow -> do
-      GL.clear [GL.DepthBuffer, GL.ColorBuffer]
-      display state terrain
-      GtkGL.glDrawableSwapBuffers glwindow
-    return True
+errorCallback           tc e s            = atomically $ writeTQueue tc $ EventError           e s
+windowPosCallback       tc win x y        = atomically $ writeTQueue tc $ EventWindowPos       win x y
+windowSizeCallback      tc win w h        = atomically $ writeTQueue tc $ EventWindowSize      win w h
+windowCloseCallback     tc win            = atomically $ writeTQueue tc $ EventWindowClose     win
+windowRefreshCallback   tc win            = atomically $ writeTQueue tc $ EventWindowRefresh   win
+windowFocusCallback     tc win fa         = atomically $ writeTQueue tc $ EventWindowFocus     win fa
+windowIconifyCallback   tc win ia         = atomically $ writeTQueue tc $ EventWindowIconify   win ia
+framebufferSizeCallback tc win w h        = atomically $ writeTQueue tc $ EventFramebufferSize win w h
+mouseButtonCallback     tc win mb mba mk  = atomically $ writeTQueue tc $ EventMouseButton     win mb mba mk
+cursorPosCallback       tc win x y        = atomically $ writeTQueue tc $ EventCursorPos       win x y
+cursorEnterCallback     tc win ca         = atomically $ writeTQueue tc $ EventCursorEnter     win ca
+scrollCallback          tc win x y        = atomically $ writeTQueue tc $ EventScroll          win x y
+keyCallback             tc win k sc ka mk = atomically $ writeTQueue tc $ EventKey             win k sc ka mk
+charCallback            tc win c          = atomically $ writeTQueue tc $ EventChar            win c
 
-  -- Setup the animation
-  Gtk.timeoutAddFull (do
-      updateCamera state
-      Gtk.widgetQueueDraw canvas
-      return True)
-    Gtk.priorityDefaultIdle animationWaitTime
+--------------------------------------------------------------------------------
 
-  --------------------------------
-  -- Setup the rest of the GUI:
-  --
-  -- Objects
-  window <- Gtk.windowNew
-  button <- Gtk.buttonNew
-  exitButton <- Gtk.buttonNew
-  label <- Gtk.labelNew (Just "Gtk2Hs using OpenGL via HOpenGL!")
-  vbox <- Gtk.vBoxNew False 4
+runDemo :: Env -> State -> IO ()
+runDemo env state = do
+    void $ evalRWST (adjustWindow >> run) env state
 
-  --Wrench them together
+run :: Pioneer ()
+run = do
+    win <- asks envWindow
 
-  Gtk.set window [ Gtk.containerBorderWidth := 10,
-                   Gtk.containerChild := canvas,
-                   Gtk.windowTitle := "Pioneer" ]
+    -- draw Scene
+    draw
+    liftIO $ do
+        GLFW.swapBuffers win
+        GL.flush  -- not necessary, but someone recommended it
+        GLFW.pollEvents
+    -- getEvents & process
+    processEvents
 
-  ------
-  -- Events
-  --
-  Gtk.afterClicked button (putStrLn "Hello World")
-  Gtk.afterClicked exitButton Gtk.mainQuit
-  Gtk.onDestroy window Gtk.mainQuit
+    -- update State
+    state <- get
+    if stateDragging state
+      then do
+          let sodx  = stateDragStartX      state
+              sody  = stateDragStartY      state
+              sodxa = stateDragStartXAngle state
+              sodya = stateDragStartYAngle state
+          (x, y) <- liftIO $ GLFW.getCursorPos win
+          let myrot = (x - sodx) / 2
+              mxrot = (y - sody) / 2
+          put $ state
+            { stateXAngle = sodxa + mxrot
+            , stateYAngle = sodya + myrot
+            }
+      else do
+          (kxrot, kyrot) <- liftIO $ getCursorKeyDirections win
+          (jxrot, jyrot) <- liftIO $ getJoystickDirections GLFW.Joystick'1
+          put $ state
+            { stateXAngle = stateXAngle state + (2 * kxrot) + (2 * jxrot)
+            , stateYAngle = stateYAngle state + (2 * kyrot) + (2 * jyrot)
+            }
+    {-
+    --modify the state with all that happened in mt time. 
+    mt <- liftIO GLFW.getTime
+    modify $ \s -> s
+      { 
+      }
+    -}
 
-  Gtk.on window Gtk.keyPressEvent $ keyEvent state True
+    q <- liftIO $ GLFW.windowShouldClose win
+    unless q run
 
-  Gtk.on window Gtk.keyReleaseEvent $ keyEvent state False
+processEvents :: Pioneer ()
+processEvents = do
+    tc <- asks envEventsChan
+    me <- liftIO $ atomically $ tryReadTQueue tc
+    case me of
+      Just e -> do
+          processEvent e
+          processEvents
+      Nothing -> return ()
 
- -- "reshape" event handler
-  Gtk.on canvas Gtk.configureEvent $ Event.tryEvent $ do
-    (w, h)   <- Event.eventSize
-    (w', h') <- liftIO $ reconfigure w h
-    liftIO $ Gtk.labelSetText label $ unwords ["Width:",show w',"Height:",show h']
+processEvent :: Event -> Pioneer ()
+processEvent ev =
+    case ev of
+      (EventError e s) -> do
+          printEvent "error" [show e, show s]
+          win <- asks envWindow
+          liftIO $ GLFW.setWindowShouldClose win True
 
-  Gtk.widgetShowAll window
-  Gtk.mainGUI
+      (EventWindowPos _ x y) ->
+          printEvent "window pos" [show x, show y]
 
+      (EventWindowSize _ width height) ->
+          printEvent "window size" [show width, show height]
+
+      (EventWindowClose _) ->
+          printEvent "window close" []
+
+      (EventWindowRefresh _) ->
+          printEvent "window refresh" []
+
+      (EventWindowFocus _ fs) ->
+          printEvent "window focus" [show fs]
+
+      (EventWindowIconify _ is) ->
+          printEvent "window iconify" [show is]
+
+      (EventFramebufferSize _ width height) -> do
+          printEvent "framebuffer size" [show width, show height]
+          modify $ \s -> s
+            { stateWindowWidth  = width
+            , stateWindowHeight = height
+            }
+          adjustWindow
+
+      (EventMouseButton _ mb mbs mk) -> do
+          printEvent "mouse button" [show mb, show mbs, showModifierKeys mk]
+          when (mb == GLFW.MouseButton'1) $ do
+              let pressed = mbs == GLFW.MouseButtonState'Pressed
+              modify $ \s -> s
+                { stateMouseDown = pressed
+                }
+              unless pressed $
+                modify $ \s -> s
+                  { stateDragging = False
+                  }
+
+      (EventCursorPos _ x y) -> do
+          let x' = round x :: Int
+              y' = round y :: Int
+          printEvent "cursor pos" [show x', show y']
+          state <- get
+          when (stateMouseDown state && not (stateDragging state)) $
+            put $ state
+              { stateDragging        = True
+              , stateDragStartX      = x
+              , stateDragStartY      = y
+              , stateDragStartXAngle = stateXAngle state
+              , stateDragStartYAngle = stateYAngle state
+              }
+
+      (EventCursorEnter _ cs) ->
+          printEvent "cursor enter" [show cs]
+
+      (EventScroll _ x y) -> do
+          let x' = round x :: Int
+              y' = round y :: Int
+          printEvent "scroll" [show x', show y']
+          env <- ask
+          modify $ \s -> s
+            { stateZDist =
+                let zDist' = stateZDist s + realToFrac (negate $ y / 2)
+                in curb (envZDistClosest env) (envZDistFarthest env) zDist'
+            }
+          adjustWindow
+
+      (EventKey win k scancode ks mk) -> do
+          printEvent "key" [show k, show scancode, show ks, showModifierKeys mk]
+          when (ks == GLFW.KeyState'Pressed) $ do
+              -- Q, Esc: exit
+              when (k == GLFW.Key'Q || k == GLFW.Key'Escape) $
+                liftIO $ GLFW.setWindowShouldClose win True
+              -- i: print GLFW information
+              when (k == GLFW.Key'I) $
+                liftIO $ printInformation win
+
+      (EventChar _ c) ->
+          printEvent "char" [show c]
+
+adjustWindow :: Pioneer ()
+adjustWindow = do
+    state <- get
+    let width  = stateWindowWidth  state
+        height = stateWindowHeight state
+        zDist  = stateZDist        state
+
+    let pos   = GL.Position 0 0
+        size  = GL.Size (fromIntegral width) (fromIntegral height)
+        h     = fromIntegral height / fromIntegral width :: Double
+        znear = 1           :: Double
+        zfar  = 40          :: Double
+        xmax  = znear * 0.5 :: Double
+    liftIO $ do
+        GL.viewport   GL.$= (pos, size)
+        GL.matrixMode GL.$= GL.Projection
+        GL.loadIdentity
+        GL.frustum (realToFrac $ -xmax)
+                   (realToFrac    xmax)
+                   (realToFrac $ -xmax * realToFrac h)
+                   (realToFrac $  xmax * realToFrac h)
+                   (realToFrac    znear)
+                   (realToFrac    zfar)
+        GL.matrixMode GL.$= GL.Modelview 0
+        GL.loadIdentity
+        GL.translate (GL.Vector3 0 0 (negate $ realToFrac zDist) :: GL.Vector3 GL.GLfloat)
+
+draw :: Pioneer ()
+draw = do
+    env   <- ask
+    state <- get
+    let xa = stateXAngle state
+        ya = stateYAngle state
+        za = stateZAngle state
+        (GL.UniformLocation proj) = shdrProjMatIndex state
+        ci = shdrColorIndex state
+        ni = shdrNormalIndex state
+        vi = shdrVertexIndex state
+        numVert = mapVert env
+        map' = envMap env 
+    liftIO $ do
+        lookAtUniformMatrix4fv (0.0,0.0,0.0) (xa, ya, za) up proj 1
+        GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
+        GL.vertexAttribPointer ci GL.$= fgColorIndex
+        GL.vertexAttribPointer ni GL.$= fgNormalIndex
+        GL.vertexAttribPointer vi GL.$= fgVertexIndex
+        
+        GL.drawArrays GL.Triangles 0 numVert
+
+getCursorKeyDirections :: GLFW.Window -> IO (Double, Double)
+getCursorKeyDirections win = do
+    x0 <- isPress `fmap` GLFW.getKey win GLFW.Key'Up
+    x1 <- isPress `fmap` GLFW.getKey win GLFW.Key'Down
+    y0 <- isPress `fmap` GLFW.getKey win GLFW.Key'Left
+    y1 <- isPress `fmap` GLFW.getKey win GLFW.Key'Right
+    let x0n = if x0 then (-1) else 0
+        x1n = if x1 then   1  else 0
+        y0n = if y0 then (-1) else 0
+        y1n = if y1 then   1  else 0
+    return (x0n + x1n, y0n + y1n)
+
+getJoystickDirections :: GLFW.Joystick -> IO (Double, Double)
+getJoystickDirections js = do
+    maxes <- GLFW.getJoystickAxes js
+    return $ case maxes of
+      (Just (x:y:_)) -> (-y, x)
+      _              -> ( 0, 0)
+
+isPress :: GLFW.KeyState -> Bool
+isPress GLFW.KeyState'Pressed   = True
+isPress GLFW.KeyState'Repeating = True
+isPress _                       = False
+
+--------------------------------------------------------------------------------
+
+printInformation :: GLFW.Window -> IO ()
+printInformation win = do
+    version       <- GLFW.getVersion
+    versionString <- GLFW.getVersionString
+    monitorInfos  <- runMaybeT getMonitorInfos
+    joystickNames <- getJoystickNames
+    clientAPI     <- GLFW.getWindowClientAPI              win
+    cv0           <- GLFW.getWindowContextVersionMajor    win
+    cv1           <- GLFW.getWindowContextVersionMinor    win
+    cv2           <- GLFW.getWindowContextVersionRevision win
+    robustness    <- GLFW.getWindowContextRobustness      win
+    forwardCompat <- GLFW.getWindowOpenGLForwardCompat    win
+    debug         <- GLFW.getWindowOpenGLDebugContext     win
+    profile       <- GLFW.getWindowOpenGLProfile          win
+
+    putStrLn $ render $
+      nest 4 (
+        text "------------------------------------------------------------" $+$
+        text "GLFW C library:" $+$
+        nest 4 (
+          text "Version:"        <+> renderVersion version $+$
+          text "Version string:" <+> renderVersionString versionString
+        ) $+$
+        text "Monitors:" $+$
+        nest 4 (
+          renderMonitorInfos monitorInfos
+        ) $+$
+        text "Joysticks:" $+$
+        nest 4 (
+          renderJoystickNames joystickNames
+        ) $+$
+        text "OpenGL context:" $+$
+        nest 4 (
+          text "Client API:"            <+> renderClientAPI clientAPI $+$
+          text "Version:"               <+> renderContextVersion cv0 cv1 cv2 $+$
+          text "Robustness:"            <+> renderContextRobustness robustness $+$
+          text "Forward compatibility:" <+> renderForwardCompat forwardCompat $+$
+          text "Debug:"                 <+> renderDebug debug $+$
+          text "Profile:"               <+> renderProfile profile
+        ) $+$
+        text "------------------------------------------------------------"
+      )
+  where
+    renderVersion (GLFW.Version v0 v1 v2) =
+        text $ intercalate "." $ map show [v0, v1, v2]
+
+    renderVersionString =
+        text . show
+
+    renderMonitorInfos =
+        maybe (text "(error)") (vcat . map renderMonitorInfo)
+
+    renderMonitorInfo (name, (x,y), (w,h), vms) =
+        text (show name) $+$
+        nest 4 (
+          location <+> size $+$
+          fsep (map renderVideoMode vms)
+        )
+      where
+        location = int x <> text "," <> int y
+        size     = int w <> text "x" <> int h <> text "mm"
+
+    renderVideoMode (GLFW.VideoMode w h r g b rr) =
+        brackets $ res <+> rgb <+> hz
+      where
+        res = int w <> text "x" <> int h
+        rgb = int r <> text "x" <> int g <> text "x" <> int b
+        hz  = int rr <> text "Hz"
+
+    renderJoystickNames pairs =
+        vcat $ map (\(js, name) -> text (show js) <+> text (show name)) pairs
+
+    renderContextVersion v0 v1 v2 =
+        hcat [int v0, text ".", int v1, text ".", int v2]
+
+    renderClientAPI         = text . show
+    renderContextRobustness = text . show
+    renderForwardCompat     = text . show
+    renderDebug             = text . show
+    renderProfile           = text . show
+
+type MonitorInfo = (String, (Int,Int), (Int,Int), [GLFW.VideoMode])
+
+getMonitorInfos :: MaybeT IO [MonitorInfo]
+getMonitorInfos =
+    getMonitors >>= mapM getMonitorInfo
+  where
+    getMonitors :: MaybeT IO [GLFW.Monitor]
+    getMonitors = MaybeT GLFW.getMonitors
+
+    getMonitorInfo :: GLFW.Monitor -> MaybeT IO MonitorInfo
+    getMonitorInfo mon = do
+        name <- getMonitorName mon
+        vms  <- getVideoModes mon
+        MaybeT $ do
+            pos  <- liftIO $ GLFW.getMonitorPos mon
+            size <- liftIO $ GLFW.getMonitorPhysicalSize mon
+            return $ Just (name, pos, size, vms)
+
+    getMonitorName :: GLFW.Monitor -> MaybeT IO String
+    getMonitorName mon = MaybeT $ GLFW.getMonitorName mon
+
+    getVideoModes :: GLFW.Monitor -> MaybeT IO [GLFW.VideoMode]
+    getVideoModes mon = MaybeT $ GLFW.getVideoModes mon
+
+getJoystickNames :: IO [(GLFW.Joystick, String)]
+getJoystickNames =
+    catMaybes `fmap` mapM getJoystick joysticks
+  where
+    getJoystick js =
+        fmap (maybe Nothing (\name -> Just (js, name)))
+             (GLFW.getJoystickName js)
+
+--------------------------------------------------------------------------------
+
+printEvent :: String -> [String] -> Pioneer ()
+printEvent cbname fields =
+    liftIO $ putStrLn $ cbname ++ ": " ++ unwords fields
+
+showModifierKeys :: GLFW.ModifierKeys -> String
+showModifierKeys mk =
+    "[mod keys: " ++ keys ++ "]"
+  where
+    keys = if null xs then "none" else unwords xs
+    xs = catMaybes ys
+    ys = [ if GLFW.modifierKeysShift   mk then Just "shift"   else Nothing
+         , if GLFW.modifierKeysControl mk then Just "control" else Nothing
+         , if GLFW.modifierKeysAlt     mk then Just "alt"     else Nothing
+         , if GLFW.modifierKeysSuper   mk then Just "super"   else Nothing
+         ]
+
+curb :: Ord a => a -> a -> a -> a
+curb l h x
+  | x < l     = l
+  | x > h     = h
+  | otherwise = x
+
+--------------------------------------------------------------------------------
+
+joysticks :: [GLFW.Joystick]
+joysticks =
+  [ GLFW.Joystick'1
+  , GLFW.Joystick'2
+  , GLFW.Joystick'3
+  , GLFW.Joystick'4
+  , GLFW.Joystick'5
+  , GLFW.Joystick'6
+  , GLFW.Joystick'7
+  , GLFW.Joystick'8
+  , GLFW.Joystick'9
+  , GLFW.Joystick'10
+  , GLFW.Joystick'11
+  , GLFW.Joystick'12
+  , GLFW.Joystick'13
+  , GLFW.Joystick'14
+  , GLFW.Joystick'15
+  , GLFW.Joystick'16
+  ]

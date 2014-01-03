@@ -6,26 +6,24 @@ author:         sdressel
 
 executable Pioneers
   hs-source-dirs:  src
-  main-is:         Main.hs
-  build-depends:   
-                  base >= 4,
-                  gtk,
-                  OpenGL >=2.9,
-                  gtkglext >=0.12,
-                  containers >=0.5 && <0.6,
-                  array >=0.4.0 && <0.5,
-                  random >=1.0.1 && <1.1,
-                  random >=1.0.1 && <1.1,
-                  text >=0.11.3 && <0.12,
-                  stm >=2.4.2 && <2.5,
-                  transformers >=0.3.0 && <0.4,
-                  List >=0.5.1 && <0.6,
-                  OpenGLRaw >=1.4.0 && <1.5,
-                  bytestring >=0.10.0 && <0.11
   ghc-options:     -Wall
   other-modules:   
-                   Map.Coordinates,
                    Map.Map,
+                   Render.Misc,
                    Render.Render,
-                   Render.Misc
+                   Render.RenderObject
+  main-is:         Main.hs
+  build-depends:   
+                   base >=4,
+                   OpenGL >=2.9,
+                   bytestring >=0.10,
+                   OpenGLRaw >=1.4,
+                   text >=0.11,
+                   array >=0.4,
+                   random >=1.0.1,
+                   GLFW-b >=1.4.6,
+                   pretty >=1.1,
+                   transformers >=0.3.0 && <0.4,
+                   mtl >=2.1.2,
+                   stm >=2.4.2
 

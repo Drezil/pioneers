@@ -7,7 +7,12 @@ import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.StringQueries
 import           Graphics.Rendering.OpenGL.GLU.Errors
 import           System.IO                                  (hPutStrLn, stderr)
+import Graphics.Rendering.OpenGL.Raw.Core31
+import Foreign.Marshal.Array (allocaArray, pokeArray)
 
+
+up :: (Double, Double, Double)
+up = (0.0, 1.0, 1.0)
 
 checkError :: String -> IO ()
 checkError functionName = get errors >>= mapM_ reportError
@@ -51,3 +56,53 @@ createProgramUsing shaders = do
    attachedShaders program $= shaders
    linkAndCheck program
    return program
+
+lookAtUniformMatrix4fv :: (Double, Double, Double)  --origin
+                        -> (Double, Double, Double) --camera-pos
+                        -> (Double, Double, Double) --up
+                        -> GLint -> GLsizei -> IO () --rest of GL-call
+lookAtUniformMatrix4fv o c u num size = allocaArray 16 $ \projMat ->
+                                                do
+                                                        pokeArray projMat $ lookAt o c u
+                                                        glUniformMatrix4fv num size 1 projMat
+
+-- generats 4x4-Projection-Matrix
+lookAt :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double) -> [GLfloat]
+lookAt origin eye up = 
+        map (fromRational . toRational) [
+         xx, yx, zx, 0,
+         xy, yy, zy, 0,
+         xz, yz, zz, 0,
+         -(x *. eye), -(y *. eye), -(z *. eye), 1
+        ]
+        where
+                z@(zx,zy,zz) = normal (origin .- eye)
+                x@(xx,xy,xz) = normal (up *.* z)
+                y@(yx,yy,yz) = z *.* x
+
+normal :: (Double, Double, Double) -> (Double, Double, Double)
+normal x = (1.0 / (sqrt (x *. x))) .* x
+
+infixl 5 .*
+--scaling
+(.*) :: Double -> (Double, Double, Double) -> (Double, Double, Double)
+a .* (x,y,z) = (a*x, a*y, a*z)
+
+infixl 5 .-
+--subtraction
+(.-) :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double)
+(a,b,c) .- (x,y,z) = (a-x, b-y, c-z)
+
+infixl 5 *.*
+--cross-product for left-hand-system
+(*.*) :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double)
+(a,b,c) *.* (x,y,z) = (   c*y - b*z
+                        , a*z - c*x
+                        , b*x - a*y
+                        )
+
+infixl 5 *.
+--dot-product
+(*.) :: (Double, Double, Double) -> (Double, Double, Double) -> Double
+(a,b,c) *. (x,y,z) = a*x + b*y + c*z
+

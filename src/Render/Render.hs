@@ -33,7 +33,7 @@ initBuffer varray =
            checkError "initBuffer"
            return bufferObject
 
-initShader :: IO (UniformLocation, AttribLocation, AttribLocation)
+initShader :: IO (AttribLocation, AttribLocation, AttribLocation, UniformLocation)
 initShader = do
    ! vertexSource <- B.readFile vertexShaderFile
    ! fragmentSource <- B.readFile fragmentShaderFile
@@ -50,8 +50,12 @@ initShader = do
    vertexIndex <- get (attribLocation program "fg_Vertex")
    vertexAttribArray vertexIndex $= Enabled
 
+   normalIndex <- get (attribLocation program "fg_Normal")
+   vertexAttribArray normalIndex $= Enabled
+
+
    checkError "initShader"
-   return (projectionMatrixIndex, colorIndex, vertexIndex)
+   return (colorIndex, normalIndex, vertexIndex, projectionMatrixIndex)
 
 initRendering :: IO ()
 initRendering = do
