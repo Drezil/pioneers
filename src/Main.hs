@@ -10,8 +10,8 @@ import Data.List                 (intercalate)
 import Data.Maybe                (catMaybes)
 import Text.PrettyPrint
 
-import qualified Graphics.Rendering.OpenGL as GL
-import qualified Graphics.UI.GLFW          as GLFW
+import qualified Graphics.Rendering.OpenGL.GL as GL
+import qualified Graphics.UI.GLFW             as GLFW
 
 import Map.Map
 import Render.Render (initShader)
@@ -100,16 +100,6 @@ main = do
         GLFW.setCharCallback            win $ Just $ charCallback            eventsChan
 
         GLFW.swapInterval 1
-
-        GL.position (GL.Light 0) GL.$= GL.Vertex4 5 5 10 0
-        GL.light    (GL.Light 0) GL.$= GL.Enabled
-        GL.lighting   GL.$= GL.Enabled
-        GL.cullFace   GL.$= Just GL.FrontAndBack -- Back
-        GL.depthFunc  GL.$= Just GL.Always       -- Less
-        GL.clearColor GL.$= GL.Color4 0.05 0.05 0.05 1
-        GL.normalize  GL.$= GL.Enabled
-        
-        
 
         (fbWidth, fbHeight) <- GLFW.getFramebufferSize win
 
@@ -231,6 +221,7 @@ run = do
         GLFW.swapBuffers win
         GL.flush  -- not necessary, but someone recommended it
         GLFW.pollEvents
+        GL.finish
     -- getEvents & process
     processEvents
 
@@ -368,29 +359,16 @@ processEvent ev =
 adjustWindow :: Pioneer ()
 adjustWindow = do
     state <- get
-    let width  = stateWindowWidth  state
-        height = stateWindowHeight state
-        zDist  = stateZDist        state
-
-    let pos   = GL.Position 0 0
-        size  = GL.Size (fromIntegral width) (fromIntegral height)
-        h     = fromIntegral height / fromIntegral width :: Double
-        znear = 1           :: Double
-        zfar  = 40          :: Double
-        xmax  = znear * 0.5 :: Double
-    liftIO $ do
-        GL.viewport   GL.$= (pos, size)
-        GL.matrixMode GL.$= GL.Projection
-        GL.loadIdentity
-        GL.frustum (realToFrac $ -xmax)
-                   (realToFrac    xmax)
-                   (realToFrac $ -xmax * realToFrac h)
-                   (realToFrac $  xmax * realToFrac h)
-                   (realToFrac    znear)
-                   (realToFrac    zfar)
-        GL.matrixMode GL.$= GL.Modelview 0
-        GL.loadIdentity
-        GL.translate (GL.Vector3 0 0 (negate $ realToFrac zDist) :: GL.Vector3 GL.GLfloat)
+    let fbWidth  = stateWindowWidth  state
+        fbHeight = stateWindowHeight state
+        fov           = 90  --field of view
+        near          = 1   --near plane
+        far           = 100 --far plane
+        ratio         = fromIntegral fbWidth / fromIntegral fbHeight
+        frust         = createFrustum fov near far ratio
+    put $ state {
+        stateFrustum = frust
+    }
 
 draw :: Pioneer ()
 draw = do
@@ -407,7 +385,6 @@ draw = do
         map' = stateMap state
         frust = stateFrustum state
     liftIO $ do
-        GL.clear [GL.ColorBuffer, GL.DepthBuffer]
         lookAtUniformMatrix4fv (0.0,0.0,0.0) (0, 15, 0) up frust proj 1
         GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
         GL.vertexAttribPointer ci GL.$= fgColorIndex

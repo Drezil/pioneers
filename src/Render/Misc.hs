@@ -2,13 +2,14 @@ module Render.Misc where
 
 import           Control.Monad
 import qualified Data.ByteString                            as B (ByteString)
+import           Foreign.Marshal.Array                      (allocaArray,
+                                                             pokeArray)
 import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.StringQueries
 import           Graphics.Rendering.OpenGL.GLU.Errors
+import           Graphics.Rendering.OpenGL.Raw.Core31
 import           System.IO                                  (hPutStrLn, stderr)
-import Graphics.Rendering.OpenGL.Raw.Core31
-import Foreign.Marshal.Array (allocaArray, pokeArray)
 
 
 up :: (Double, Double, Double)
@@ -77,7 +78,7 @@ lookAtUniformMatrix4fv o c u frust num size = allocaArray 16 $ \projMat ->
                                                 do
                                                         pokeArray projMat $
                                                                 [1,  0,  0,  0,
-                                                                 0,  0,  1,  0.1,
+                                                                 0,  0,  1,  0,
                                                                  0,  1,  0,  0,
                                                                  0,  0,  0,  1
                                                                 ]
@@ -92,7 +93,7 @@ infixl 5 ><
     ba, bb, bc, bd,
     ca, cb, cc, cd,
     da, db, dc, dd
-        ] >< 
+        ] ><
   [
     xx, xy, xz, xw,
     yx, yy, yz, yw,
@@ -127,7 +128,7 @@ _ >< _ = error "non-conformat matrix-multiplication"
 
 -- generates 4x4-Projection-Matrix
 lookAt :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double) -> [GLfloat]
-lookAt at eye up = 
+lookAt at eye up =
         map (fromRational . toRational) [
          xx, yx, zx, 0,
          xy, yy, zy, 0,
