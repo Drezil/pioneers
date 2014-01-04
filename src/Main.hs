@@ -11,7 +11,9 @@ import Data.Maybe                (catMaybes)
 import Text.PrettyPrint
 
 import qualified Graphics.Rendering.OpenGL.GL as GL
+import qualified Graphics.Rendering.OpenGL.Raw as GL
 import qualified Graphics.UI.GLFW             as GLFW
+import qualified Data.Vector.Storable as V
 
 import Map.Map
 import Render.Render (initShader)
@@ -215,9 +217,7 @@ run = do
     draw
     liftIO $ do
         GLFW.swapBuffers win
-        GL.flush  -- not necessary, but someone recommended it
         GLFW.pollEvents
-        GL.finish
     -- getEvents & process
     processEvents
 
@@ -379,7 +379,18 @@ draw = do
         map' = stateMap state
         frust = stateFrustum state
     liftIO $ do
-        lookAtUniformMatrix4fv (0.0,0.0,0.0) (0, 15, 0) up frust proj 1
+        GL.clear [GL.ColorBuffer]
+        let fov = 90
+            s = recip (tan $ fov * 0.5 * pi / 180)
+            f = 1000
+            n = 1
+        
+        let perspective = V.fromList [ s, 0, 0, 0
+                                      , 0, s, 0, 0
+                                      , 0, 0, -(f/(f - n)), -1
+                                      , 0, 0, -((f*n)/(f-n)), 0
+                                      ]
+        V.unsafeWith perspective $ \ptr -> GL.glUniformMatrix4fv proj 1 0 ptr
         GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
         GL.vertexAttribPointer vi GL.$= fgVertexIndex
 
