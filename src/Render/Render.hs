@@ -7,12 +7,13 @@ import           Foreign.Storable                           (sizeOf)
 import           Graphics.Rendering.OpenGL.GL.BufferObjects
 import           Graphics.Rendering.OpenGL.GL.Framebuffer   (clearColor)
 import           Graphics.Rendering.OpenGL.GL.ObjectName
+import           Graphics.Rendering.OpenGL.GL.PerFragment
 import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.VertexArrays  (Capability (..),
                                                              vertexAttribArray)
 import           Graphics.Rendering.OpenGL.GL.VertexSpec
-import           Graphics.Rendering.OpenGL.Raw.Core31.Types (GLfloat)
+import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Render.Misc
 
 vertexShaderFile :: String
@@ -75,4 +76,6 @@ initShader = do
 initRendering :: IO ()
 initRendering = do
         clearColor $= Color4 0 0 0 0
+        depthFunc $= Just Less
+        glCullFace gl_BACK
         checkError "initRendering"

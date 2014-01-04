@@ -16,6 +16,7 @@ import Foreign (Ptr, castPtr, nullPtr, sizeOf, with)
 import Foreign.C (CFloat)
 import Linear as L
 import Linear ((!*!))
+import qualified Debug.Trace as T (trace)
 
 import qualified Graphics.Rendering.OpenGL.GL as GL
 import qualified Graphics.Rendering.OpenGL.Raw as GL
@@ -23,7 +24,7 @@ import qualified Graphics.UI.GLFW             as GLFW
 import qualified Data.Vector.Storable as V
 
 import Map.Map
-import Render.Render (initShader)
+import Render.Render (initShader, initRendering)
 import Render.Misc (up, lookAtUniformMatrix4fv, createFrustum, checkError, lookAt)
 
 --------------------------------------------------------------------------------
@@ -113,6 +114,7 @@ main = do
 
         (fbWidth, fbHeight) <- GLFW.getFramebufferSize win
 
+        initRendering
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
         (ci, ni, vi, pi, mi) <- initShader
@@ -244,14 +246,14 @@ run = do
           (x, y) <- liftIO $ GLFW.getCursorPos win
           let myrot = (x - sodx) / 2
               mxrot = (y - sody) / 2
-              newXAngle = if newXAngle' > pi then pi else
-                            if newXAngle' < 0 then 0 else
+              newXAngle = if newXAngle' > 2*pi then 2*pi else
+                            if newXAngle' < -2*pi then -2*pi else
                                 newXAngle'
-              newXAngle' = sodxa - mxrot/100
+              newXAngle' = sodxa + mxrot/100
               newYAngle = if newYAngle' > 2*pi then newYAngle'-2*pi else
                             if newYAngle' < 0 then newYAngle'+2*pi else
                                 newYAngle'
-              newYAngle' = sodya - myrot/100
+              newYAngle' = sodya + myrot/100
           put $ state
             { stateXAngle = newXAngle
             , stateYAngle = newYAngle
@@ -412,20 +414,35 @@ draw = do
             f = 1000
             n = 1
 
-        let perspective = V4 (V4 s 0        0           0)
-                             (V4 0 s        0           0)
+        let perspective = V4 (V4 (2*s) 0        0           0)
+                             (V4 0 (2*s)        0           0)
                              (V4 0 0 (-((f+n)/(f-n)))  (-((2*f*n)/(f-n))))
                              (V4 0 0      (-1)          0)
-                         !*!
-                          V4 (V4 1 0 0 0)
-                             (V4 0 0 1 0)
-                             (V4 0 1 0 0)
-                             (V4 0 0 0 1)
         with (distribute $ perspective) $ \ptr ->
               GL.glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
+        
+        {-let cam     = out !*! roty !*! rotx !*! center
+            out     = V4 (V4 1 0 0 0)
+                         (V4 0 1 0 0)
+                         (V4 0 0 1 (-10))
+                         (V4 0 0 0 1)
+            rotx    = V4 (V4 1        0        0     0)
+                         (V4 0    (cos xa) (-sin xa) 0)
+                         (V4 0    (sin xa) (cos xa)  0)
+                         (V4 0        0        0     1)
+            roty    = V4 (V4 (cos ya) 0 (-sin ya) 0)
+                         (V4    0     1     0     0)
+                         (V4 (sin ya) 0 (cos ya)  0)
+                         (V4    0     0     0     1)
+            center  = V4 (V4 1 0 0 (-x))
+                         (V4 1 1 0   0 )
+                         (V4 0 0 1 (-z))
+                         (V4 0 0 0   1 )
+            (x,z)   = (5,5)-}
         --V.unsafeWith perspective $ \ptr -> GL.glUniformMatrix4fv proj 1 0 ptr
-        let cam     = lookAt (V3 5 0 5) (crot' !* cdist') up
+        let cam     = lookAt (cpos ^+^ at') at' up
                         --cdist !*! crot !*! camat
+            cpos    = -10 *^ normalize (V3 (sin ya) ((cos ya) * (sin xa)) ((cos ya) * (cos xa)))
             camat   = (eye4 & translation .~ V3 (-0.5) (0) (-0.5)) :: M44 CFloat
             cdist   = (eye4 & translation .~ V3 (0) (0) (-10)) :: M44 CFloat
             crot    = (m33_to_m44 $
@@ -433,17 +450,20 @@ draw = do
                                 axisAngle (V3 1 0 0) (xa::CFloat))
                             !*!
                             (fromQuaternion $
-                                axisAngle (V3 0 1 0) (ya::CFloat))
+                                axisAngle (V3 0 1 0) ((ya::CFloat) - pi/2))
                                 ) :: M44 CFloat
+            at'      = V3 5 0 5
             cdist'   = V3 (0) (0) (-10)
             crot'    = (
                             (fromQuaternion $
-                                axisAngle (V3 1 0 0) (xa::CFloat))
+                                axisAngle (V3 0 1 0) (ya::CFloat))
                             !*!
                             (fromQuaternion $
-                                axisAngle (V3 0 1 0) (ya::CFloat))
+                                axisAngle (V3 1 0 0) (xa::CFloat))
                                 ) :: M33 CFloat
-        --V.unsafeWith model $ \ptr -> GL.glUniformMatrix4fv mmat 1 0 ptr
+        --V.unsafeWith model $ \ptr -> GL.glUniformMatrix4fv mmat 1 0 ptr -}
+        putStrLn $ unwords $ "Cam direction:":map show [cpos]
+        putStrLn $ unwords $ "Cam at:":map show [cpos ^+^ at']
         with (distribute $ cam) $ \ptr ->
               GL.glUniformMatrix4fv mmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
         GL.bindBuffer GL.ArrayBuffer GL.$= Just map'

@@ -128,23 +128,24 @@ infixl 5 ><
 _ >< _ = error "non-conformat matrix-multiplication"
 
 
+-- from vmath.h
 lookAt :: V3 CFloat -> V3 CFloat -> V3 CFloat -> M44 CFloat
-lookAt at eye@(V3 ex ey ez) up =
+lookAt eye@(V3 ex ey ez) center up =
         V4
-         (V4 xx yx zx 0)
-         (V4 xy yy zy 0)
-         (V4 xz yz zz 0)
+         (V4 xx yx (-zx) 0)
+         (V4 xy yy (-zy) 0)
+         (V4 xz yz (-zz) 0)
          (V4 0 0 0 1)
-        !*!
+         !*!
         V4
          (V4 1 0 0 (-ex))
          (V4 0 1 0 (-ey))
          (V4 0 0 1 (-ez))
          (V4 0 0 0 1)
         where
-                z@(V3 zx zy zz) = normalize (eye ^-^ at)
-                x@(V3 xx xy xz) = normalize (cross up z)
-                y@(V3 yx yy yz) = cross z x
+                z@(V3 zx zy zz) = normalize (center ^-^ eye)
+                x@(V3 xx xy xz) = cross z (normalize up)
+                y@(V3 yx yy yz) = cross x z
 
 -- generates 4x4-Projection-Matrix
 lookAt_ :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double) -> [GLfloat]
