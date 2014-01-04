@@ -47,31 +47,31 @@ lineHeight :: GLfloat
 lineHeight = 0.8660254
 
 numComponents :: Int
-numComponents = 3
+numComponents = 7
 
 mapStride :: Stride
-mapStride = fromIntegral (sizeOf (0.0 :: GLfloat)) * fromIntegral numComponents
+mapStride = fromIntegral (sizeOf (0.0 :: GLfloat) * numComponents)
 
-bufferObjectPtr :: Integral a => a -> Ptr b
-bufferObjectPtr = plusPtr (nullPtr :: Ptr GLchar) . fromIntegral
+bufferObjectPtr :: Integral a => a -> Ptr GLfloat
+bufferObjectPtr = plusPtr (nullPtr :: Ptr GLfloat) . fromIntegral
 
-mapVertexArrayDescriptor :: NumComponents -> NumComponents -> VertexArrayDescriptor a
+mapVertexArrayDescriptor :: NumComponents -> NumComponents -> VertexArrayDescriptor GLfloat
 mapVertexArrayDescriptor count' offset =
-   VertexArrayDescriptor count' Float mapStride (bufferObjectPtr (fromIntegral numComponents * offset))
+   VertexArrayDescriptor count' Float mapStride (bufferObjectPtr offset ) --(fromIntegral numComponents * offset))
 
-fgColorIndex :: (IntegerHandling, VertexArrayDescriptor a)
-fgColorIndex = (ToFloat, mapVertexArrayDescriptor 4 0)  --color first
+fgColorIndex :: (IntegerHandling, VertexArrayDescriptor GLfloat)
+fgColorIndex = (ToFloat, mapVertexArrayDescriptor 4 3)  --color first
 
-fgNormalIndex :: (IntegerHandling, VertexArrayDescriptor a)
+fgNormalIndex :: (IntegerHandling, VertexArrayDescriptor GLfloat)
 fgNormalIndex = (ToFloat, mapVertexArrayDescriptor 3 4) --normal after color
 
-fgVertexIndex :: (IntegerHandling, VertexArrayDescriptor a)
-fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
+fgVertexIndex :: (IntegerHandling, VertexArrayDescriptor GLfloat)
+fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 0) --vertex after normal
 
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
         map' <- testmap
-        map' <- return $ generateCube --generateTriangles map'
+        map' <- return $ P.map (*1) (generateTriangles map')
         putStrLn $ P.unlines $ P.map show (prettyMap map')
         len <- return $ fromIntegral $ P.length map' `div` numComponents
         putStrLn $ P.unwords ["num verts",show len]
@@ -177,9 +177,9 @@ lookupVertex map' x y =
                         --TODO: calculate normals correctly!
                 in
                 [
-                        cr, cg, cb, 1.0,        -- RGBA Color
-                        nx, ny, nz,             -- 3 Normal
-                        vx, vy, vz              -- 3 Vertex
+                        vx, vy, vz,              -- 3 Vertex
+                        cr, cg, cb, 1.0        -- RGBA Color
+                        --nx, ny, nz,             -- 3 Normal
                 ]
 
 heightLookup :: PlayMap -> (Int,Int) -> GLfloat
@@ -202,7 +202,7 @@ coordLookup (x,z) y =
                 if even x then
                         (fromIntegral $ x `div` 2, y, fromIntegral (2 * z) * lineHeight)
                 else
-                        (fromIntegral (x `div` 2) / 2.0, y, fromIntegral (2 * z + 1) * lineHeight)
+                        (fromIntegral (x `div` 2) + 0.5, y, fromIntegral (2 * z + 1) * lineHeight)
 
 
 -- if writing in ASCII-Format transpose so i,j -> y,x
@@ -233,14 +233,15 @@ testMapTemplate = T.transpose [
 
 testMapTemplate2 :: [Text]
 testMapTemplate2 = T.transpose [
-                "~~~~~~"
+                "~~~~~~~~~~~~",
+                "~SSSSSSSSSS~"
                 ]
 
 testmap :: IO PlayMap
 testmap = do
                 g <- getStdGen
                 rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate2)
-                return $ listArray ((0,0),(5,0)) rawMap
+                return $ listArray ((0,0),(9,1)) rawMap
 
 
 parseTemplate :: [Int] -> Text -> [MapEntry]

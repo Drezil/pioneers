@@ -9,5 +9,5 @@ out vec4 fg_FragColor;
 void main(void)
 {
 //copy-shader
-   fg_FragColor = vec4(0.5,0.5,0.5,1.0);//fg_SmoothColor;
+   fg_FragColor = fg_SmoothColor;
 }

@@ -47,7 +47,9 @@ data State = State
     -- pointer to bindings for locations inside the compiled shader
     -- mutable because shaders may be changed in the future.
     , shdrVertexIndex      :: !GL.AttribLocation
+    , shdrColorIndex       :: !GL.AttribLocation
     , shdrProjMatIndex     :: !GL.UniformLocation
+    , shdrModelMatIndex    :: !GL.UniformLocation
     -- the map
     , stateMap             :: !GL.BufferObject
     , mapVert              :: !GL.NumArrayIndices
@@ -105,7 +107,7 @@ main = do
 
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
-        (vi, pi) <- initShader
+        (ci, vi, pi, mi) <- initShader
 
         let zDistClosest  = 10
             zDistFarthest = zDistClosest + 20
@@ -135,7 +137,9 @@ main = do
               , stateDragStartXAngle = 0
               , stateDragStartYAngle = 0
               , shdrVertexIndex      = vi
+              , shdrColorIndex       = ci
               , shdrProjMatIndex     = pi
+              , shdrModelMatIndex    = mi
               , stateMap             = mapBuffer
               , mapVert              = vert
               , stateFrustum         = frust
@@ -222,6 +226,7 @@ run = do
     processEvents
 
     -- update State
+    {-
     state <- get
     if stateDragging state
       then do
@@ -243,6 +248,7 @@ run = do
             { stateXAngle = stateXAngle state + (2 * kxrot) + (2 * jxrot)
             , stateYAngle = stateYAngle state + (2 * kyrot) + (2 * jyrot)
             }
+    -}
     {-
     --modify the state with all that happened in mt time. 
     mt <- liftIO GLFW.getTime
@@ -373,12 +379,16 @@ draw = do
     let xa = stateXAngle state
         ya = stateYAngle state
         za = stateZAngle state
-        (GL.UniformLocation proj) = shdrProjMatIndex state
+        (GL.UniformLocation proj)  = shdrProjMatIndex state
+        (GL.UniformLocation mmat)  = shdrModelMatIndex state
         vi = shdrVertexIndex state
+        ci = shdrColorIndex state
         numVert = mapVert state
         map' = stateMap state
         frust = stateFrustum state
     liftIO $ do
+        --(vi,GL.UniformLocation proj) <- initShader
+        GL.clearColor GL.$= GL.Color4 0.5 0.1 1 1
         GL.clear [GL.ColorBuffer]
         let fov = 90
             s = recip (tan $ fov * 0.5 * pi / 180)
@@ -391,7 +401,15 @@ draw = do
                                       , 0, 0, -((f*n)/(f-n)), 0
                                       ]
         V.unsafeWith perspective $ \ptr -> GL.glUniformMatrix4fv proj 1 0 ptr
+        let model = V.fromList [
+                                        1,  0, 0, 0
+                                      , 0,  0, 1, 0
+                                      , 0,  1, 0, 0
+                                      ,-1, -1, -5, 1
+                                      ]
+        V.unsafeWith model $ \ptr -> GL.glUniformMatrix4fv mmat 1 0 ptr
         GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
+        GL.vertexAttribPointer ci GL.$= fgColorIndex
         GL.vertexAttribPointer vi GL.$= fgVertexIndex
 
         GL.drawArrays GL.Triangles 0 numVert
