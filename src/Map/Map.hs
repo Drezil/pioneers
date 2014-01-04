@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, BangPatterns #-}
 module Map.Map 
 
 (
@@ -47,7 +47,7 @@ lineHeight :: GLfloat
 lineHeight = 0.8660254
 
 numComponents :: Int
-numComponents = 7
+numComponents = 10
 
 mapStride :: Stride
 mapStride = fromIntegral (sizeOf (0.0 :: GLfloat) * numComponents)
@@ -60,18 +60,18 @@ mapVertexArrayDescriptor count' offset =
    VertexArrayDescriptor count' Float mapStride (bufferObjectPtr ((fromIntegral offset)*sizeOf (0 :: GLfloat)) ) --(fromIntegral numComponents * offset))
 
 fgColorIndex :: (IntegerHandling, VertexArrayDescriptor GLfloat)
-fgColorIndex = (ToFloat, mapVertexArrayDescriptor 4 3)  --color first
+fgColorIndex = (ToFloat, mapVertexArrayDescriptor 4 0)  --color first
 
 fgNormalIndex :: (IntegerHandling, VertexArrayDescriptor GLfloat)
 fgNormalIndex = (ToFloat, mapVertexArrayDescriptor 3 4) --normal after color
 
 fgVertexIndex :: (IntegerHandling, VertexArrayDescriptor GLfloat)
-fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 0) --vertex after normal
+fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
         map' <- testmap
-        map' <- return $ P.map (*1) (generateTriangles map')
+        ! map' <- return $ P.map (*1) (generateTriangles map')
         putStrLn $ P.unlines $ P.map show (prettyMap map')
         len <- return $ fromIntegral $ P.length map' `div` numComponents
         putStrLn $ P.unwords ["num verts",show len]
@@ -177,9 +177,9 @@ lookupVertex map' x y =
                         --TODO: calculate normals correctly!
                 in
                 [
-                        vx, vy, vz,              -- 3 Vertex
-                        cr, cg, cb, 1.0        -- RGBA Color
-                        --nx, ny, nz,             -- 3 Normal
+                        cr, cg, cb, 1.0,        -- RGBA Color
+                        nx, ny, nz,             -- 3 Normal
+                        vx, vy, vz              -- 3 Vertex
                 ]
 
 heightLookup :: PlayMap -> (Int,Int) -> GLfloat
@@ -233,8 +233,7 @@ testMapTemplate = T.transpose [
 
 testMapTemplate2 :: [Text]
 testMapTemplate2 = T.transpose [
-                "~~~~~~~~~~~~",
-                "~SSSSSSSSSS~"
+                "~~~~~~~~~~~~"
                 ]
 
 testmap :: IO PlayMap
@@ -242,6 +241,12 @@ testmap = do
                 g <- getStdGen
                 rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate)
                 return $ listArray ((0,0),(19,19)) rawMap
+
+testmap2 :: IO PlayMap
+testmap2 = do
+                g <- getStdGen
+                rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate2)
+                return $ listArray ((0,0),(9,0)) rawMap
 
 
 parseTemplate :: [Int] -> Text -> [MapEntry]

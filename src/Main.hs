@@ -2,13 +2,20 @@ module Main (main) where
 
 --------------------------------------------------------------------------------
 
+import Control.Applicative
 import Control.Concurrent.STM    (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue)
+import Control.Lens
 import Control.Monad             (unless, when, void)
 import Control.Monad.RWS.Strict  (RWST, ask, asks, evalRWST, get, liftIO, modify, put)
 import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 import Data.List                 (intercalate)
 import Data.Maybe                (catMaybes)
 import Text.PrettyPrint
+import Data.Distributive (distribute)
+import Foreign (Ptr, castPtr, nullPtr, sizeOf, with)
+import Foreign.C (CFloat)
+import Linear as L
+import Linear ((!*!))
 
 import qualified Graphics.Rendering.OpenGL.GL as GL
 import qualified Graphics.Rendering.OpenGL.Raw as GL
@@ -17,7 +24,7 @@ import qualified Data.Vector.Storable as V
 
 import Map.Map
 import Render.Render (initShader)
-import Render.Misc (up, lookAtUniformMatrix4fv, createFrustum)
+import Render.Misc (up, lookAtUniformMatrix4fv, createFrustum, checkError)
 
 --------------------------------------------------------------------------------
 
@@ -48,6 +55,7 @@ data State = State
     -- mutable because shaders may be changed in the future.
     , shdrVertexIndex      :: !GL.AttribLocation
     , shdrColorIndex       :: !GL.AttribLocation
+    , shdrNormalIndex      :: !GL.AttribLocation
     , shdrProjMatIndex     :: !GL.UniformLocation
     , shdrModelMatIndex    :: !GL.UniformLocation
     -- the map
@@ -107,11 +115,10 @@ main = do
 
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
-        (ci, vi, pi, mi) <- initShader
+        (ci, ni, vi, pi, mi) <- initShader
 
         let zDistClosest  = 10
             zDistFarthest = zDistClosest + 20
-            zDist         = zDistClosest + ((zDistFarthest - zDistClosest) / 2)
             fov           = 90  --field of view
             near          = 1   --near plane
             far           = 100 --far plane
@@ -137,6 +144,7 @@ main = do
               , stateDragStartXAngle = 0
               , stateDragStartYAngle = 0
               , shdrVertexIndex      = vi
+              , shdrNormalIndex      = ni
               , shdrColorIndex       = ci
               , shdrProjMatIndex     = pi
               , shdrModelMatIndex    = mi
@@ -210,8 +218,7 @@ charCallback            tc win c          = atomically $ writeTQueue tc $ EventC
 --------------------------------------------------------------------------------
 
 runDemo :: Env -> State -> IO ()
-runDemo env state = do
-    void $ evalRWST (adjustWindow >> run) env state
+runDemo env state = void $ evalRWST (adjustWindow >> run) env state
 
 run :: Pioneer ()
 run = do
@@ -382,6 +389,7 @@ draw = do
         (GL.UniformLocation proj)  = shdrProjMatIndex state
         (GL.UniformLocation mmat)  = shdrModelMatIndex state
         vi = shdrVertexIndex state
+        ni = shdrNormalIndex state
         ci = shdrColorIndex state
         numVert = mapVert state
         map' = stateMap state
@@ -389,27 +397,39 @@ draw = do
     liftIO $ do
         --(vi,GL.UniformLocation proj) <- initShader
         GL.clearColor GL.$= GL.Color4 0.5 0.1 1 1
-        GL.clear [GL.ColorBuffer]
+        GL.clear [GL.ColorBuffer, GL.DepthBuffer]
         let fov = 90
             s = recip (tan $ fov * 0.5 * pi / 180)
             f = 1000
             n = 1
-        
-        let perspective = V.fromList [ s, 0, 0, 0
-                                      , 0, s, 0, 0
-                                      , 0, 0, -(f/(f - n)), -1
-                                      , 0, 0, -((f*n)/(f-n)), 0
-                                      ]
-        V.unsafeWith perspective $ \ptr -> GL.glUniformMatrix4fv proj 1 0 ptr
-        let model = V.fromList [
-                                        1,  0, 0, 0
-                                      , 0,  0, 1, 0
-                                      , 0,  1, 0, 0
-                                      ,-5, -10, -10, 1
-                                      ]
-        V.unsafeWith model $ \ptr -> GL.glUniformMatrix4fv mmat 1 0 ptr
+
+        let perspective = V4 (V4 s 0        0           0)
+                             (V4 0 s        0           0)
+                             (V4 0 0 (-(f/(f - n)))  (-1))
+                             (V4 0 0 (-((f*n)/(f-n)))   1)
+                         !*!
+                          V4 (V4 1 0 0 0)
+                             (V4 0 0 1 0)
+                             (V4 0 1 0 0)
+                             (V4 0 0 0 1)
+        with (distribute $ perspective) $ \ptr ->
+              GL.glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
+        --V.unsafeWith perspective $ \ptr -> GL.glUniformMatrix4fv proj 1 0 ptr
+        let cam     = crot !*! ctrans
+            ctrans  = (eye4 & translation .~ V3 (-5) (-10) (-10)) :: M44 CFloat
+            crot    = (m33_to_m44 $
+                            (fromQuaternion $
+                                axisAngle (V3 1 0 0) (pi/4))
+                            !*!
+                            (fromQuaternion $
+                                axisAngle (V3 0 1 0) (pi/16))
+                                ) :: M44 CFloat
+        --V.unsafeWith model $ \ptr -> GL.glUniformMatrix4fv mmat 1 0 ptr
+        with (distribute $ cam) $ \ptr ->
+              GL.glUniformMatrix4fv mmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
         GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
         GL.vertexAttribPointer ci GL.$= fgColorIndex
+        GL.vertexAttribPointer ni GL.$= fgNormalIndex
         GL.vertexAttribPointer vi GL.$= fgVertexIndex
 
         GL.drawArrays GL.Triangles 0 numVert
