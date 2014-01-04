@@ -80,7 +80,9 @@ getMapBufferObject = do
         bo <- genObjectName                     -- create a new buffer
         bindBuffer ArrayBuffer $= Just bo       -- bind buffer
         withArray map' $ \buffer ->
-                bufferData ArrayBuffer $= (fromIntegral (sizeOf(P.head map')), buffer, StaticDraw)
+                bufferData ArrayBuffer $= (fromIntegral $ sizeOf (0 :: Float)*P.length map',
+                                           buffer,
+                                           StaticDraw)
         checkError "initBuffer"
         return (bo,len)
 

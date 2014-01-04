@@ -10,12 +10,14 @@ import Data.List                 (intercalate)
 import Data.Maybe                (catMaybes)
 import Text.PrettyPrint
 
-import qualified Graphics.Rendering.OpenGL.GL as GL
-import qualified Graphics.UI.GLFW             as GLFW
+import qualified Graphics.Rendering.OpenGL.GL           as GL
+import qualified Graphics.Rendering.OpenGL.Raw.Core31   as GLRaw
+import qualified Graphics.UI.GLFW                       as GLFW
+import qualified Data.Vector.Storable as V
 
 import Map.Map
 import Render.Render (initShader)
-import Render.Misc (up, lookAtUniformMatrix4fv, createFrustum)
+import Render.Misc (up, lookAtUniformMatrix4fv, createFrustum, checkError)
 
 --------------------------------------------------------------------------------
 
@@ -385,13 +387,37 @@ draw = do
         map' = stateMap state
         frust = stateFrustum state
     liftIO $ do
-        lookAtUniformMatrix4fv (0.0,0.0,0.0) (0, 15, 0) up frust proj 1
+        GLRaw.glClearDepth 1.0
+        GLRaw.glDisable GLRaw.gl_CULL_FACE
+        --lookAtUniformMatrix4fv (0.0,0.0,0.0) (0, 15, 0) up frust proj 1
+
+-------------
+
+        let fov = 90
+            s = recip (tan $ fov * 0.5 * pi / 180)
+            f = 1000
+            n = 1
+
+        let perspective = V.fromList [ s, 0, 0, 0
+                                      , 0, s, 0, 0
+                                      , 0, 0, -(f/(f - n)), -1
+                                      , 0, 0, -((f*n)/(f-n)), 0
+                                      ]
+
+        V.unsafeWith perspective $ \ptr -> GLRaw.glUniformMatrix4fv proj 1 0 ptr
+
+---------------
+
         GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
         GL.vertexAttribPointer ci GL.$= fgColorIndex
+        GL.vertexAttribArray ci   GL.$= GL.Enabled
         GL.vertexAttribPointer ni GL.$= fgNormalIndex
+        GL.vertexAttribArray ni   GL.$= GL.Enabled
         GL.vertexAttribPointer vi GL.$= fgVertexIndex
+        GL.vertexAttribArray vi   GL.$= GL.Enabled
 
         GL.drawArrays GL.Triangles 0 numVert
+        checkError "draw"
 
 getCursorKeyDirections :: GLFW.Window -> IO (Double, Double)
 getCursorKeyDirections win = do

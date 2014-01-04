@@ -77,10 +77,10 @@ lookAtUniformMatrix4fv :: (Double, Double, Double)  --origin
 lookAtUniformMatrix4fv o c u frust num size = allocaArray 16 $ \projMat ->
                                                 do
                                                         pokeArray projMat $
-                                                                [1,  0,  0,  0,
-                                                                 0,  0,  1,  0,
-                                                                 0,  1,  0,  0,
-                                                                 0,  0,  0,  1
+                                                                [0.1,  0,  0,  0,
+                                                                 0,  0,  0.1,  0,
+                                                                 0,  0.1,  0,  0,
+                                                                 0,  0,    0,  1
                                                                 ]
                                                                 --(lookAt o c u) >< frust
                                                         glUniformMatrix4fv num size 1 projMat
