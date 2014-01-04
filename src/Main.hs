@@ -24,7 +24,7 @@ import qualified Data.Vector.Storable as V
 
 import Map.Map
 import Render.Render (initShader)
-import Render.Misc (up, lookAtUniformMatrix4fv, createFrustum, checkError)
+import Render.Misc (up, lookAtUniformMatrix4fv, createFrustum, checkError, lookAt)
 
 --------------------------------------------------------------------------------
 
@@ -233,7 +233,7 @@ run = do
     processEvents
 
     -- update State
-    {-
+    
     state <- get
     if stateDragging state
       then do
@@ -244,10 +244,19 @@ run = do
           (x, y) <- liftIO $ GLFW.getCursorPos win
           let myrot = (x - sodx) / 2
               mxrot = (y - sody) / 2
+              newXAngle = if newXAngle' > pi then pi else
+                            if newXAngle' < 0 then 0 else
+                                newXAngle'
+              newXAngle' = sodxa - mxrot/100
+              newYAngle = if newYAngle' > 2*pi then newYAngle'-2*pi else
+                            if newYAngle' < 0 then newYAngle'+2*pi else
+                                newYAngle'
+              newYAngle' = sodya - myrot/100
           put $ state
-            { stateXAngle = sodxa + mxrot
-            , stateYAngle = sodya + myrot
+            { stateXAngle = newXAngle
+            , stateYAngle = newYAngle
             }
+          liftIO $ putStrLn $ unwords $ map show $ [newXAngle, newYAngle]
       else do
           (kxrot, kyrot) <- liftIO $ getCursorKeyDirections win
           (jxrot, jyrot) <- liftIO $ getJoystickDirections GLFW.Joystick'1
@@ -255,7 +264,7 @@ run = do
             { stateXAngle = stateXAngle state + (2 * kxrot) + (2 * jxrot)
             , stateYAngle = stateYAngle state + (2 * kyrot) + (2 * jyrot)
             }
-    -}
+
     {-
     --modify the state with all that happened in mt time. 
     mt <- liftIO GLFW.getTime
@@ -383,8 +392,8 @@ draw :: Pioneer ()
 draw = do
     env   <- ask
     state <- get
-    let xa = stateXAngle state
-        ya = stateYAngle state
+    let xa = fromRational $ toRational $ stateXAngle state
+        ya = fromRational $ toRational $ stateYAngle state
         za = stateZAngle state
         (GL.UniformLocation proj)  = shdrProjMatIndex state
         (GL.UniformLocation mmat)  = shdrModelMatIndex state
@@ -405,8 +414,8 @@ draw = do
 
         let perspective = V4 (V4 s 0        0           0)
                              (V4 0 s        0           0)
-                             (V4 0 0 (-(f/(f - n)))  (-1))
-                             (V4 0 0 (-((f*n)/(f-n)))   1)
+                             (V4 0 0 (-((f+n)/(f-n)))  (-((2*f*n)/(f-n))))
+                             (V4 0 0      (-1)          0)
                          !*!
                           V4 (V4 1 0 0 0)
                              (V4 0 0 1 0)
@@ -415,15 +424,25 @@ draw = do
         with (distribute $ perspective) $ \ptr ->
               GL.glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
         --V.unsafeWith perspective $ \ptr -> GL.glUniformMatrix4fv proj 1 0 ptr
-        let cam     = crot !*! ctrans
-            ctrans  = (eye4 & translation .~ V3 (-5) (-10) (-10)) :: M44 CFloat
+        let cam     = lookAt (V3 5 0 5) (crot' !* cdist') up
+                        --cdist !*! crot !*! camat
+            camat   = (eye4 & translation .~ V3 (-0.5) (0) (-0.5)) :: M44 CFloat
+            cdist   = (eye4 & translation .~ V3 (0) (0) (-10)) :: M44 CFloat
             crot    = (m33_to_m44 $
                             (fromQuaternion $
-                                axisAngle (V3 1 0 0) (pi/4))
+                                axisAngle (V3 1 0 0) (xa::CFloat))
                             !*!
                             (fromQuaternion $
-                                axisAngle (V3 0 1 0) (pi/16))
+                                axisAngle (V3 0 1 0) (ya::CFloat))
                                 ) :: M44 CFloat
+            cdist'   = V3 (0) (0) (-10)
+            crot'    = (
+                            (fromQuaternion $
+                                axisAngle (V3 1 0 0) (xa::CFloat))
+                            !*!
+                            (fromQuaternion $
+                                axisAngle (V3 0 1 0) (ya::CFloat))
+                                ) :: M33 CFloat
         --V.unsafeWith model $ \ptr -> GL.glUniformMatrix4fv mmat 1 0 ptr
         with (distribute $ cam) $ \ptr ->
               GL.glUniformMatrix4fv mmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))

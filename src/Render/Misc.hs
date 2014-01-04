@@ -4,16 +4,17 @@ import           Control.Monad
 import qualified Data.ByteString                            as B (ByteString)
 import           Foreign.Marshal.Array                      (allocaArray,
                                                              pokeArray)
+import Foreign.C (CFloat)
 import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.StringQueries
 import           Graphics.Rendering.OpenGL.GLU.Errors
 import           Graphics.Rendering.OpenGL.Raw.Core31
 import           System.IO                                  (hPutStrLn, stderr)
+import Linear
 
-
-up :: (Double, Double, Double)
-up = (0.0, 1.0, 1.0)
+up :: V3 CFloat
+up = V3 0 1 0
 
 checkError :: String -> IO ()
 checkError functionName = get errors >>= mapM_ reportError
@@ -126,9 +127,28 @@ infixl 5 ><
                 ]
 _ >< _ = error "non-conformat matrix-multiplication"
 
+
+lookAt :: V3 CFloat -> V3 CFloat -> V3 CFloat -> M44 CFloat
+lookAt at eye@(V3 ex ey ez) up =
+        V4
+         (V4 xx yx zx 0)
+         (V4 xy yy zy 0)
+         (V4 xz yz zz 0)
+         (V4 0 0 0 1)
+        !*!
+        V4
+         (V4 1 0 0 (-ex))
+         (V4 0 1 0 (-ey))
+         (V4 0 0 1 (-ez))
+         (V4 0 0 0 1)
+        where
+                z@(V3 zx zy zz) = normalize (eye ^-^ at)
+                x@(V3 xx xy xz) = normalize (cross up z)
+                y@(V3 yx yy yz) = cross z x
+
 -- generates 4x4-Projection-Matrix
-lookAt :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double) -> [GLfloat]
-lookAt at eye up =
+lookAt_ :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double) -> [GLfloat]
+lookAt_ at eye up =
         map (fromRational . toRational) [
          xx, yx, zx, 0,
          xy, yy, zy, 0,
