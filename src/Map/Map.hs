@@ -47,9 +47,7 @@ lineHeight :: GLfloat
 lineHeight = 0.8660254
 
 numComponents :: Int
-numComponents = 4  --color
-                +3 --normal
-                +3 --vertex
+numComponents = 3
 
 mapStride :: Stride
 mapStride = fromIntegral (sizeOf (0.0 :: GLfloat)) * fromIntegral numComponents
@@ -73,20 +71,65 @@ fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
         map' <- testmap
-        map' <- return $ generateTriangles map'
+        map' <- return $ generateCube --generateTriangles map'
         putStrLn $ P.unlines $ P.map show (prettyMap map')
         len <- return $ fromIntegral $ P.length map' `div` numComponents
         putStrLn $ P.unwords ["num verts",show len]
         bo <- genObjectName                     -- create a new buffer
         bindBuffer ArrayBuffer $= Just bo       -- bind buffer
         withArray map' $ \buffer ->
-                bufferData ArrayBuffer $= (fromIntegral (sizeOf(P.head map')), buffer, StaticDraw)
+                bufferData ArrayBuffer $= (fromIntegral (P.length map' * sizeOf(P.head map')), buffer, StaticDraw)
         checkError "initBuffer"
         return (bo,len)
 
 prettyMap :: [GLfloat] -> [(GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat)]
 prettyMap (a:b:c:d:x:y:z:u:v:w:ms) = (a,b,c,d,x,y,z,u,v,w):(prettyMap ms)
 prettyMap _ = []
+
+generateCube :: [GLfloat]
+generateCube = [  -- lower plane
+                  -0.3,-0.3,-0.3,
+                  0.3,-0.3,0.3,
+                  0.3,-0.3,-0.3,
+                  -0.3,-0.3,-0.3,
+                  -0.3,-0.3,0.3,
+                  0.3,-0.3,0.3,
+                  -- upper plane
+                  -0.3,0.3,-0.3,
+                  0.3,0.3,0.3,
+                  0.3,0.3,-0.3,
+                  -0.3,0.3,-0.3,
+                  -0.3,0.3,0.3,
+                  0.3,0.3,0.3,
+                   -- left plane
+                  -0.3,-0.3,-0.3,
+                  -0.3,0.3,0.3,
+                  -0.3,-0.3,0.3,
+                  -0.3,-0.3,-0.3,
+                  -0.3,0.3,0.3,
+                  -0.3,0.3,-0.3,
+                   -- right plane
+                  0.3,-0.3,-0.3,
+                  0.3,0.3,0.3,
+                  0.3,-0.3,0.3,
+                  0.3,-0.3,-0.3,
+                  0.3,0.3,0.3,
+                  0.3,0.3,-0.3,
+                   -- front plane
+                  -0.3,-0.3,-0.3,
+                  0.3,0.3,-0.3,
+                  0.3,-0.3,-0.3,
+                  -0.3,-0.3,-0.3,
+                  0.3,0.3,-0.3,
+                  -0.3,0.3,-0.3,
+                   -- back plane
+                  -0.3,-0.3,0.3,
+                  0.3,0.3,0.3,
+                  0.3,-0.3,0.3,
+                  -0.3,-0.3,0.3,
+                  0.3,0.3,0.3,
+                  -0.3,0.3,0.3
+                  ]
 
 generateTriangles :: PlayMap -> [GLfloat] 
 generateTriangles map' =

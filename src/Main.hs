@@ -44,8 +44,6 @@ data State = State
     , stateFrustum         :: [GL.GLfloat]
     -- pointer to bindings for locations inside the compiled shader
     -- mutable because shaders may be changed in the future.
-    , shdrColorIndex       :: !GL.AttribLocation
-    , shdrNormalIndex      :: !GL.AttribLocation
     , shdrVertexIndex      :: !GL.AttribLocation
     , shdrProjMatIndex     :: !GL.UniformLocation
     -- the map
@@ -105,7 +103,7 @@ main = do
 
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
-        (ci, ni, vi, pi) <- initShader
+        (vi, pi) <- initShader
 
         let zDistClosest  = 10
             zDistFarthest = zDistClosest + 20
@@ -134,8 +132,6 @@ main = do
               , stateDragStartY      = 0
               , stateDragStartXAngle = 0
               , stateDragStartYAngle = 0
-              , shdrColorIndex       = ci
-              , shdrNormalIndex      = ni
               , shdrVertexIndex      = vi
               , shdrProjMatIndex     = pi
               , stateMap             = mapBuffer
@@ -378,8 +374,6 @@ draw = do
         ya = stateYAngle state
         za = stateZAngle state
         (GL.UniformLocation proj) = shdrProjMatIndex state
-        ci = shdrColorIndex state
-        ni = shdrNormalIndex state
         vi = shdrVertexIndex state
         numVert = mapVert state
         map' = stateMap state
@@ -387,8 +381,6 @@ draw = do
     liftIO $ do
         lookAtUniformMatrix4fv (0.0,0.0,0.0) (0, 15, 0) up frust proj 1
         GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
-        GL.vertexAttribPointer ci GL.$= fgColorIndex
-        GL.vertexAttribPointer ni GL.$= fgNormalIndex
         GL.vertexAttribPointer vi GL.$= fgVertexIndex
 
         GL.drawArrays GL.Triangles 0 numVert
