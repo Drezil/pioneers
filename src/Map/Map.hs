@@ -57,7 +57,7 @@ bufferObjectPtr = plusPtr (nullPtr :: Ptr GLfloat) . fromIntegral
 
 mapVertexArrayDescriptor :: NumComponents -> NumComponents -> VertexArrayDescriptor GLfloat
 mapVertexArrayDescriptor count' offset =
-   VertexArrayDescriptor count' Float mapStride (bufferObjectPtr offset ) --(fromIntegral numComponents * offset))
+   VertexArrayDescriptor count' Float mapStride (bufferObjectPtr ((fromIntegral offset)*sizeOf (0 :: GLfloat)) ) --(fromIntegral numComponents * offset))
 
 fgColorIndex :: (IntegerHandling, VertexArrayDescriptor GLfloat)
 fgColorIndex = (ToFloat, mapVertexArrayDescriptor 4 3)  --color first
