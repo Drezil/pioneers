@@ -405,7 +405,7 @@ draw = do
                                         1,  0, 0, 0
                                       , 0,  0, 1, 0
                                       , 0,  1, 0, 0
-                                      ,-1, -1, -5, 1
+                                      ,-5, -10, -10, 1
                                       ]
         V.unsafeWith model $ \ptr -> GL.glUniformMatrix4fv mmat 1 0 ptr
         GL.bindBuffer GL.ArrayBuffer GL.$= Just map'

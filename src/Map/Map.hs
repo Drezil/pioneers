@@ -240,8 +240,8 @@ testMapTemplate2 = T.transpose [
 testmap :: IO PlayMap
 testmap = do
                 g <- getStdGen
-                rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate2)
-                return $ listArray ((0,0),(9,1)) rawMap
+                rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate)
+                return $ listArray ((0,0),(19,19)) rawMap
 
 
 parseTemplate :: [Int] -> Text -> [MapEntry]
