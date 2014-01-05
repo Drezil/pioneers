@@ -27,6 +27,7 @@ import Foreign.Marshal.Array (withArray)
 import Foreign.Storable (sizeOf)
 import Foreign.Ptr (Ptr, nullPtr, plusPtr)
 import Render.Misc (checkError)
+import Linear
 
 
 data TileType =
@@ -173,9 +174,9 @@ generateSecondTriLine _ True _ _  = []
 lookupVertex :: PlayMap -> Int -> Int -> [GLfloat]
 lookupVertex map' x y = 
                 let 
-                        (cr, cg, cb) = colorLookup map' (x,y)
-                        (vx, vy, vz) = coordLookup (x,y) $ heightLookup map' (x,y)
-                        (nx, ny, nz) = (0.0, 1.0, 0.0) :: (GLfloat, GLfloat, GLfloat)
+                        (cr, cg, cb)  = colorLookup map' (x,y)
+                        (V3 vx vy vz) = coordLookup (x,y) $ heightLookup map' (x,y)
+                        (V3 nx ny nz) = normalLookup map' x y
                         --TODO: calculate normals correctly!
                 in
                 [
@@ -183,6 +184,39 @@ lookupVertex map' x y =
                         nx, ny, nz,             -- 3 Normal
                         vx, vy, vz              -- 3 Vertex
                 ]
+
+normalLookup :: PlayMap -> Int -> Int -> V3 GLfloat
+normalLookup map' x y = normalize $ normN + normNE + normSE + normS + normSW + normNW
+                    where
+                      --Face Normals
+                      normN  = cross (vNE-vC) (vNW-vC)
+                      normNE = cross (vE -vC) (vNE-vC)
+                      normSE = cross (vSE-vC) (vE -vC)
+                      normS  = cross (vSW-vC) (vSE-vC)
+                      normSW = cross (vW -vC) (vSW-vC)
+                      normNW = cross (vNW-vC) (vW -vC)
+                      --Vertex Normals
+                      vC     = coordLookup (x,y) $ heightLookup map' (x,y)
+                      --TODO: kill guards with eo 
+                      vNW
+                        | even x    = coordLookup (x-1,y-1) $ heightLookup map' (x-1,y-1)
+                        | otherwise = coordLookup (x-1,y  ) $ heightLookup map' (x-1,y  )
+                      vNE
+                        | even x    = coordLookup (x+1,y-1) $ heightLookup map' (x+1,y-1)
+                        | otherwise = coordLookup (x+1,y  ) $ heightLookup map' (x+1,y  )
+                      vE
+                        | even x    = coordLookup (x+2,y  ) $ heightLookup map' (x+2,y  )
+                        | otherwise = coordLookup (x+2,y  ) $ heightLookup map' (x+2,y  )
+                      vSE
+                        | even x    = coordLookup (x+1,y  ) $ heightLookup map' (x+1,y  )
+                        | otherwise = coordLookup (x+1,y+1) $ heightLookup map' (x+1,y+1)
+                      vSW
+                        | even x    = coordLookup (x-1,y  ) $ heightLookup map' (x-1,y  )
+                        | otherwise = coordLookup (x-1,y+1) $ heightLookup map' (x-1,y+1)
+                      vW
+                        | even x    = coordLookup (x-2,y  ) $ heightLookup map' (x-2,y  )
+                        | otherwise = coordLookup (x-2,y  ) $ heightLookup map' (x-2,y  )
+                      eo = if even x then 1 else -1
 
 heightLookup :: PlayMap -> (Int,Int) -> GLfloat
 heightLookup hs t = if inRange (bounds hs) t then fromRational $ toRational h else 0.0
@@ -199,12 +233,12 @@ colorLookup hs t = if inRange (bounds hs) t then c else (0.0, 0.0, 0.0)
                                 Grass           -> (0.3, 0.9, 0.1)
                                 Mountain        -> (0.5, 0.5, 0.5)
 
-coordLookup :: (Int,Int) -> GLfloat -> (GLfloat, GLfloat, GLfloat)
+coordLookup :: (Int,Int) -> GLfloat -> V3 GLfloat
 coordLookup (x,z) y = 
                 if even x then
-                        (fromIntegral $ x `div` 2, y, fromIntegral (2 * z) * lineHeight)
+                        V3 (fromIntegral $ x `div` 2) y (fromIntegral (2 * z) * lineHeight)
                 else
-                        (fromIntegral (x `div` 2) + 0.5, y, fromIntegral (2 * z + 1) * lineHeight)
+                        V3 (fromIntegral (x `div` 2) + 0.5) y (fromIntegral (2 * z + 1) * lineHeight)
 
 
 -- if writing in ASCII-Format transpose so i,j -> y,x
