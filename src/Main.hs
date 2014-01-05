@@ -246,12 +246,14 @@ run = do
           (x, y) <- liftIO $ GLFW.getCursorPos win
           let myrot = (x - sodx) / 2
               mxrot = (y - sody) / 2
-              newXAngle = if newXAngle' > 2*pi then 2*pi else
-                            if newXAngle' < -2*pi then -2*pi else
+--              newXAngle = if newXAngle' > 2*pi then 2*pi else
+              newXAngle = if newXAngle' > 0.45*pi then 0.45*pi else
+--                            if newXAngle' < -2*pi then -2*pi else
+                            if newXAngle' < 0 then 0 else
                                 newXAngle'
               newXAngle' = sodxa + mxrot/100
-              newYAngle = if newYAngle' > 2*pi then newYAngle'-2*pi else
-                            if newYAngle' < 0 then newYAngle'+2*pi else
+              newYAngle = if newYAngle' > pi then newYAngle'-2*pi else
+                            if newYAngle' < -pi then newYAngle'+2*pi else
                                 newYAngle'
               newYAngle' = sodya + myrot/100
           put $ state
@@ -442,9 +444,8 @@ draw = do
         --V.unsafeWith perspective $ \ptr -> GL.glUniformMatrix4fv proj 1 0 ptr
         let cam     = lookAt (cpos ^+^ at') at' up
                         --cdist !*! crot !*! camat
-            cpos    = -10 *^ normalize (V3 (sin ya) ((cos ya) * (sin xa)) ((cos ya) * (cos xa)))
-            camat   = (eye4 & translation .~ V3 (-0.5) (0) (-0.5)) :: M44 CFloat
-            cdist   = (eye4 & translation .~ V3 (0) (0) (-10)) :: M44 CFloat
+--            cpos    = -10 *^ normalize (V3 (sin ya) ((cos ya) * (sin xa)) ((cos ya) * (cos xa)))
+
             crot    = (m33_to_m44 $
                             (fromQuaternion $
                                 axisAngle (V3 1 0 0) (xa::CFloat))
@@ -452,18 +453,23 @@ draw = do
                             (fromQuaternion $
                                 axisAngle (V3 0 1 0) ((ya::CFloat) - pi/2))
                                 ) :: M44 CFloat
+                                
             at'      = V3 5 0 5
-            cdist'   = V3 (0) (0) (-10)
+            
+            upmap    = (fromQuaternion $
+                                axisAngle (V3 0 1 0) (ya::CFloat) :: M33 CFloat)
+                                !* (V3 1 0 0)
             crot'    = (
                             (fromQuaternion $
-                                axisAngle (V3 0 1 0) (ya::CFloat))
+                                axisAngle upmap (xa::CFloat))
                             !*!
                             (fromQuaternion $
-                                axisAngle (V3 1 0 0) (xa::CFloat))
+                                axisAngle (V3 0 1 0) (ya::CFloat))
                                 ) :: M33 CFloat
+            cpos     = crot' !* (V3 0 0 (-10))
         --V.unsafeWith model $ \ptr -> GL.glUniformMatrix4fv mmat 1 0 ptr -}
-        putStrLn $ unwords $ "Cam direction:":map show [cpos]
-        putStrLn $ unwords $ "Cam at:":map show [cpos ^+^ at']
+        --putStrLn $ unwords $ "Cam direction:":map show [cpos]
+        --putStrLn $ unwords $ "Cam at:":map show [cpos ^+^ at']
         with (distribute $ cam) $ \ptr ->
               GL.glUniformMatrix4fv mmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
         GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
