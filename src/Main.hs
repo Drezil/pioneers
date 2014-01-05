@@ -414,6 +414,7 @@ adjustWindow = do
         far           = 100 --far plane
         ratio         = fromIntegral fbWidth / fromIntegral fbHeight
         frust         = createFrustum fov near far ratio
+    liftIO $ glViewport 0 0 (fromIntegral fbWidth) (fromIntegral fbHeight)
     put $ state {
         stateFrustum = frust
     }
