@@ -7,12 +7,13 @@ import           Foreign.Storable                           (sizeOf)
 import           Graphics.Rendering.OpenGL.GL.BufferObjects
 import           Graphics.Rendering.OpenGL.GL.Framebuffer   (clearColor)
 import           Graphics.Rendering.OpenGL.GL.ObjectName
+import           Graphics.Rendering.OpenGL.GL.PerFragment
 import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.VertexArrays  (Capability (..),
                                                              vertexAttribArray)
 import           Graphics.Rendering.OpenGL.GL.VertexSpec
-import           Graphics.Rendering.OpenGL.Raw.Core31.Types (GLfloat)
+import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Render.Misc
 
 vertexShaderFile :: String
@@ -33,7 +34,7 @@ initBuffer varray =
            checkError "initBuffer"
            return bufferObject
 
-initShader :: IO (AttribLocation, AttribLocation, AttribLocation, UniformLocation)
+initShader :: IO (AttribLocation, AttribLocation, AttribLocation, UniformLocation, UniformLocation, UniformLocation)
 initShader = do
    ! vertexSource <- B.readFile vertexShaderFile
    ! fragmentSource <- B.readFile fragmentShaderFile
@@ -49,22 +50,35 @@ initShader = do
    projectionMatrixIndex <- get (uniformLocation program "fg_ProjectionMatrix")
    checkError "projMat"
 
-   colorIndex <- get (attribLocation program "fg_Color")
-   vertexAttribArray colorIndex $= Enabled
-   checkError "colorInd"
+   viewMatrixIndex <- get (uniformLocation program "fg_ViewMatrix")
+   checkError "viewMat"
 
-   normalIndex <- get (attribLocation program "fg_Normal")
-   vertexAttribArray normalIndex $= Enabled
-   checkError "normalInd"
+   modelMatrixIndex <- get (uniformLocation program "fg_ModelMatrix")
+   checkError "modelMat"
 
    vertexIndex <- get (attribLocation program "fg_VertexIn")
    vertexAttribArray vertexIndex $= Enabled
    checkError "vertexInd"
 
+   normalIndex <- get (attribLocation program "fg_NormalIn")
+   vertexAttribArray normalIndex $= Enabled
+   checkError "normalInd"
+
+   colorIndex <- get (attribLocation program "fg_Color")
+   vertexAttribArray colorIndex $= Enabled
+   checkError "colorInd"
+
+   att <- get (activeAttribs program)
+
+   putStrLn $ unlines $ "Attributes: ":map show att
+   putStrLn $ unlines $ ["Indices: ", show (colorIndex, normalIndex, vertexIndex)]
+
    checkError "initShader"
-   return (colorIndex, normalIndex, vertexIndex, projectionMatrixIndex)
+   return (colorIndex, normalIndex, vertexIndex, projectionMatrixIndex, viewMatrixIndex, modelMatrixIndex)
 
 initRendering :: IO ()
 initRendering = do
         clearColor $= Color4 0 0 0 0
+        depthFunc $= Just Less
+        glCullFace gl_BACK
         checkError "initRendering"

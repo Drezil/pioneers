@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 module Main (main) where
 
 --------------------------------------------------------------------------------
@@ -10,36 +9,44 @@ import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 import Data.List                 (intercalate)
 import Data.Maybe                (catMaybes)
 import Text.PrettyPrint
+import Control.Applicative
+import Control.Lens
+import Control.Monad (forever)
 import Data.Distributive (distribute)
-import Foreign (Ptr, castPtr, with)
+import Foreign (Ptr, castPtr, nullPtr, sizeOf, with)
 import Foreign.C (CFloat)
+
+import Graphics.Rendering.OpenGL (($=))
+import qualified Graphics.Rendering.OpenGL as GL
+import qualified Graphics.Rendering.OpenGL.Raw as GL
+import qualified Graphics.UI.GLFW          as GLFW
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Vector.Storable as V
 import Linear as L
+import Linear ((!*!))
 
-import qualified Graphics.Rendering.OpenGL.GL           as GL
-import Graphics.Rendering.OpenGL.Raw.Core31
-import qualified Graphics.UI.GLFW                       as GLFW
-
-import Map.Map
-import Render.Render (initShader, initRendering)
-import Render.Misc (up, createFrustum, checkError, lookAt)
+import Data.IORef
 
 --------------------------------------------------------------------------------
 
---Static Read-Only-State
 data Env = Env
     { envEventsChan    :: TQueue Event
     , envWindow        :: !GLFW.Window
+    , envGear1         :: !GL.DisplayList
+    , envGear2         :: !GL.DisplayList
+    , envGear3         :: !GL.DisplayList
     , envZDistClosest  :: !Double
     , envZDistFarthest :: !Double
     }
 
---Mutable State
 data State = State
     { stateWindowWidth     :: !Int
     , stateWindowHeight    :: !Int
     , stateXAngle          :: !Double
     , stateYAngle          :: !Double
     , stateZAngle          :: !Double
+    , stateGearZAngle      :: !Double
     , stateZDist           :: !Double
     , stateMouseDown       :: !Bool
     , stateDragging        :: !Bool
@@ -47,21 +54,9 @@ data State = State
     , stateDragStartY      :: !Double
     , stateDragStartXAngle :: !Double
     , stateDragStartYAngle :: !Double
-    , stateFrustum         :: !(M44 CFloat)
-    -- pointer to bindings for locations inside the compiled shader
-    -- mutable because shaders may be changed in the future.
-    , shdrVertexIndex      :: !GL.AttribLocation
-    , shdrColorIndex       :: !GL.AttribLocation
-    , shdrNormalIndex      :: !GL.AttribLocation
-    , shdrProjMatIndex     :: !GL.UniformLocation
-    , shdrViewMatIndex     :: !GL.UniformLocation
-    , shdrModelMatIndex    :: !GL.UniformLocation
-    -- the map
-    , stateMap             :: !GL.BufferObject
-    , mapVert              :: !GL.NumArrayIndices
     }
 
-type Pioneer = RWST Env () State IO
+type Demo = RWST Env () State IO
 
 --------------------------------------------------------------------------------
 
@@ -84,6 +79,24 @@ data Event =
 
 --------------------------------------------------------------------------------
 
+--------------------------------------------------------------------------------
+triangleTransformation :: (Epsilon a, Floating a) => a -> M44 a
+triangleTransformation =
+  liftA2 (!*!) triangleTranslation triangleRotation
+
+--------------------------------------------------------------------------------
+triangleRotation :: (Epsilon a, Floating a) => a -> M44 a
+triangleRotation t =
+  m33_to_m44 $
+    fromQuaternion $
+      axisAngle (V3 0 1 0) (t * 2)
+
+triangleTranslation :: Floating a => a -> M44 a
+triangleTranslation t =
+  eye4 & translation .~ V3 (sin t * 2) 0 (-5)
+
+--------------------------------------------------------------------------------
+
 main :: IO ()
 main = do
     let width  = 640
@@ -91,70 +104,88 @@ main = do
 
     eventsChan <- newTQueueIO :: IO (TQueue Event)
 
-    withWindow width height "Pioneers" $ \win -> do
-        GLFW.setErrorCallback               $ Just $ errorCallback           eventsChan
-        GLFW.setWindowPosCallback       win $ Just $ windowPosCallback       eventsChan
-        GLFW.setWindowSizeCallback      win $ Just $ windowSizeCallback      eventsChan
-        GLFW.setWindowCloseCallback     win $ Just $ windowCloseCallback     eventsChan
-        GLFW.setWindowRefreshCallback   win $ Just $ windowRefreshCallback   eventsChan
-        GLFW.setWindowFocusCallback     win $ Just $ windowFocusCallback     eventsChan
-        GLFW.setWindowIconifyCallback   win $ Just $ windowIconifyCallback   eventsChan
-        GLFW.setFramebufferSizeCallback win $ Just $ framebufferSizeCallback eventsChan
-        GLFW.setMouseButtonCallback     win $ Just $ mouseButtonCallback     eventsChan
-        GLFW.setCursorPosCallback       win $ Just $ cursorPosCallback       eventsChan
-        GLFW.setCursorEnterCallback     win $ Just $ cursorEnterCallback     eventsChan
-        GLFW.setScrollCallback          win $ Just $ scrollCallback          eventsChan
-        GLFW.setKeyCallback             win $ Just $ keyCallback             eventsChan
-        GLFW.setCharCallback            win $ Just $ charCallback            eventsChan
-
-        GLFW.swapInterval 1
-
-        (fbWidth, fbHeight) <- GLFW.getFramebufferSize win
-
-        initRendering
-        --generate map vertices
-        (mapBuffer, vert) <- getMapBufferObject
-        (ci, ni, vi, pri, vii, mi) <- initShader
-
-        let zDistClosest  = 10
-            zDistFarthest = zDistClosest + 20
-            fov           = 90  --field of view
-            near          = 1   --near plane
-            far           = 100 --far plane
-            ratio         = fromIntegral fbWidth / fromIntegral fbHeight
-            frust         = createFrustum fov near far ratio
-            env = Env
-              { envEventsChan    = eventsChan
-              , envWindow        = win
-              , envZDistClosest  = zDistClosest
-              , envZDistFarthest = zDistFarthest
-              }
-            state = State
-              { stateWindowWidth     = fbWidth
-              , stateWindowHeight    = fbHeight
-              , stateXAngle          = pi/6
-              , stateYAngle          = pi/2
-              , stateZAngle          = 0
-              , stateZDist           = 10
-              , stateMouseDown       = False
-              , stateDragging        = False
-              , stateDragStartX      = 0
-              , stateDragStartY      = 0
-              , stateDragStartXAngle = 0
-              , stateDragStartYAngle = 0
-              , shdrVertexIndex      = vi
-              , shdrNormalIndex      = ni
-              , shdrColorIndex       = ci
-              , shdrProjMatIndex     = pri
-              , shdrViewMatIndex     = vii
-              , shdrModelMatIndex    = mi
-              , stateMap             = mapBuffer
-              , mapVert              = vert
-              , stateFrustum         = frust
-              }
-        runDemo env state
-
-    putStrLn "ended!"
+    withWindow width height "GLFW-b-demo" $ \win -> do
+          let z = 0
+          let vertices = V.fromList [ 0, 1, 0
+                                    , -1, -1, z
+                                    , 1, -1, z ] :: V.Vector Float
+              vertexAttribute = GL.AttribLocation 0
+        
+          cubeVbo <- GL.genObjectName
+        
+          GL.bindBuffer GL.ArrayBuffer $= Just cubeVbo
+        
+          V.unsafeWith vertices $ \v -> GL.bufferData GL.ArrayBuffer $=
+            (fromIntegral $ V.length vertices * sizeOf (0 :: Float), v, GL.StaticDraw)
+        
+          GL.vertexAttribPointer vertexAttribute $=
+            (GL.ToFloat, GL.VertexArrayDescriptor 3 GL.Float 0 nullPtr)
+        
+          GL.vertexAttribArray vertexAttribute $= GL.Enabled
+          GL.bindBuffer GL.ArrayBuffer $= Just cubeVbo
+        
+          vertexShader <- GL.createShader GL.VertexShader
+          fragmentShader <- GL.createShader GL.FragmentShader
+        
+          GL.shaderSourceBS vertexShader $= Text.encodeUtf8
+            (Text.pack $ unlines
+              [ "#version 130"
+              , "uniform mat4 projection;"
+              , "uniform mat4 model;"
+              , "in vec3 in_Position;"
+              , "void main(void) {"
+              , "  gl_Position = projection * model * vec4(in_Position, 1.0);"
+              , "}"
+              ])
+        
+          GL.shaderSourceBS fragmentShader $= Text.encodeUtf8
+            (Text.pack $ unlines
+              [ "#version 130"
+              , "out vec4 fragColor;"
+              , "void main(void) {"
+              , "  fragColor = vec4(1.0,1.0,1.0,1.0);"
+              , "}"
+              ])
+        
+          GL.compileShader vertexShader
+          GL.compileShader fragmentShader
+        
+          shaderProg <- GL.createProgram
+          GL.attachShader shaderProg vertexShader
+          GL.attachShader shaderProg fragmentShader
+          GL.attribLocation shaderProg "in_Position" $= vertexAttribute
+          GL.linkProgram shaderProg
+          GL.currentProgram $= Just shaderProg
+        
+          let fov = 90
+              s = recip (tan $ fov * 0.5 * pi / 180)
+              f = 1000
+              n = 1
+        
+          let perspective = V.fromList [ s, 0, 0, 0
+                                      , 0, s, 0, 0
+                                      , 0, 0, -(f/(f - n)), -1
+                                      , 0, 0, -((f*n)/(f-n)), 0
+                                      ]
+        
+          GL.UniformLocation loc <- GL.get (GL.uniformLocation shaderProg "projection")
+          V.unsafeWith perspective $ \ptr -> GL.glUniformMatrix4fv loc 1 0 ptr
+        
+          tr <- newIORef 0
+          forever $ do
+            t <- readIORef tr
+        
+            GL.clearColor $= GL.Color4 0.5 0.2 1 1
+            GL.clear [GL.ColorBuffer]
+        
+            GL.UniformLocation loc <- GL.get (GL.uniformLocation shaderProg "model")
+            with (distribute $ triangleTransformation t) $ \ptr ->
+              GL.glUniformMatrix4fv loc 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
+        
+            GL.drawArrays GL.Triangles 0 3
+        
+            GLFW.swapBuffers win
+            writeIORef tr (t + 0.1)
 
 --------------------------------------------------------------------------------
 
@@ -218,22 +249,21 @@ charCallback            tc win c          = atomically $ writeTQueue tc $ EventC
 --------------------------------------------------------------------------------
 
 runDemo :: Env -> State -> IO ()
-runDemo env state = void $ evalRWST (adjustWindow >> run) env state
+runDemo env state = do
+    printInstructions
+    void $ evalRWST (adjustWindow >> run) env state
 
-run :: Pioneer ()
+run :: Demo ()
 run = do
     win <- asks envWindow
 
-    -- draw Scene
     draw
     liftIO $ do
         GLFW.swapBuffers win
+        GL.flush  -- not necessary, but someone recommended it
         GLFW.pollEvents
-    -- getEvents & process
     processEvents
 
-    -- update State
-    
     state <- get
     if stateDragging state
       then do
@@ -244,21 +274,10 @@ run = do
           (x, y) <- liftIO $ GLFW.getCursorPos win
           let myrot = (x - sodx) / 2
               mxrot = (y - sody) / 2
---              newXAngle = if newXAngle' > 2*pi then 2*pi else
-              newXAngle = if newXAngle' > 0.45*pi then 0.45*pi else
---                            if newXAngle' < -2*pi then -2*pi else
-                            if newXAngle' < 0 then 0 else
-                                newXAngle'
-              newXAngle' = sodxa + mxrot/100
-              newYAngle = if newYAngle' > pi then newYAngle'-2*pi else
-                            if newYAngle' < -pi then newYAngle'+2*pi else
-                                newYAngle'
-              newYAngle' = sodya + myrot/100
           put $ state
-            { stateXAngle = newXAngle
-            , stateYAngle = newYAngle
+            { stateXAngle = sodxa + mxrot
+            , stateYAngle = sodya + myrot
             }
---          liftIO $ putStrLn $ unwords $ map show $ [newXAngle, newYAngle]
       else do
           (kxrot, kyrot) <- liftIO $ getCursorKeyDirections win
           (jxrot, jyrot) <- liftIO $ getJoystickDirections GLFW.Joystick'1
@@ -267,18 +286,15 @@ run = do
             , stateYAngle = stateYAngle state + (2 * kyrot) + (2 * jyrot)
             }
 
-    {-
-    --modify the state with all that happened in mt time. 
     mt <- liftIO GLFW.getTime
     modify $ \s -> s
-      { 
+      { stateGearZAngle = maybe 0 (realToFrac . (100*)) mt
       }
-    -}
 
     q <- liftIO $ GLFW.windowShouldClose win
     unless q run
 
-processEvents :: Pioneer ()
+processEvents :: Demo ()
 processEvents = do
     tc <- asks envEventsChan
     me <- liftIO $ atomically $ tryReadTQueue tc
@@ -288,7 +304,7 @@ processEvents = do
           processEvents
       Nothing -> return ()
 
-processEvent :: Event -> Pioneer ()
+processEvent :: Event -> Demo ()
 processEvent ev =
     case ev of
       (EventError e s) -> do
@@ -335,9 +351,9 @@ processEvent ev =
                   }
 
       (EventCursorPos _ x y) -> do
-          {-let x' = round x :: Int
+          let x' = round x :: Int
               y' = round y :: Int
-          printEvent "cursor pos" [show x', show y']-}
+          printEvent "cursor pos" [show x', show y']
           state <- get
           when (stateMouseDown state && not (stateDragging state)) $
             put $ state
@@ -369,6 +385,9 @@ processEvent ev =
               -- Q, Esc: exit
               when (k == GLFW.Key'Q || k == GLFW.Key'Escape) $
                 liftIO $ GLFW.setWindowShouldClose win True
+              -- ?: print instructions
+              when (k == GLFW.Key'Slash && GLFW.modifierKeysShift mk) $
+                liftIO printInstructions
               -- i: print GLFW information
               when (k == GLFW.Key'I) $
                 liftIO $ printInformation win
@@ -376,73 +395,69 @@ processEvent ev =
       (EventChar _ c) ->
           printEvent "char" [show c]
 
-adjustWindow :: Pioneer ()
+adjustWindow :: Demo ()
 adjustWindow = do
     state <- get
-    let fbWidth  = stateWindowWidth  state
-        fbHeight = stateWindowHeight state
-        fov           = 90  --field of view
-        near          = 1   --near plane
-        far           = 100 --far plane
-        ratio         = fromIntegral fbWidth / fromIntegral fbHeight
-        frust         = createFrustum fov near far ratio
-    put $ state {
-        stateFrustum = frust
-    }
+    let width  = stateWindowWidth  state
+        height = stateWindowHeight state
+        zDist  = stateZDist        state
 
-draw :: Pioneer ()
+    let pos   = GL.Position 0 0
+        size  = GL.Size (fromIntegral width) (fromIntegral height)
+        h     = fromIntegral height / fromIntegral width :: Double
+        znear = 1           :: Double
+        zfar  = 40          :: Double
+        xmax  = znear * 0.5 :: Double
+    liftIO $ do
+        GL.viewport   GL.$= (pos, size)
+        GL.matrixMode GL.$= GL.Projection
+        GL.loadIdentity
+        GL.frustum (realToFrac $ -xmax)
+                   (realToFrac    xmax)
+                   (realToFrac $ -xmax * realToFrac h)
+                   (realToFrac $  xmax * realToFrac h)
+                   (realToFrac    znear)
+                   (realToFrac    zfar)
+        GL.matrixMode GL.$= GL.Modelview 0
+        GL.loadIdentity
+        GL.translate (GL.Vector3 0 0 (negate $ realToFrac zDist) :: GL.Vector3 GL.GLfloat)
+
+draw :: Demo ()
 draw = do
     env   <- ask
     state <- get
-    let xa = fromRational $ toRational $ stateXAngle state
-        ya = fromRational $ toRational $ stateYAngle state
+    let gear1 = envGear1 env
+        gear2 = envGear2 env
+        gear3 = envGear3 env
+        xa = stateXAngle state
+        ya = stateYAngle state
         za = stateZAngle state
-        (GL.UniformLocation proj)  = shdrProjMatIndex state
-        (GL.UniformLocation vmat)  = shdrViewMatIndex state
-        vi = shdrVertexIndex state
-        ni = shdrNormalIndex state
-        ci = shdrColorIndex state
-        numVert = mapVert state
-        map' = stateMap state
-        frust = stateFrustum state
+        ga = stateGearZAngle  state
     liftIO $ do
-        --(vi,GL.UniformLocation proj) <- initShader
-        GL.clearColor GL.$= GL.Color4 0.5 0.1 1 1
         GL.clear [GL.ColorBuffer, GL.DepthBuffer]
-        --set up projection (= copy from state)
-        with (distribute $ frust) $ \ptr ->
-              glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
-
-        --set up camera
-
-        let ! cam     = lookAt (cpos ^+^ at') at' up
-
-            at'      = V3 5 0 5
-            upmap    = (fromQuaternion $
-                                axisAngle (V3 0 1 0) (ya::CFloat) :: M33 CFloat)
-                                !* (V3 1 0 0)
-            crot'    = (
-                            (fromQuaternion $
-                                axisAngle upmap (xa::CFloat))
-                            !*!
-                            (fromQuaternion $
-                                axisAngle (V3 0 1 0) (ya::CFloat))
-                                ) :: M33 CFloat
-            cpos     = crot' !* (V3 0 0 (-10))
-
-        with (distribute $ cam) $ \ptr ->
-              glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
-
-        GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
-        GL.vertexAttribPointer ci GL.$= fgColorIndex
-        GL.vertexAttribArray ci   GL.$= GL.Enabled
-        GL.vertexAttribPointer ni GL.$= fgNormalIndex
-        GL.vertexAttribArray ni   GL.$= GL.Enabled
-        GL.vertexAttribPointer vi GL.$= fgVertexIndex
-        GL.vertexAttribArray vi   GL.$= GL.Enabled
-
-        GL.drawArrays GL.Triangles 0 numVert
-        checkError "draw"
+        GL.preservingMatrix $ do
+            GL.rotate (realToFrac xa) xunit
+            GL.rotate (realToFrac ya) yunit
+            GL.rotate (realToFrac za) zunit
+            GL.preservingMatrix $ do
+                GL.translate gear1vec
+                GL.rotate (realToFrac ga) zunit
+                GL.callList gear1
+            GL.preservingMatrix $ do
+                GL.translate gear2vec
+                GL.rotate (-2 * realToFrac ga - 9) zunit
+                GL.callList gear2
+            GL.preservingMatrix $ do
+                GL.translate gear3vec
+                GL.rotate (-2 * realToFrac ga - 25) zunit
+                GL.callList gear3
+      where
+        gear1vec = GL.Vector3 (-3)   (-2)  0 :: GL.Vector3 GL.GLfloat
+        gear2vec = GL.Vector3   3.1  (-2)  0 :: GL.Vector3 GL.GLfloat
+        gear3vec = GL.Vector3 (-3.1)   4.2 0 :: GL.Vector3 GL.GLfloat
+        xunit = GL.Vector3 1 0 0 :: GL.Vector3 GL.GLfloat
+        yunit = GL.Vector3 0 1 0 :: GL.Vector3 GL.GLfloat
+        zunit = GL.Vector3 0 0 1 :: GL.Vector3 GL.GLfloat
 
 getCursorKeyDirections :: GLFW.Window -> IO (Double, Double)
 getCursorKeyDirections win = do
@@ -469,6 +484,20 @@ isPress GLFW.KeyState'Repeating = True
 isPress _                       = False
 
 --------------------------------------------------------------------------------
+
+printInstructions :: IO ()
+printInstructions =
+    putStrLn $ render $
+      nest 4 (
+        text "------------------------------------------------------------" $+$
+        text "'?': Print these instructions"                                $+$
+        text "'i': Print GLFW information"                                  $+$
+        text ""                                                             $+$
+        text "* Mouse cursor, keyboard cursor keys, and/or joystick"        $+$
+        text "  control rotation."                                          $+$
+        text "* Mouse scroll wheel controls distance from scene."           $+$
+        text "------------------------------------------------------------"
+      )
 
 printInformation :: GLFW.Window -> IO ()
 printInformation win = do
@@ -585,7 +614,7 @@ getJoystickNames =
 
 --------------------------------------------------------------------------------
 
-printEvent :: String -> [String] -> Pioneer ()
+printEvent :: String -> [String] -> Demo ()
 printEvent cbname fields =
     liftIO $ putStrLn $ cbname ++ ": " ++ unwords fields
 
@@ -628,3 +657,4 @@ joysticks =
   , GLFW.Joystick'15
   , GLFW.Joystick'16
   ]
+

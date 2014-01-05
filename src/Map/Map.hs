@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, BangPatterns #-}
 module Map.Map 
 
 (
@@ -47,40 +47,38 @@ lineHeight :: GLfloat
 lineHeight = 0.8660254
 
 numComponents :: Int
-numComponents = 4  --color
-                +3 --normal
-                +3 --vertex
+numComponents = 10
 
 mapStride :: Stride
-mapStride = fromIntegral (sizeOf (0.0 :: GLfloat)) * fromIntegral numComponents
+mapStride = fromIntegral (sizeOf (0.0 :: GLfloat) * numComponents)
 
-bufferObjectPtr :: Integral a => a -> Ptr b
-bufferObjectPtr = plusPtr (nullPtr :: Ptr GLchar) . fromIntegral
+bufferObjectPtr :: Integral a => a -> Ptr GLfloat
+bufferObjectPtr = plusPtr (nullPtr :: Ptr GLfloat) . fromIntegral
 
-mapVertexArrayDescriptor :: NumComponents -> NumComponents -> VertexArrayDescriptor a
+mapVertexArrayDescriptor :: NumComponents -> NumComponents -> VertexArrayDescriptor GLfloat
 mapVertexArrayDescriptor count' offset =
-   VertexArrayDescriptor count' Float mapStride (bufferObjectPtr (fromIntegral numComponents * offset))
+   VertexArrayDescriptor count' Float mapStride (bufferObjectPtr ((fromIntegral offset)*sizeOf (0 :: GLfloat)) ) --(fromIntegral numComponents * offset))
 
-fgColorIndex :: (IntegerHandling, VertexArrayDescriptor a)
+fgColorIndex :: (IntegerHandling, VertexArrayDescriptor GLfloat)
 fgColorIndex = (ToFloat, mapVertexArrayDescriptor 4 0)  --color first
 
-fgNormalIndex :: (IntegerHandling, VertexArrayDescriptor a)
+fgNormalIndex :: (IntegerHandling, VertexArrayDescriptor GLfloat)
 fgNormalIndex = (ToFloat, mapVertexArrayDescriptor 3 4) --normal after color
 
-fgVertexIndex :: (IntegerHandling, VertexArrayDescriptor a)
+fgVertexIndex :: (IntegerHandling, VertexArrayDescriptor GLfloat)
 fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
         map' <- testmap
-        map' <- return $ generateTriangles map'
+        ! map' <- return $ P.map (*1) (generateTriangles map')
         putStrLn $ P.unlines $ P.map show (prettyMap map')
         len <- return $ fromIntegral $ P.length map' `div` numComponents
         putStrLn $ P.unwords ["num verts",show len]
         bo <- genObjectName                     -- create a new buffer
         bindBuffer ArrayBuffer $= Just bo       -- bind buffer
         withArray map' $ \buffer ->
-                bufferData ArrayBuffer $= (fromIntegral $ sizeOf (0 :: Float)*P.length map',
+                bufferData ArrayBuffer $= (fromIntegral $ sizeOf (0 :: GLfloat)*P.length map',
                                            buffer,
                                            StaticDraw)
         checkError "initBuffer"
@@ -89,6 +87,51 @@ getMapBufferObject = do
 prettyMap :: [GLfloat] -> [(GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat)]
 prettyMap (a:b:c:d:x:y:z:u:v:w:ms) = (a,b,c,d,x,y,z,u,v,w):(prettyMap ms)
 prettyMap _ = []
+
+generateCube :: [GLfloat]
+generateCube = [  -- lower plane
+                  -3.0,-3.0,-3.0,
+                  3.0,-3.0,3.0,
+                  3.0,-3.0,-3.0,
+                  -3.0,-3.0,-3.0,
+                  -3.0,-3.0,3.0,
+                  3.0,-3.0,3.0,
+                  -- upper plane
+                  -3.0,3.0,-3.0,
+                  3.0,3.0,3.0,
+                  3.0,3.0,-3.0,
+                  -3.0,3.0,-3.0,
+                  -3.0,3.0,3.0,
+                  3.0,3.0,3.0,
+                   -- left plane
+                  -3.0,-3.0,-3.0,
+                  -3.0,3.0,3.0,
+                  -3.0,-3.0,3.0,
+                  -3.0,-3.0,-3.0,
+                  -3.0,3.0,3.0,
+                  -3.0,3.0,-3.0,
+                   -- right plane
+                  3.0,-3.0,-3.0,
+                  3.0,3.0,3.0,
+                  3.0,-3.0,3.0,
+                  3.0,-3.0,-3.0,
+                  3.0,3.0,3.0,
+                  3.0,3.0,-3.0,
+                   -- front plane
+                  -3.0,-3.0,-3.0,
+                  3.0,3.0,-3.0,
+                  3.0,-3.0,-3.0,
+                  -3.0,-3.0,-3.0,
+                  3.0,3.0,-3.0,
+                  -3.0,3.0,-3.0,
+                   -- back plane
+                  -3.0,-3.0,3.0,
+                  3.0,3.0,3.0,
+                  3.0,-3.0,3.0,
+                  -3.0,-3.0,3.0,
+                  3.0,3.0,3.0,
+                  -3.0,3.0,3.0
+                  ]
 
 generateTriangles :: PlayMap -> [GLfloat] 
 generateTriangles map' =
@@ -161,7 +204,7 @@ coordLookup (x,z) y =
                 if even x then
                         (fromIntegral $ x `div` 2, y, fromIntegral (2 * z) * lineHeight)
                 else
-                        (fromIntegral (x `div` 2) / 2.0, y, fromIntegral (2 * z + 1) * lineHeight)
+                        (fromIntegral (x `div` 2) + 0.5, y, fromIntegral (2 * z + 1) * lineHeight)
 
 
 -- if writing in ASCII-Format transpose so i,j -> y,x
@@ -192,14 +235,20 @@ testMapTemplate = T.transpose [
 
 testMapTemplate2 :: [Text]
 testMapTemplate2 = T.transpose [
-                "~~~~~~"
+                "~~~~~~~~~~~~"
                 ]
 
 testmap :: IO PlayMap
 testmap = do
                 g <- getStdGen
+                rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate)
+                return $ listArray ((0,0),(19,19)) rawMap
+
+testmap2 :: IO PlayMap
+testmap2 = do
+                g <- getStdGen
                 rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate2)
-                return $ listArray ((0,0),(5,0)) rawMap
+                return $ listArray ((0,0),(9,0)) rawMap
 
 
 parseTemplate :: [Int] -> Text -> [MapEntry]

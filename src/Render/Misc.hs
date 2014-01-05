@@ -4,16 +4,17 @@ import           Control.Monad
 import qualified Data.ByteString                            as B (ByteString)
 import           Foreign.Marshal.Array                      (allocaArray,
                                                              pokeArray)
+import Foreign.C (CFloat)
 import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.StringQueries
 import           Graphics.Rendering.OpenGL.GLU.Errors
 import           Graphics.Rendering.OpenGL.Raw.Core31
 import           System.IO                                  (hPutStrLn, stderr)
+import Linear
 
-
-up :: (Double, Double, Double)
-up = (0.0, 1.0, 1.0)
+up :: V3 CFloat
+up = V3 0 1 0
 
 checkError :: String -> IO ()
 checkError functionName = get errors >>= mapM_ reportError
@@ -58,16 +59,21 @@ createProgramUsing shaders = do
    linkAndCheck program
    return program
 
-createFrustum :: Float -> Float -> Float -> Float -> [GLfloat]
-createFrustum fov n f rat =
-                let s = recip (tan $ fov*0.5 * pi / 180) in
-
-                map (fromRational . toRational) [
-                        rat*s,0,0,0,
-                        0,rat*s,0,0,
-                        0,0,-(f/(f-n)), -1,
-                        0,0,-((f*n)/(f-n)), 1
-                ]
+createFrustum :: Float -> Float -> Float -> Float -> M44 CFloat
+createFrustum fov n' f' rat =
+                let 
+                    f = realToFrac f'
+                    n = realToFrac n'
+                    s = realToFrac $ recip (tan $ fov*0.5 * pi / 180)
+                    (ratw,rath) = if rat > 1 then
+                                        (1,1/realToFrac rat)
+                                  else
+                                        (realToFrac rat,1)
+                in
+                    V4 (V4 (s/ratw)     0            0                   0)
+                       (V4    0     (s/rath)         0                   0)
+                       (V4    0         0    (-((f+n)/(f-n)))  (-((2*f*n)/(f-n))))
+                       (V4    0         0          (-1)                  0)
 
 lookAtUniformMatrix4fv :: (Double, Double, Double)  --origin
                         -> (Double, Double, Double) --camera-pos
@@ -126,9 +132,23 @@ infixl 5 ><
                 ]
 _ >< _ = error "non-conformat matrix-multiplication"
 
+
+-- from vmath.h
+lookAt :: V3 CFloat -> V3 CFloat -> V3 CFloat -> M44 CFloat
+lookAt eye@(V3 ex ey ez) center up =
+        V4
+         (V4 xx xy xz (-dot x eye))
+         (V4 yx yy yz (-dot y eye))
+         (V4 zx zy zz (-dot z eye))
+         (V4 0 0 0 1)
+        where
+                z@(V3 zx zy zz) = normalize (eye ^-^ center)
+                x@(V3 xx xy xz) = normalize (cross up z)
+                y@(V3 yx yy yz) = normalize (cross z x)
+
 -- generates 4x4-Projection-Matrix
-lookAt :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double) -> [GLfloat]
-lookAt at eye up =
+lookAt_ :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double) -> [GLfloat]
+lookAt_ at eye up =
         map (fromRational . toRational) [
          xx, yx, zx, 0,
          xy, yy, zy, 0,
