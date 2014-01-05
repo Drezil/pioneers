@@ -210,28 +210,35 @@ coordLookup (x,z) y =
 -- if writing in ASCII-Format transpose so i,j -> y,x
 -- row-minor -> row-major
 testMapTemplate :: [Text]
-testMapTemplate = T.transpose [
-                "~~~~~~~~~~~~~~~~~~~~",
-                "~~SSSSSSSSSSSSSS~~~~",
-                "~SSGGGGGGGSGSGGS~~~~",
-                "~SSGGGGGGMSGSGMS~~~~",
-                "~SGGGGGGMMMGGGS~~~S~",
-                "~SGGGMGMMMMMGGS~~~SS",
-                "~GGGGGGGGGGGGGGS~~~~",
-                "~SGGGGGGGGGGGGGS~~~~",
-                "~~SSSSGGGSSSSS~~~~~~",
-                "~~~~~SGGGGS~~~~~~~~~",
-                "~~~~SSGGGGSS~~~~~~~~",
-                "~~SSSGGGGGGSSSSS~~~~",
-                "~SSGSGSGGGSGSGGS~~~~",
-                "~SSGSGSGGMSGSGMS~~~~",
-                "~SGGMMMMGGGGGGS~~~~~",
-                "~SGMMMMMGGGGSSS~~~~~",
-                "~GGMMMMMGGGSSSSS~~~~",
-                "~SGGGGGGGSSSSSSS~~~~",
-                "~~SSSSSSSSSSSS~~~~~~",
-                "~~~~~~~~~~~~~~~~~~~~"
+testMapTemplate = repText 2 $ T.transpose [
+                "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+                "~~~SSSSSSSSSSSSSS~~~~~SSSSSSSSSSSSSS~~~~",
+                "~~SSGGGGGGGSGSGGS~~~~SSGGGGGGGSGSGGS~~~~",
+                "~~SSGGGGGGMSGSGGS~~~~SSGGGGGGMSGSGGS~~~~",
+                "~~SGGGGGGMMMGGGS~~~S~SGGGGGGMMMGGGS~~~S~",
+                "~~SGGGMGMMMMMGGS~~~SSSGGGMGMMMMMGGS~~~SS",
+                "~~GGGGGGGGGGGGGGS~~~~GGGGGGGGGGGGGGS~~~~",
+                "~~SGGGGGGGGGGGGGS~~~~SGGGGGGGGGGGGGS~~~~",
+                "~~~SSSSGGGSSSSS~~~~~~~SSSSGGGSSSSS~~~~~~",
+                "~~~~~~SGGGGS~~~~~~~~~~~~~SGGGGS~~~~~~~~~",
+                "~~~~~SSGGGGSS~~~~~~~~~~~SSGGGGSS~~~~~~~~",
+                "~~~SSSGGGGGGSSSSS~~~~~SSSGGGGGGSSSSS~~~~",
+                "~~SSGSGSGGGSGSGGS~~~~SSGSGSGGGSGSGGS~~~~",
+                "~~SSGSGSGGMSGSGMS~~~~SSGSGSGGMSGSGMS~~~~",
+                "~~SGGMMMMGGGGGGS~~~~~SGGMMMMGGGGGGS~~~~~",
+                "~~SGMMMMMGGGGSSS~~~~~SGMMMMMGGGGSSS~~~~~",
+                "~~GGMMMMMGGGSSSSS~~~~GGMMMMMGGGSSSSS~~~~",
+                "~~SGGGGGGGSSSSSSS~~~~SGGGGGGGSSSSSSS~~~~",
+                "~~~SSSSSSSSSSSS~~~~~~~SSSSSSSSSSSS~~~~~~",
+                "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
                 ]
+
+repText :: Int -> [a] -> [a]
+repText a (t:[]) = P.replicate a t
+repText a ts     = P.concat $ P.map (repText' a) ts
+                where
+                        repText' :: Int -> a -> [a]
+                        repText' a x = repText a [x]
 
 testMapTemplate2 :: [Text]
 testMapTemplate2 = T.transpose [
@@ -242,7 +249,7 @@ testmap :: IO PlayMap
 testmap = do
                 g <- getStdGen
                 rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate)
-                return $ listArray ((0,0),(19,19)) rawMap
+                return $ listArray ((0,0),(79,19)) rawMap
 
 testmap2 :: IO PlayMap
 testmap2 = do

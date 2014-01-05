@@ -256,7 +256,7 @@ run = do
           (x, y) <- liftIO $ GLFW.getCursorPos win
           let myrot = (x - sodx) / 2
               mxrot = (y - sody) / 2
-              newXAngle  = curb 0 (0.45*pi) newXAngle'
+              newXAngle  = curb (pi/12) (0.45*pi) newXAngle'
               newXAngle' = sodxa + mxrot/100
               newYAngle
                   | newYAngle' > pi    = newYAngle' - 2 * pi
