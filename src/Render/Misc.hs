@@ -132,20 +132,14 @@ _ >< _ = error "non-conformat matrix-multiplication"
 lookAt :: V3 CFloat -> V3 CFloat -> V3 CFloat -> M44 CFloat
 lookAt eye@(V3 ex ey ez) center up =
         V4
-         (V4 xx yx (-zx) 0)
-         (V4 xy yy (-zy) 0)
-         (V4 xz yz (-zz) 0)
-         (V4 0 0 0 1)
-         !*!
-        V4
-         (V4 1 0 0 (-ex))
-         (V4 0 1 0 (-ey))
-         (V4 0 0 1 (-ez))
+         (V4 xx xy xz (-dot x eye))
+         (V4 yx yy yz (-dot y eye))
+         (V4 zx zy zz (-dot z eye))
          (V4 0 0 0 1)
         where
-                z@(V3 zx zy zz) = normalize (center ^-^ eye)
-                x@(V3 xx xy xz) = cross z (normalize up)
-                y@(V3 yx yy yz) = cross x z
+                z@(V3 zx zy zz) = normalize (eye ^-^ center)
+                x@(V3 xx xy xz) = normalize (cross up z)
+                y@(V3 yx yy yz) = normalize (cross z x)
 
 -- generates 4x4-Projection-Matrix
 lookAt_ :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double) -> [GLfloat]
