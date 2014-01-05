@@ -11,7 +11,7 @@ in vec3 fg_VertexIn;
 in vec3 fg_NormalIn;
 
 //output-data for later stages
-out vec4 fg_SmoothColor;
+smooth out vec4 fg_SmoothColor;
 
 void main()
 {

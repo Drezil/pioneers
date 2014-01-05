@@ -71,10 +71,10 @@ fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
         map' <- testmap
-        ! map' <- return $ P.map (*1) (generateTriangles map')
-        putStrLn $ P.unlines $ P.map show (prettyMap map')
+        ! map' <- return $ generateTriangles map'
+        --putStrLn $ P.unlines $ P.map show (prettyMap map')
         len <- return $ fromIntegral $ P.length map' `div` numComponents
-        putStrLn $ P.unwords ["num verts",show len]
+        putStrLn $ P.unwords ["num verts in map:",show len]
         bo <- genObjectName                     -- create a new buffer
         bindBuffer ArrayBuffer $= Just bo       -- bind buffer
         withArray map' $ \buffer ->
