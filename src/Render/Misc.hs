@@ -75,64 +75,6 @@ createFrustum fov n' f' rat =
                        (V4    0         0    (-((f+n)/(f-n)))  (-((2*f*n)/(f-n))))
                        (V4    0         0          (-1)                  0)
 
-lookAtUniformMatrix4fv :: (Double, Double, Double)  --origin
-                        -> (Double, Double, Double) --camera-pos
-                        -> (Double, Double, Double) --up
-                        -> [GLfloat]                --frustum
-                        -> GLint -> GLsizei -> IO () --rest of GL-call
-lookAtUniformMatrix4fv o c u frust num size = allocaArray 16 $ \projMat ->
-                                                do
-                                                        pokeArray projMat $
-                                                                [0.1,  0,  0,  0,
-                                                                 0,  0,  0.1,  0,
-                                                                 0,  0.1,  0,  0,
-                                                                 0,  0,    0,  1
-                                                                ]
-                                                                --(lookAt o c u) >< frust
-                                                        glUniformMatrix4fv num size 1 projMat
-
-infixl 5 ><
-
-(><) :: [GLfloat] -> [GLfloat] -> [GLfloat]
-
-[   aa, ab, ac, ad,
-    ba, bb, bc, bd,
-    ca, cb, cc, cd,
-    da, db, dc, dd
-        ] ><
-  [
-    xx, xy, xz, xw,
-    yx, yy, yz, yw,
-    zx, zy, zz, zw,
-    wx, wy, wz, ww
-        ] = [
-                --first row
-                aa*xx + ab*yx + ac*zx + ad * wx,
-                aa*xy + ab*yy + ac*zy + ad * wy,
-                aa*xz + ab*yz + ac*zz + ad * wz,
-                aa*xw + ab*yw + ac*zw + ad * ww,
-
-                --second row
-                ba*xx + bb*yx + bc*zx + bd * wx,
-                ba*xy + bb*yy + bc*zy + bd * wy,
-                ba*xz + bb*yz + bc*zz + bd * wz,
-                ba*xw + bb*yw + bc*zw + bd * ww,
-
-                --third row
-                ca*xx + cb*yx + cc*zx + cd * wx,
-                ca*xy + cb*yy + cc*zy + cd * wy,
-                ca*xz + cb*yz + cc*zz + cd * wz,
-                ca*xw + cb*yw + cc*zw + cd * ww,
-
-                --fourth row
-                da*xx + db*yx + dc*zx + dd * wx,
-                da*xy + db*yy + dc*zy + dd * wy,
-                da*xz + db*yz + dc*zz + dd * wz,
-                da*xw + db*yw + dc*zw + dd * ww
-                ]
-_ >< _ = error "non-conformat matrix-multiplication"
-
-
 -- from vmath.h
 lookAt :: V3 CFloat -> V3 CFloat -> V3 CFloat -> M44 CFloat
 lookAt eye@(V3 ex ey ez) center up =
@@ -146,43 +88,42 @@ lookAt eye@(V3 ex ey ez) center up =
                 x@(V3 xx xy xz) = normalize (cross up z)
                 y@(V3 yx yy yz) = normalize (cross z x)
 
--- generates 4x4-Projection-Matrix
-lookAt_ :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double) -> [GLfloat]
-lookAt_ at eye up =
-        map (fromRational . toRational) [
-         xx, yx, zx, 0,
-         xy, yy, zy, 0,
-         xz, yz, zz, 0,
-         -(x *. eye), -(y *. eye), -(z *. eye), 1
-        ]
-        where
-                z@(zx,zy,zz) = normal (at .- eye)
-                x@(xx,xy,xz) = normal (up *.* z)
-                y@(yx,yy,yz) = z *.* x
 
-normal :: (Double, Double, Double) -> (Double, Double, Double)
-normal x = (1.0 / (sqrt (x *. x))) .* x
+getCam :: (Double, Double) -- ^ Target in x/z-Plane
+          -> Double        -- ^ Distance from Target
+          -> Double        -- ^ Angle around X-Axis (angle down/up)
+          -> Double        -- ^ Angle around Y-Axis (angle left/right)
+          -> M44 CFloat
 
-infixl 5 .*
---scaling
-(.*) :: Double -> (Double, Double, Double) -> (Double, Double, Double)
-a .* (x,y,z) = (a*x, a*y, a*z)
-
-infixl 5 .-
---subtraction
-(.-) :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double)
-(a,b,c) .- (x,y,z) = (a-x, b-y, c-z)
-
-infixl 5 *.*
---cross-product for left-hand-system
-(*.*) :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double, Double)
-(a,b,c) *.* (x,y,z) = (   c*y - b*z
-                        , a*z - c*x
-                        , b*x - a*y
-                        )
-
-infixl 5 *.
---dot-product
-(*.) :: (Double, Double, Double) -> (Double, Double, Double) -> Double
-(a,b,c) *. (x,y,z) = a*x + b*y + c*z
-
+getCam (x',z') dist' xa' ya' = lookAt (cpos ^+^ at') at' up
+                     where
+                        at'   = V3 x 0 z
+                        cpos  = crot !* (V3 0 0 (-dist))
+                        crot  = (
+                                (fromQuaternion $ axisAngle upmap (xa::CFloat))
+                                !*!
+                                (fromQuaternion $ axisAngle (V3 0 1 0) (ya::CFloat))
+                                ) ::M33 CFloat
+                        upmap = ((fromQuaternion $ axisAngle (V3 0 1 0) (ya::CFloat)) :: M33 CFloat)
+                                !* (V3 1 0 0)
+                        x     = realToFrac x'
+                        z     = realToFrac z'
+                        dist  = realToFrac dist'
+                        xa    = realToFrac xa'
+                        ya    = realToFrac ya'
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        

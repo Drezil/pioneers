@@ -3,25 +3,33 @@ module Main (main) where
 
 --------------------------------------------------------------------------------
 
-import Control.Concurrent.STM    (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue)
-import Control.Monad             (unless, when, void)
-import Control.Monad.RWS.Strict  (RWST, ask, asks, evalRWST, get, liftIO, modify, put)
-import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
-import Data.List                 (intercalate)
-import Data.Maybe                (catMaybes)
-import Text.PrettyPrint
-import Data.Distributive (distribute)
-import Foreign (Ptr, castPtr, with)
-import Foreign.C (CFloat)
-import Linear as L
+import           Control.Concurrent.STM               (TQueue, atomically,
+                                                       newTQueueIO,
+                                                       tryReadTQueue,
+                                                       writeTQueue)
+import           Control.Monad                        (unless, void, when)
+import           Control.Monad.RWS.Strict             (RWST, ask, asks,
+                                                       evalRWST, get, liftIO,
+                                                       modify, put)
+import           Control.Monad.Trans.Maybe            (MaybeT (..), runMaybeT)
+import           Data.Distributive                    (distribute)
+import           Data.List                            (intercalate)
+import           Data.Maybe                           (catMaybes)
+import           Foreign                              (Ptr, castPtr, with)
+import           Foreign.C                            (CFloat)
+import           Linear                               as L
+import           Text.PrettyPrint
 
-import qualified Graphics.Rendering.OpenGL.GL           as GL
-import Graphics.Rendering.OpenGL.Raw.Core31
-import qualified Graphics.UI.GLFW                       as GLFW
+import qualified Graphics.Rendering.OpenGL.GL         as GL
+import           Graphics.Rendering.OpenGL.Raw.Core31
+import qualified Graphics.UI.GLFW                     as GLFW
 
-import Map.Map
-import Render.Render (initShader, initRendering)
-import Render.Misc (up, createFrustum, checkError, lookAt)
+import           Map.Map
+import           Render.Misc                          (checkError,
+                                                       createFrustum, getCam,
+                                                       lookAt, up)
+import           Render.Render                        (initRendering,
+                                                       initShader)
 
 --------------------------------------------------------------------------------
 
@@ -37,9 +45,9 @@ data Env = Env
 data State = State
     { stateWindowWidth     :: !Int
     , stateWindowHeight    :: !Int
+    --- IO
     , stateXAngle          :: !Double
     , stateYAngle          :: !Double
-    , stateZAngle          :: !Double
     , stateZDist           :: !Double
     , stateMouseDown       :: !Bool
     , stateDragging        :: !Bool
@@ -47,16 +55,18 @@ data State = State
     , stateDragStartY      :: !Double
     , stateDragStartXAngle :: !Double
     , stateDragStartYAngle :: !Double
+    , statePositionX       :: !Double
+    , statePositionY       :: !Double
     , stateFrustum         :: !(M44 CFloat)
-    -- pointer to bindings for locations inside the compiled shader
-    -- mutable because shaders may be changed in the future.
+    --- pointer to bindings for locations inside the compiled shader
+    --- mutable because shaders may be changed in the future.
     , shdrVertexIndex      :: !GL.AttribLocation
     , shdrColorIndex       :: !GL.AttribLocation
     , shdrNormalIndex      :: !GL.AttribLocation
     , shdrProjMatIndex     :: !GL.UniformLocation
     , shdrViewMatIndex     :: !GL.UniformLocation
     , shdrModelMatIndex    :: !GL.UniformLocation
-    -- the map
+    --- the map
     , stateMap             :: !GL.BufferObject
     , mapVert              :: !GL.NumArrayIndices
     }
@@ -134,8 +144,9 @@ main = do
               , stateWindowHeight    = fbHeight
               , stateXAngle          = pi/6
               , stateYAngle          = pi/2
-              , stateZAngle          = 0
               , stateZDist           = 10
+              , statePositionX       = 5
+              , statePositionY       = 5
               , stateMouseDown       = False
               , stateDragging        = False
               , stateDragStartX      = 0
@@ -233,8 +244,9 @@ run = do
     processEvents
 
     -- update State
-    
+
     state <- get
+    -- change in camera-angle
     if stateDragging state
       then do
           let sodx  = stateDragStartX      state
@@ -244,15 +256,12 @@ run = do
           (x, y) <- liftIO $ GLFW.getCursorPos win
           let myrot = (x - sodx) / 2
               mxrot = (y - sody) / 2
---              newXAngle = if newXAngle' > 2*pi then 2*pi else
-              newXAngle = if newXAngle' > 0.45*pi then 0.45*pi else
---                            if newXAngle' < -2*pi then -2*pi else
-                            if newXAngle' < 0 then 0 else
-                                newXAngle'
+              newXAngle  = curb 0 (0.45*pi) newXAngle'
               newXAngle' = sodxa + mxrot/100
-              newYAngle = if newYAngle' > pi then newYAngle'-2*pi else
-                            if newYAngle' < -pi then newYAngle'+2*pi else
-                                newYAngle'
+              newYAngle
+                  | newYAngle' > pi    = newYAngle' - 2 * pi
+                  | newYAngle' < (-pi) = newYAngle' + 2 * pi
+                  | otherwise          = newYAngle'
               newYAngle' = sodya + myrot/100
           put $ state
             { stateXAngle = newXAngle
@@ -260,18 +269,32 @@ run = do
             }
 --          liftIO $ putStrLn $ unwords $ map show $ [newXAngle, newYAngle]
       else do
-          (kxrot, kyrot) <- liftIO $ getCursorKeyDirections win
           (jxrot, jyrot) <- liftIO $ getJoystickDirections GLFW.Joystick'1
           put $ state
-            { stateXAngle = stateXAngle state + (2 * kxrot) + (2 * jxrot)
-            , stateYAngle = stateYAngle state + (2 * kyrot) + (2 * jyrot)
+            { stateXAngle = stateXAngle state + (2 * jxrot)
+            , stateYAngle = stateYAngle state + (2 * jyrot)
             }
 
+    -- get cursor-keys - if pressed
+    --TODO: Add sin/cos from stateYAngle
+    (kxrot, kyrot) <- liftIO $ getCursorKeyDirections win
+    modify $ \s -> 
+                   let 
+                        multc = cos $ stateYAngle s
+                        mults = sin $ stateYAngle s
+                   in 
+                   s {
+                        statePositionX = statePositionX s - 0.2 * kxrot * multc
+                                                          - 0.2 * kyrot * mults
+                     ,  statePositionY = statePositionY s + 0.2 * kxrot * mults
+                                                          - 0.2 * kyrot * multc
+                     }
+        
     {-
-    --modify the state with all that happened in mt time. 
+    --modify the state with all that happened in mt time.
     mt <- liftIO GLFW.getTime
     modify $ \s -> s
-      { 
+      {
       }
     -}
 
@@ -358,13 +381,12 @@ processEvent ev =
           env <- ask
           modify $ \s -> s
             { stateZDist =
-                let zDist' = stateZDist s + realToFrac (negate $ y / 2)
+                let zDist' = stateZDist s + realToFrac (negate $ y)
                 in curb (envZDistClosest env) (envZDistFarthest env) zDist'
             }
           adjustWindow
 
       (EventKey win k scancode ks mk) -> do
-          printEvent "key" [show k, show scancode, show ks, showModifierKeys mk]
           when (ks == GLFW.KeyState'Pressed) $ do
               -- Q, Esc: exit
               when (k == GLFW.Key'Q || k == GLFW.Key'Escape) $
@@ -372,6 +394,12 @@ processEvent ev =
               -- i: print GLFW information
               when (k == GLFW.Key'I) $
                 liftIO $ printInformation win
+          unless (elem k [GLFW.Key'Up
+                         ,GLFW.Key'Down
+                         ,GLFW.Key'Left
+                         ,GLFW.Key'Right
+                         ]) $ do
+                printEvent "key" [show k, show scancode, show ks, showModifierKeys mk]
 
       (EventChar _ c) ->
           printEvent "char" [show c]
@@ -394,17 +422,19 @@ draw :: Pioneer ()
 draw = do
     env   <- ask
     state <- get
-    let xa = fromRational $ toRational $ stateXAngle state
-        ya = fromRational $ toRational $ stateYAngle state
-        za = stateZAngle state
+    let xa       = stateXAngle          state
+        ya       = stateYAngle          state
         (GL.UniformLocation proj)  = shdrProjMatIndex state
         (GL.UniformLocation vmat)  = shdrViewMatIndex state
-        vi = shdrVertexIndex state
-        ni = shdrNormalIndex state
-        ci = shdrColorIndex state
-        numVert = mapVert state
-        map' = stateMap state
-        frust = stateFrustum state
+        vi       = shdrVertexIndex      state
+        ni       = shdrNormalIndex      state
+        ci       = shdrColorIndex       state
+        numVert  = mapVert              state
+        map'     = stateMap             state
+        frust    = stateFrustum         state
+        camX     = statePositionX       state
+        camY     = statePositionY       state
+        zDist    = stateZDist           state
     liftIO $ do
         --(vi,GL.UniformLocation proj) <- initShader
         GL.clearColor GL.$= GL.Color4 0.5 0.1 1 1
@@ -414,22 +444,7 @@ draw = do
               glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
 
         --set up camera
-
-        let ! cam     = lookAt (cpos ^+^ at') at' up
-
-            at'      = V3 5 0 5
-            upmap    = (fromQuaternion $
-                                axisAngle (V3 0 1 0) (ya::CFloat) :: M33 CFloat)
-                                !* (V3 1 0 0)
-            crot'    = (
-                            (fromQuaternion $
-                                axisAngle upmap (xa::CFloat))
-                            !*!
-                            (fromQuaternion $
-                                axisAngle (V3 0 1 0) (ya::CFloat))
-                                ) :: M33 CFloat
-            cpos     = crot' !* (V3 0 0 (-10))
-
+        let ! cam = getCam (camX,camY) zDist xa ya
         with (distribute $ cam) $ \ptr ->
               glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
 
@@ -446,10 +461,10 @@ draw = do
 
 getCursorKeyDirections :: GLFW.Window -> IO (Double, Double)
 getCursorKeyDirections win = do
-    x0 <- isPress `fmap` GLFW.getKey win GLFW.Key'Up
-    x1 <- isPress `fmap` GLFW.getKey win GLFW.Key'Down
-    y0 <- isPress `fmap` GLFW.getKey win GLFW.Key'Left
-    y1 <- isPress `fmap` GLFW.getKey win GLFW.Key'Right
+    y0 <- isPress `fmap` GLFW.getKey win GLFW.Key'Up
+    y1 <- isPress `fmap` GLFW.getKey win GLFW.Key'Down
+    x0 <- isPress `fmap` GLFW.getKey win GLFW.Key'Left
+    x1 <- isPress `fmap` GLFW.getKey win GLFW.Key'Right
     let x0n = if x0 then (-1) else 0
         x1n = if x1 then   1  else 0
         y0n = if y0 then (-1) else 0
