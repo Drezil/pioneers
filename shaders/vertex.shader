@@ -15,13 +15,13 @@ smooth out vec4 fg_SmoothColor;
 
 void main()
 {
-   vec3 fg_Normal = fg_NormalIn; //vec3(0,1,0);
+   vec3 fg_Normal = fg_NormalMatrix * fg_NormalIn; //vec3(0,1,0);
    //transform vec3 into vec4, setting w to 1
    vec4 fg_Vertex = vec4(fg_VertexIn, 1.0);
    vec4 light = vec4(1.0,1.0,1.0,1.0);
    vec4 dark  = vec4(0.0,0.0,0.0,1.0);
    //direction to sun from origin
-   vec3 lightDir = normalize(vec3(5.0,5.0,1.0));
+   vec3 lightDir = normalize(fg_ViewMatrix * vec4(5.0,5.0,1.0,0.0)).xyz;
 
 
    float costheta = dot(normalize(fg_Normal), lightDir);

@@ -12,7 +12,7 @@ import           Control.Monad.RWS.Strict             (RWST, ask, asks,
                                                        evalRWST, get, liftIO,
                                                        modify, put)
 import           Control.Monad.Trans.Maybe            (MaybeT (..), runMaybeT)
-import           Data.Distributive                    (distribute)
+import           Data.Distributive                    (distribute, collect)
 import           Data.List                            (intercalate)
 import           Data.Maybe                           (catMaybes)
 import           Foreign                              (Ptr, castPtr, with)
@@ -30,6 +30,8 @@ import           Render.Misc                          (checkError,
                                                        lookAt, up)
 import           Render.Render                        (initRendering,
                                                        initShader)
+import Control.Lens ((^.),transposeOf)
+import Data.Traversable (traverse)
 
 --------------------------------------------------------------------------------
 
@@ -66,6 +68,7 @@ data State = State
     , shdrProjMatIndex     :: !GL.UniformLocation
     , shdrViewMatIndex     :: !GL.UniformLocation
     , shdrModelMatIndex    :: !GL.UniformLocation
+    , shdrNormalMatIndex   :: !GL.UniformLocation
     --- the map
     , stateMap             :: !GL.BufferObject
     , mapVert              :: !GL.NumArrayIndices
@@ -124,7 +127,7 @@ main = do
         initRendering
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
-        (ci, ni, vi, pri, vii, mi) <- initShader
+        (ci, ni, vi, pri, vii, mi, nmi) <- initShader
 
         let zDistClosest  = 10
             zDistFarthest = zDistClosest + 20
@@ -159,6 +162,7 @@ main = do
               , shdrProjMatIndex     = pri
               , shdrViewMatIndex     = vii
               , shdrModelMatIndex    = mi
+              , shdrNormalMatIndex   = nmi
               , stateMap             = mapBuffer
               , mapVert              = vert
               , stateFrustum         = frust
@@ -425,8 +429,9 @@ draw = do
     state <- get
     let xa       = stateXAngle          state
         ya       = stateYAngle          state
-        (GL.UniformLocation proj)  = shdrProjMatIndex state
-        (GL.UniformLocation vmat)  = shdrViewMatIndex state
+        (GL.UniformLocation proj)  = shdrProjMatIndex   state
+        (GL.UniformLocation nmat)  = shdrNormalMatIndex state
+        (GL.UniformLocation vmat)  = shdrViewMatIndex   state
         vi       = shdrVertexIndex      state
         ni       = shdrNormalIndex      state
         ci       = shdrColorIndex       state
@@ -438,16 +443,29 @@ draw = do
         zDist    = stateZDist           state
     liftIO $ do
         --(vi,GL.UniformLocation proj) <- initShader
-        GL.clearColor GL.$= GL.Color4 0.5 0.1 1 1
         GL.clear [GL.ColorBuffer, GL.DepthBuffer]
+        checkError "foo"
         --set up projection (= copy from state)
         with (distribute $ frust) $ \ptr ->
               glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
+        checkError "foo"
 
         --set up camera
         let ! cam = getCam (camX,camY) zDist xa ya
         with (distribute $ cam) $ \ptr ->
               glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
+        checkError "foo"
+              
+        --set up normal--Mat transpose((model*camera)^-1)
+        let normal = (case inv33 ((fmap (^._xyz) cam) ^. _xyz) of
+                                             (Just a) -> a
+                                             Nothing  -> eye3) :: M33 CFloat
+            nmap = (collect (fmap id) normal) :: M33 CFloat --transpose...
+        
+        with (distribute $ nmap) $ \ptr ->
+              glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (M33 CFloat)))
+
+        checkError "nmat"
 
         GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
         GL.vertexAttribPointer ci GL.$= fgColorIndex
@@ -456,6 +474,7 @@ draw = do
         GL.vertexAttribArray ni   GL.$= GL.Enabled
         GL.vertexAttribPointer vi GL.$= fgVertexIndex
         GL.vertexAttribArray vi   GL.$= GL.Enabled
+        checkError "beforeDraw"
 
         GL.drawArrays GL.Triangles 0 numVert
         checkError "draw"

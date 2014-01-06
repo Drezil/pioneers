@@ -297,8 +297,8 @@ parseTemplate (r:rs) t =
         (case T.head t of
                 '~' -> (0, Water)
                 'S' -> (0, Sand)
-                'G' -> (fromIntegral (r `mod` 3)/2.0,Grass)
-                'M' -> (fromIntegral (r `mod` 3 + 2)/2.0, Mountain)
+                'G' -> (fromIntegral (r `mod` 10)/10.0,Grass)
+                'M' -> (fromIntegral ((r `mod` 10) + 20)/10.0, Mountain)
                 _ -> error "invalid template format for map"
          ):parseTemplate rs (T.tail t)
 parseTemplate [] _ = error "out of randoms.."

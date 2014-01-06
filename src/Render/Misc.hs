@@ -13,6 +13,7 @@ import           Graphics.Rendering.OpenGL.Raw.Core31
 import           System.IO                                  (hPutStrLn, stderr)
 import Linear
 
+
 up :: V3 CFloat
 up = V3 0 1 0
 
