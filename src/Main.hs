@@ -1,10 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
 module Main where
 
--- Monad-foo
+-- Monad-foo and higher functional stuff
 import           Control.Applicative
-import           Control.Monad                        (unless, void, when)
+import           Control.Monad                        (unless, void, when, join)
 import           Control.Monad.Trans.Maybe            (MaybeT (..), runMaybeT)
+import Control.Arrow ((***))
 
 -- data consistency/conversion
 import           Control.Concurrent                   (threadDelay)
@@ -38,11 +39,18 @@ import           Data.Time                            (getCurrentTime, UTCTime, 
 import           Map.Map
 import           Render.Misc                          (checkError,
                                                        createFrustum, getCam,
-                                                       lookAt, up)
+                                                       lookAt, up, curb)
 import           Render.Render                        (initRendering,
                                                        initShader)
 
 import qualified Debug.Trace                          as D (trace)
+
+data ArrowKeyState = ArrowKeyState {
+         arrowUp      :: !Bool
+        ,arrowDown    :: !Bool
+        ,arrowLeft    :: !Bool
+        ,arrowRight   :: !Bool
+}
 
 --Static Read-Only-State
 data Env = Env
@@ -71,6 +79,9 @@ data State = State
     , stateDragStartYAngle :: !Double
     , statePositionX       :: !Double
     , statePositionY       :: !Double
+    , stateCursorPosX      :: !Double
+    , stateCursorPosY      :: !Double
+    , stateArrowsPressed   :: !ArrowKeyState
     , stateFrustum         :: !(M44 CFloat)
     --- pointer to bindings for locations inside the compiled shader
     --- mutable because shaders may be changed in the future.
@@ -118,6 +129,12 @@ main = do
             far           = 100 --far plane
             ratio         = fromIntegral fbWidth / fromIntegral fbHeight
             frust         = createFrustum fov near far ratio
+            aks = ArrowKeyState {
+                 arrowUp       = False
+                ,arrowDown     = False
+                ,arrowLeft     = False
+                ,arrowRight    = False
+            }
             env = Env
               { envEventsChan    = eventQueue
               , envWindow        = window
@@ -132,6 +149,8 @@ main = do
               , stateZDist           = 10
               , statePositionX       = 5
               , statePositionY       = 5
+              , stateCursorPosX      = 0
+              , stateCursorPosY      = 0
               , stateMouseDown       = False
               , stateDragging        = False
               , stateDragStartX      = 0
@@ -150,6 +169,7 @@ main = do
               , stateFrustum         = frust
               , stateWinClose        = False
               , stateClock           = now
+              , stateArrowsPressed   = aks
               }
 
         putStrLn "init done."
@@ -233,13 +253,13 @@ run = do
 
     state <- get
     -- change in camera-angle
-    {- if stateDragging state
-      then do
+    when (stateDragging state) $ do
           let sodx  = stateDragStartX      state
               sody  = stateDragStartY      state
               sodxa = stateDragStartXAngle state
               sodya = stateDragStartYAngle state
-          (x, y) <- liftIO $ GLFW.getCursorPos win
+              x     = stateCursorPosX      state
+              y     = stateCursorPosY      state
           let myrot = (x - sodx) / 2
               mxrot = (y - sody) / 2
               newXAngle  = curb (pi/12) (0.45*pi) newXAngle'
@@ -253,17 +273,10 @@ run = do
             { stateXAngle = newXAngle
             , stateYAngle = newYAngle
             }
---          liftIO $ putStrLn $ unwords $ map show $ [newXAngle, newYAngle]
-      else do
-          (jxrot, jyrot) <- liftIO $ getJoystickDirections GLFW.Joystick'1
-          put $ state
-            { stateXAngle = stateXAngle state + (2 * jxrot)
-            , stateYAngle = stateYAngle state + (2 * jyrot)
-            }
 
     -- get cursor-keys - if pressed
     --TODO: Add sin/cos from stateYAngle
-    (kxrot, kyrot) <- liftIO $ getCursorKeyDirections win
+    (kxrot, kyrot) <- fmap ((join (***)) fromIntegral) getArrowMovement
     modify $ \s -> 
                    let 
                         multc = cos $ stateYAngle s
@@ -275,7 +288,7 @@ run = do
                      ,  statePositionY = statePositionY s + 0.2 * kxrot * mults
                                                           - 0.2 * kyrot * multc
                      }
-    -}
+    
     {-
     --modify the state with all that happened in mt time.
     mt <- liftIO GLFW.getTime
@@ -296,6 +309,19 @@ run = do
         }
     shouldClose <- return $ stateWinClose state
     unless shouldClose run
+
+getArrowMovement :: Pioneers (Int, Int)
+getArrowMovement = do
+        state <- get
+        aks <- return $ stateArrowsPressed state
+        let 
+                horz   = left' + right'
+                vert   = up'+down'
+                left'  = if arrowLeft aks  then -1 else 0
+                right' = if arrowRight aks then  1 else 0
+                up'    = if arrowUp aks    then -1 else 0
+                down'  = if arrowDown aks  then  1 else 0
+        return (horz,vert)
 
 adjustWindow :: Pioneers ()
 adjustWindow = do
@@ -334,16 +360,63 @@ processEvent e = do
                 Keyboard movement _ repeat key -> --up/down window(ignored) true/false actualKey
                         -- need modifiers? use "keyModifiers key" to get them
                         case keyScancode key of
-                                Escape -> modify $ \s -> s {
+                                Escape   -> modify $ \s -> s {
                                                         stateWinClose = True
                                                 }
+                                SDL.Left  -> modify $ \s -> s {
+                                                stateArrowsPressed = (stateArrowsPressed s) {
+                                                        arrowLeft = movement == KeyDown
+                                                        }
+                                                }
+                                SDL.Right -> modify $ \s -> s {
+                                                stateArrowsPressed = (stateArrowsPressed s) {
+                                                        arrowRight = movement == KeyDown
+                                                        }
+                                                }
+                                SDL.Up    -> modify $ \s -> s {
+                                                stateArrowsPressed = (stateArrowsPressed s) {
+                                                        arrowUp = movement == KeyDown
+                                                        }
+                                                }
+                                SDL.Down  -> modify $ \s -> s {
+                                                stateArrowsPressed = (stateArrowsPressed s) {
+                                                        arrowDown = movement == KeyDown
+                                                        }
+                                                }
                                 _ -> return ()
-                MouseMotion _ id st pos xrel yrel ->
-                        return ()
-                MouseButton _ id button state pos ->
-                        return ()
-                MouseWheel _ id hscroll vscroll ->
-                        return ()
+                MouseMotion _ id st (Position x y) xrel yrel -> do
+                        state <- get
+                        when (stateMouseDown state && not (stateDragging state)) $
+                          put $ state
+                            { stateDragging        = True
+                            , stateDragStartX      = fromIntegral x
+                            , stateDragStartY      = fromIntegral y
+                            , stateDragStartXAngle = stateXAngle state
+                            , stateDragStartYAngle = stateYAngle state
+                            }
+                        modify $ \s -> s {
+                              stateCursorPosX      = fromIntegral x
+                            , stateCursorPosY      = fromIntegral y
+                        }
+                MouseButton _ id button state (Position x y) ->
+                        case button of
+                                LeftButton -> do
+                                      let pressed = state == Pressed
+                                      modify $ \s -> s
+                                        { stateMouseDown = pressed
+                                        }
+                                      unless pressed $
+                                        modify $ \s -> s
+                                          { stateDragging = False
+                                          }
+                                _ -> return ()
+                MouseWheel _ id hscroll vscroll -> do
+                          env <- ask
+                          modify $ \s -> s
+                            { stateZDist =
+                                let zDist' = stateZDist s + realToFrac (negate $ vscroll)
+                                in curb (envZDistClosest env) (envZDistFarthest env) zDist'
+                            }
                 Quit -> modify $ \s -> s {stateWinClose = True}
                 -- there is more (joystic, touchInterface, ...), but currently ignored
                 _ -> return ()

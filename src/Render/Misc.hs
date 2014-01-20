@@ -113,3 +113,8 @@ getCam (x',z') dist' xa' ya' = lookAt (cpos ^+^ at') at' up
                         xa    = realToFrac xa'
                         ya    = realToFrac ya'
 
+curb :: Ord a => a -> a -> a -> a
+curb l h x
+  | x < l     = l
+  | x > h     = h
+  | otherwise = x
