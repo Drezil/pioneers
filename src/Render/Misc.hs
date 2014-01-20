@@ -112,19 +112,4 @@ getCam (x',z') dist' xa' ya' = lookAt (cpos ^+^ at') at' up
                         dist  = realToFrac dist'
                         xa    = realToFrac xa'
                         ya    = realToFrac ya'
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
+
