@@ -5,14 +5,19 @@ module Main where
 import           Control.Applicative
 import           Control.Monad                        (unless, void, when)
 import           Control.Monad.Trans.Maybe            (MaybeT (..), runMaybeT)
--- data consistency
+
+-- data consistency/conversion
+import           Control.Concurrent                   (threadDelay)
 import           Control.Concurrent.STM               (TQueue, atomically,
                                                        newTQueueIO,
                                                        tryReadTQueue,
-                                                       writeTQueue)
+                                                       writeTQueue, isEmptyTQueue,
+                                                       STM)
 import           Control.Monad.RWS.Strict             (RWST, ask, asks,
                                                        evalRWST, get, liftIO,
                                                        modify, put)
+import           Data.Distributive                    (distribute, collect)
+
 -- FFI
 import           Foreign                              (Ptr, castPtr, with)
 import           Foreign.C                            (CFloat)
@@ -22,11 +27,12 @@ import           Control.Lens                         (transposeOf, (^.))
 import           Linear                               as L
 
 -- GUI
-import           Graphics.UI.SDL as SDL
+import           Graphics.UI.SDL                      as SDL
 
 -- Render
 import qualified Graphics.Rendering.OpenGL.GL         as GL
 import           Graphics.Rendering.OpenGL.Raw.Core31
+import           Data.Time                            (getCurrentTime, UTCTime, diffUTCTime)
 
 -- Our modules
 import           Map.Map
@@ -35,6 +41,8 @@ import           Render.Misc                          (checkError,
                                                        lookAt, up)
 import           Render.Render                        (initRendering,
                                                        initShader)
+
+import qualified Debug.Trace                          as D (trace)
 
 --Static Read-Only-State
 data Env = Env
@@ -49,6 +57,7 @@ data State = State
     { stateWindowWidth     :: !Int
     , stateWindowHeight    :: !Int
     , stateWinClose        :: !Bool
+    , stateClock           :: !UTCTime
     --- IO
     , stateXAngle          :: !Double
     , stateYAngle          :: !Double
@@ -81,21 +90,24 @@ type Pioneers = RWST Env () State IO
 --------------------------------------------------------------------------------
 main :: IO ()
 main = do
-        SDL.withInit [InitEverything] $ do --also: InitNoParachute -> faster, without parachute!
-        window <- SDL.createWindow "Pioneers" (Position 100 100) (Size 1024 768) [WindowOpengl     -- we want openGL
+        SDL.withInit [InitVideo, InitAudio] $ do --also: InitNoParachute -> faster, without parachute!
+        window <- SDL.createWindow "Pioneers" (Position 1500 100) (Size 1024 768) [WindowOpengl     -- we want openGL
                                                                              ,WindowShown      -- window should be visible
                                                                              ,WindowResizable  -- and resizable 
                                                                              ,WindowInputFocus -- focused (=> active)
                                                                              ,WindowMouseFocus -- Mouse into it
                                                                              --,WindowInputGrabbed-- never let go of input (KB/Mouse)
                                                                              ]
-
         (Size fbWidth fbHeight) <- glGetDrawableSize window
         initRendering
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
         (ci, ni, vi, pri, vii, mi, nmi) <- initShader
+        putStrLn "foo"
         eventQueue <- newTQueueIO :: IO (TQueue Event)
+        putStrLn "foo"
+        now <- getCurrentTime
+        putStrLn "foo"
 
         let zDistClosest  = 10
             zDistFarthest = zDistClosest + 20
@@ -135,23 +147,83 @@ main = do
               , mapVert              = vert
               , stateFrustum         = frust
               , stateWinClose        = False
+              , stateClock           = now
               }
+
+        putStrLn "init done."
         void $ evalRWST (adjustWindow >> run) env state
 
         destroyWindow window
+
+-- Render-Pipeline
+
+draw :: Pioneers ()
+draw = do
+    env   <- ask
+    state <- get
+    let xa       = stateXAngle          state
+        ya       = stateYAngle          state
+        (GL.UniformLocation proj)  = shdrProjMatIndex   state
+        (GL.UniformLocation nmat)  = shdrNormalMatIndex state
+        (GL.UniformLocation vmat)  = shdrViewMatIndex   state
+        vi       = shdrVertexIndex      state
+        ni       = shdrNormalIndex      state
+        ci       = shdrColorIndex       state
+        numVert  = mapVert              state
+        map'     = stateMap             state
+        frust    = stateFrustum         state
+        camX     = statePositionX       state
+        camY     = statePositionY       state
+        zDist    = stateZDist           state
+    liftIO $ do
+        --(vi,GL.UniformLocation proj) <- initShader
+        GL.clear [GL.ColorBuffer, GL.DepthBuffer]
+        checkError "foo"
+        --set up projection (= copy from state)
+        with (distribute $ frust) $ \ptr ->
+              glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
+        checkError "foo"
+
+        --set up camera
+        let ! cam = getCam (camX,camY) zDist xa ya
+        with (distribute $ cam) $ \ptr ->
+              glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
+        checkError "foo"
+              
+        --set up normal--Mat transpose((model*camera)^-1)
+        let normal = (case inv33 ((fmap (^._xyz) cam) ^. _xyz) of
+                                             (Just a) -> a
+                                             Nothing  -> eye3) :: M33 CFloat
+            nmap = (collect (fmap id) normal) :: M33 CFloat --transpose...
+        
+        with (distribute $ nmap) $ \ptr ->
+              glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (M33 CFloat)))
+
+        checkError "nmat"
+
+        GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
+        GL.vertexAttribPointer ci GL.$= fgColorIndex
+        GL.vertexAttribArray ci   GL.$= GL.Enabled
+        GL.vertexAttribPointer ni GL.$= fgNormalIndex
+        GL.vertexAttribArray ni   GL.$= GL.Enabled
+        GL.vertexAttribPointer vi GL.$= fgVertexIndex
+        GL.vertexAttribArray vi   GL.$= GL.Enabled
+        checkError "beforeDraw"
+
+        GL.drawArrays GL.Triangles 0 numVert
+        checkError "draw"
+
 
 -- Main game loop
 
 run :: Pioneers ()
 run = do
     win <- asks envWindow
-    events <- asks envEventsChan
 
     -- draw Scene
     --draw
     liftIO $ do
         glSwapWindow win
-        submitEvents events
     -- getEvents & process
     processEvents
 
@@ -209,9 +281,19 @@ run = do
       {
       }
     -}
-
-
-    unless (stateWinClose state) run
+    mt <- liftIO $ do
+        now <- getCurrentTime
+        diff <- return $ diffUTCTime now (stateClock state) -- get time-diffs
+        sleepAmount <- return $ floor (max 0 (0.04 - diff))*1000000 -- get time until next frame in microseconds
+        threadDelay sleepAmount
+        return now
+    -- set state with new clock-time
+    modify $ \s -> s
+        {
+                stateClock = mt
+        }
+    shouldClose <- return $ stateWinClose state
+    unless shouldClose run
 
 adjustWindow :: Pioneers ()
 adjustWindow = do
@@ -229,16 +311,15 @@ adjustWindow = do
     }
 
 
--- | Writes all Events atomically to global Queue for further processing.
-submitEvents :: TQueue Event -> IO ()
-submitEvents q = do
-        event <- pollEvent
-        case event of 
-                Nothing -> return ()
-                Just e -> do
-                                atomically $ writeTQueue q e
-                                submitEvents q
-
 processEvents :: Pioneers ()
 processEvents = do
-                return ()
+    me <- liftIO pollEvent
+    case me of
+      Just e -> do
+          processEvent e
+          processEvents
+      Nothing -> return ()
+
+processEvent :: Event -> Pioneers ()
+processEvent e = do
+        liftIO $ putStrLn (show e)
