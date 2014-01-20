@@ -22,7 +22,7 @@ import           Control.Lens                         (transposeOf, (^.))
 import           Linear                               as L
 
 -- GUI
-import Graphics.UI.SDL
+import           Graphics.UI.SDL
 
 -- Render
 import qualified Graphics.Rendering.OpenGL.GL         as GL

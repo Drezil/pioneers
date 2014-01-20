@@ -29,21 +29,21 @@ done
 
 #hack until saucy has 2.0.1 instead of 2.0.0
 
-dialog --yesno "Install libSDL2.0.1 from ubuntu trusty?\nCurrently needed for saucy as they only serve 2.0.0 in the repos" 10 50
-install=${?}
-
-if [[ $install -eq 0 ]]
-then
-	echo "installing libsdl2.0.1"
-	if [ ! -f "libsdl2-2.0-0_2.0.1+dfsg1-1ubuntu1_amd64.deb" ]
-	then
-		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2/libsdl2-2.0-0_2.0.1+dfsg1-1ubuntu1_amd64.deb
-		sudo dpkg -i libsdl2-2.0-0_2.0.1+dfsg1-1ubuntu1_amd64.deb
-	fi
-	if [ ! -f "libsdl2-dev_2.0.1+dfsg1-1ubuntu1_amd64.deb" ]
-	then
-		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2/libsdl2-dev_2.0.1+dfsg1-1ubuntu1_amd64.deb
-		sudo dpkg -i libsdl2-dev_2.0.1+dfsg1-1ubuntu1_amd64.deb
-	fi
-fi
+#dialog --yesno "Install libSDL2.0.1 from ubuntu trusty?\nCurrently needed for saucy as they only serve 2.0.0 in the repos" 10 50
+#install=${?}
+#
+#if [[ $install -eq 0 ]]
+#then
+#	echo "installing libsdl2.0.1"
+#	if [ ! -f "libsdl2-2.0-0_2.0.1+dfsg1-1ubuntu1_amd64.deb" ]
+#	then
+#		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2/libsdl2-2.0-0_2.0.1+dfsg1-1ubuntu1_amd64.deb
+#		sudo dpkg -i libsdl2-2.0-0_2.0.1+dfsg1-1ubuntu1_amd64.deb
+#	fi
+#	if [ ! -f "libsdl2-dev_2.0.1+dfsg1-1ubuntu1_amd64.deb" ]
+#	then
+#		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2/libsdl2-dev_2.0.1+dfsg1-1ubuntu1_amd64.deb
+#		sudo dpkg -i libsdl2-dev_2.0.1+dfsg1-1ubuntu1_amd64.deb
+#	fi
+#fi
 
