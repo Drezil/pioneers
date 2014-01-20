@@ -1,7 +1,7 @@
 set up external dependencies:
 
 > sudo apt-get install libsdl2-dev
-> ./deps/getDeps.sh
+> cd deps && ./getDeps.sh && cd ..
 
 make sure the compiled files are in your PATH (e.g. include $HOME/.cabal/bin in your $PATH)
 
