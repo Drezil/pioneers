@@ -223,7 +223,7 @@ run = do
     win <- asks envWindow
 
     -- draw Scene
-    --draw
+    draw
     liftIO $ do
         glSwapWindow win
     -- getEvents & process
@@ -324,4 +324,27 @@ processEvents = do
 
 processEvent :: Event -> Pioneers ()
 processEvent e = do
-        liftIO $ putStrLn (show e)
+        case eventData e of
+                Window _ winEvent ->
+                        case winEvent of
+                                Closing -> modify $ \s -> s {
+                                                        stateWinClose = True
+                                                }
+                                _ -> return ()
+                Keyboard movement _ repeat key -> --up/down window(ignored) true/false actualKey
+                        -- need modifiers? use "keyModifiers key" to get them
+                        case keyScancode key of
+                                Escape -> modify $ \s -> s {
+                                                        stateWinClose = True
+                                                }
+                                _ -> return ()
+                MouseMotion _ id st pos xrel yrel ->
+                        return ()
+                MouseButton _ id button state pos ->
+                        return ()
+                MouseWheel _ id hscroll vscroll ->
+                        return ()
+                Quit -> modify $ \s -> s {stateWinClose = True}
+                -- there is more (joystic, touchInterface, ...), but currently ignored
+                _ -> return ()
+        liftIO $ putStrLn $ unwords ["Processing Event:",(show e)]
