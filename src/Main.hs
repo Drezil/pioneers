@@ -50,6 +50,7 @@ data Env = Env
     , envWindow        :: !Window
     , envZDistClosest  :: !Double
     , envZDistFarthest :: !Double
+    --, envGLContext     :: !GLContext
     }
 
 --Mutable State
@@ -91,13 +92,14 @@ type Pioneers = RWST Env () State IO
 main :: IO ()
 main = do
         SDL.withInit [InitVideo, InitAudio] $ do --also: InitNoParachute -> faster, without parachute!
-        window <- SDL.createWindow "Pioneers" (Position 1500 100) (Size 1024 768) [WindowOpengl     -- we want openGL
+        SDL.withWindow "Pioneers" (Position 1500 100) (Size 1024 768) [WindowOpengl     -- we want openGL
                                                                              ,WindowShown      -- window should be visible
                                                                              ,WindowResizable  -- and resizable 
                                                                              ,WindowInputFocus -- focused (=> active)
                                                                              ,WindowMouseFocus -- Mouse into it
                                                                              --,WindowInputGrabbed-- never let go of input (KB/Mouse)
-                                                                             ]
+                                                                             ] $ \window -> do
+        withOpenGL window $ do
         (Size fbWidth fbHeight) <- glGetDrawableSize window
         initRendering
         --generate map vertices
