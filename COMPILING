@@ -1,10 +1,9 @@
 set up external dependencies:
 
-> sudo apt-get install libgtkglext1-dev
-> cabal install gtk2hs-buildtools
+> sudo apt-get install libsdl2-dev
+> ./deps/getDeps.sh
 
-make sure these are in your PATH (e.g. include $HOME/.cabal/bin in your $PATH)
-
+make sure the compiled files are in your PATH (e.g. include $HOME/.cabal/bin in your $PATH)
 
 install dependencies & configure app
 > cabal install --only-dependencies
@@ -13,4 +12,4 @@ install dependencies & configure app
 build
 > cabal build
 
-run file from dist/build/Pioneers/Pioneers
+run ./Pioneers (symlinked to dist/build/Pioneers/Pioneers)
