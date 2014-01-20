@@ -15,8 +15,6 @@ smooth out vec4 fg_SmoothColor;
 
 void main()
 {
-
-uiaenuirtdaend
    vec3 fg_Normal = fg_NormalMatrix * fg_NormalIn; //vec3(0,1,0);
    //transform vec3 into vec4, setting w to 1
    vec4 fg_Vertex = vec4(fg_VertexIn, 1.0);
