@@ -21,6 +21,8 @@ do
 		cd "$d"
 		cabal configure
 		cabal build
+		cabal haddock --hyperlink-source
+		cabal install
 		cd ..
 	fi
 done
