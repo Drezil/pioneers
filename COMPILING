@@ -3,6 +3,11 @@ set up external dependencies:
 > sudo apt-get install libsdl2-dev
 > cd deps && ./getDeps.sh && cd ..
 
+NOTE: ubuntu saucy currently only has libsdl2-dev.2.0.0 in the repositories, but we need libsdl2-dev.2.0.1
+      Therefore the update-script gets the updated packages for trusty (which have the same dependencies)
+      and installs them.
+      PIONEERS WONT RUN WITH VERSION 2.0.0 OF LIBSDL2!
+
 make sure the compiled files are in your PATH (e.g. include $HOME/.cabal/bin in your $PATH)
 
 install dependencies & configure app
