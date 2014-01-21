@@ -7,16 +7,22 @@ install=${?}
 
 if [[ $install -eq 0 ]]
 then
+	sudo apt-get install gdebi
 	echo "installing libsdl2.0.1"
 	if [ ! -f "libsdl2-2.0-0_2.0.1+dfsg1-1ubuntu1_amd64.deb" ]
 	then
 		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2/libsdl2-2.0-0_2.0.1+dfsg1-1ubuntu1_amd64.deb
-		sudo dpkg -i libsdl2-2.0-0_2.0.1+dfsg1-1ubuntu1_amd64.deb
+		sudo gdebi libsdl2-2.0-0_2.0.1+dfsg1-1ubuntu1_amd64.deb
 	fi
 	if [ ! -f "libsdl2-dev_2.0.1+dfsg1-1ubuntu1_amd64.deb" ]
 	then
 		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2/libsdl2-dev_2.0.1+dfsg1-1ubuntu1_amd64.deb
-		sudo dpkg -i libsdl2-dev_2.0.1+dfsg1-1ubuntu1_amd64.deb
+		sudo gdebi libsdl2-dev_2.0.1+dfsg1-1ubuntu1_amd64.deb
+	fi
+	if [ ! -f "libsdl2-dbg_2.0.1+dfsg1-1ubuntu1_amd64.deb" ]
+	then
+		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2/libsdl2-dbg_2.0.1+dfsg1-1ubuntu1_amd64.deb
+		sudo gdebi libsdl2-dbg_2.0.1+dfsg1-1ubuntu1_amd64.deb
 	fi
 fi
 
