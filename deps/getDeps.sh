@@ -2,7 +2,7 @@
 
 #hack until saucy has 2.0.1 instead of 2.0.0
 
-dialog --yesno "Install libSDL2.0.1 from ubuntu trusty?\nCurrently needed for saucy as they only serve 2.0.0 in the repos\n\nThe script will try to download the trusty-packages and resolve dependencies via gdebi" 10 50
+dialog --yesno "Install libSDL2.0.1 from ubuntu trusty?\nCurrently needed for saucy as they only serve 2.0.0 in the repos\n\nThe script will try to download the trusty-packages and resolve dependencies via gdebi" 20 75
 install=${?}
 
 if [[ $install -eq 0 ]]
