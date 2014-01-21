@@ -93,6 +93,9 @@ data State = State
     , shdrViewMatIndex     :: !GL.UniformLocation
     , shdrModelMatIndex    :: !GL.UniformLocation
     , shdrNormalMatIndex   :: !GL.UniformLocation
+    , shdrTessInnerIndex   :: !GL.UniformLocation
+    , shdrTessOuterIndex   :: !GL.UniformLocation
+    , stateTessellationFactor :: !Int
     --- the map
     , stateMap             :: !GL.BufferObject
     , mapVert              :: !GL.NumArrayIndices
@@ -116,7 +119,7 @@ main = do
         initRendering
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
-        (ci, ni, vi, pri, vii, mi, nmi) <- initShader
+        (ci, ni, vi, pri, vii, mi, nmi, tli, tlo) <- initShader
         putStrLn "foo"
         eventQueue <- newTQueueIO :: IO (TQueue Event)
         putStrLn "foo"
@@ -165,12 +168,15 @@ main = do
               , shdrViewMatIndex     = vii
               , shdrModelMatIndex    = mi
               , shdrNormalMatIndex   = nmi
+              , shdrTessInnerIndex   = tli
+              , shdrTessOuterIndex   = tlo
               , stateMap             = mapBuffer
               , mapVert              = vert
               , stateFrustum         = frust
               , stateWinClose        = False
               , stateClock           = now
               , stateArrowsPressed   = aks
+              , stateTessellationFactor = 4
               }
 
         putStrLn "init done."
@@ -189,6 +195,8 @@ draw = do
         (GL.UniformLocation proj)  = shdrProjMatIndex   state
         (GL.UniformLocation nmat)  = shdrNormalMatIndex state
         (GL.UniformLocation vmat)  = shdrViewMatIndex   state
+        (GL.UniformLocation tli)   = shdrTessInnerIndex state
+        (GL.UniformLocation tlo)   = shdrTessOuterIndex state
         vi       = shdrVertexIndex      state
         ni       = shdrNormalIndex      state
         ci       = shdrColorIndex       state
@@ -198,6 +206,7 @@ draw = do
         camX     = statePositionX       state
         camY     = statePositionY       state
         zDist    = stateZDist           state
+        tessFac  = stateTessellationFactor state
     liftIO $ do
         --(vi,GL.UniformLocation proj) <- initShader
         GL.clear [GL.ColorBuffer, GL.DepthBuffer]
@@ -223,6 +232,9 @@ draw = do
               glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (M33 CFloat)))
 
         checkError "nmat"
+        
+        glUniform1f tli (fromIntegral tessFac)
+        glUniform1f tlo (fromIntegral tessFac)
 
         GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
         GL.vertexAttribPointer ci GL.$= fgColorIndex
@@ -387,6 +399,18 @@ processEvent e = do
                                                         arrowDown = movement == KeyDown
                                                         }
                                                 }
+                                SDL.KeypadPlus -> when (movement == KeyDown) $ do
+                                                modify $ \s -> s {
+                                                stateTessellationFactor = min ((stateTessellationFactor s)+1) 5
+                                                }
+                                                state <- get
+                                                liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ stateTessellationFactor state]
+                                SDL.KeypadMinus ->  when (movement == KeyDown) $ do
+                                                modify $ \s -> s {
+                                                stateTessellationFactor = max ((stateTessellationFactor s)-1) 1
+                                                }
+                                                state <- get
+                                                liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ stateTessellationFactor state]
                                 _ -> return ()
                 MouseMotion _ id st (Position x y) xrel yrel -> do
                         state <- get

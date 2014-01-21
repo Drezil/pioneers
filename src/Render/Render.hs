@@ -46,6 +46,8 @@ initShader :: IO (
                       , UniformLocation -- ^ ViewMat
                       , UniformLocation -- ^ ModelMat
                       , UniformLocation -- ^ NormalMat
+                      , UniformLocation -- ^ TessLevelInner
+                      , UniformLocation -- ^ TessLevelOuter
                       )
 initShader = do
    ! vertexSource <- B.readFile vertexShaderFile
@@ -77,6 +79,13 @@ initShader = do
    normalMatrixIndex <- get (uniformLocation program "NormalMatrix")
    checkError "normalMat"
 
+   tessLevelInner <- get (uniformLocation program "TessLevelInner")
+   checkError "TessLevelInner"
+
+   tessLevelOuter <- get (uniformLocation program "TessLevelOuter")
+   checkError "TessLevelOuter"
+
+
    vertexIndex <- get (attribLocation program "Position")
    vertexAttribArray vertexIndex $= Enabled
    checkError "vertexInd"
@@ -95,7 +104,7 @@ initShader = do
    putStrLn $ unlines $ ["Indices: ", show (colorIndex, normalIndex, vertexIndex)]
 
    checkError "initShader"
-   return (colorIndex, normalIndex, vertexIndex, projectionMatrixIndex, viewMatrixIndex, modelMatrixIndex, normalMatrixIndex)
+   return (colorIndex, normalIndex, vertexIndex, projectionMatrixIndex, viewMatrixIndex, modelMatrixIndex, normalMatrixIndex, tessLevelInner, tessLevelOuter)
 
 initRendering :: IO ()
 initRendering = do
