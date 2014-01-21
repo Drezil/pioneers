@@ -1,12 +1,23 @@
-#version 330
+#version 400
 
-//color from earlier stages
-smooth in vec4 fg_SmoothColor;
+smooth in vec3 teNormal;
+in vec4 teColor;
 
-out vec4 fg_FragColor;
+out vec4 fgColor;
+
+uniform mat4 ViewMatrix;
 
 void main(void)
 {
-//copy-shader
-   fg_FragColor = fg_SmoothColor;
+    //heliospheric lighting
+    vec4 light = vec4(1.0,1.0,1.0,1.0);
+    vec4 dark  = vec4(0.0,0.0,0.0,1.0);
+    //direction to sun from origin
+    vec3 lightDir = normalize(ViewMatrix * vec4(5.0,5.0,1.0,0.0)).xyz;
+
+    float costheta = dot(teNormal, lightDir);
+    float a = costheta * 0.5 + 0.5;
+
+
+    fgColor = teColor * mix(dark, light, a);
 }

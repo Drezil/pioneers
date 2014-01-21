@@ -26,8 +26,27 @@ then
 		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2/libsdl2-dbg_2.0.1+dfsg1-1ubuntu1_amd64.deb
 		sudo gdebi libsdl2-dbg_2.0.1+dfsg1-1ubuntu1_amd64.deb
 	fi
+	if [ ! -f "libsdl2-ttf-2.0-0_2.0.12+dfsg1-2_amd64.deb" ]
+	then
+		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2-ttf/libsdl2-ttf-2.0-0_2.0.12+dfsg1-2_amd64.deb
+		sudo gdebi libsdl2-ttf-2.0-0_2.0.12+dfsg1-2_amd64.deb
+	fi
+	if [ ! -f "libsdl2-ttf-dev_2.0.12+dfsg1-2_amd64.deb" ]
+	then
+		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2-ttf/libsdl2-ttf-dev_2.0.12+dfsg1-2_amd64.deb
+		sudo gdebi libsdl2-ttf-dev_2.0.12+dfsg1-2_amd64.deb
+	fi
+	if [ ! -f "libsdl2-image-2.0-0_2.0.0+dfsg-3_amd64.deb" ]
+	then
+		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2-image/libsdl2-image-2.0-0_2.0.0+dfsg-3_amd64.deb
+		sudo gdebi libsdl2-image-2.0-0_2.0.0+dfsg-3_amd64.deb
+	fi
+	if [ ! -f "libsdl2-image-dev_2.0.0+dfsg-3_amd64.deb" ]
+	then
+		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2-image/libsdl2-image-dev_2.0.0+dfsg-3_amd64.deb
+		sudo gdebi libsdl2-image-dev_2.0.0+dfsg-3_amd64.deb
+	fi
 fi
-
 ## hack end
 
 echo "cloning repositories"
@@ -41,6 +60,9 @@ else
 fi
 
 echo "trying to build"
+
+cabal install haddock
+
 for d in `find . -maxdepth 1 -type d`
 do
 	if [ "$d" == "." ]

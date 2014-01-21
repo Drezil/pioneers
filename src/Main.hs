@@ -35,6 +35,7 @@ import qualified Graphics.Rendering.OpenGL.GL         as GL
 import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Data.Time                            (getCurrentTime, UTCTime, diffUTCTime)
 
+import Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
 -- Our modules
 import           Map.Map
 import           Render.Misc                          (checkError,
@@ -122,8 +123,8 @@ main = do
         now <- getCurrentTime
         putStrLn "foo"
 
-        let zDistClosest  = 10
-            zDistFarthest = zDistClosest + 20
+        let zDistClosest  = 1
+            zDistFarthest = zDistClosest + 30
             fov           = 90  --field of view
             near          = 1   --near plane
             far           = 100 --far plane
@@ -231,8 +232,11 @@ draw = do
         GL.vertexAttribPointer vi GL.$= fgVertexIndex
         GL.vertexAttribArray vi   GL.$= GL.Enabled
         checkError "beforeDraw"
+        
+        glPatchParameteri gl_PATCH_VERTICES 3
+        glPolygonMode gl_FRONT gl_LINE
 
-        GL.drawArrays GL.Triangles 0 numVert
+        glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
         checkError "draw"
 
 
