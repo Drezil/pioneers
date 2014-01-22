@@ -1,4 +1,4 @@
 #!/bin/bash
 cd deps
-./getDeps.sh
+./getDeps.sh ni #non-interactively..
 cd ..
