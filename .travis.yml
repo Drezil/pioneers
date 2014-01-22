@@ -1,3 +1,2 @@
 language: haskell
-before_install:
-	./travis.prepare.sh
+before_install: ./travis.prepare.sh
