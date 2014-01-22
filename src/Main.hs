@@ -315,6 +315,8 @@ run = do
     mt <- liftIO $ do
         now <- getCurrentTime
         diff <- return $ diffUTCTime now (stateClock state) -- get time-diffs
+        title <- return $ unwords ["Pioneers @ ",show $ ((round .fromRational.toRational $ 1/diff)::Int),"fps"]
+        setWindowTitle win $ title
         sleepAmount <- return $ floor (max 0 (0.04 - diff))*1000000 -- get time until next frame in microseconds
         threadDelay sleepAmount
         return now
@@ -447,5 +449,4 @@ processEvent e = do
                             }
                 Quit -> modify $ \s -> s {stateWinClose = True}
                 -- there is more (joystic, touchInterface, ...), but currently ignored
-                _ -> return ()
-        liftIO $ putStrLn $ unwords ["Processing Event:",(show e)]
+                _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:",(show e)]

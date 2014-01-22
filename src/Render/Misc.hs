@@ -1,10 +1,8 @@
+{-# LANGUAGE ForeignFunctionInterface #-}
 module Render.Misc where
 
 import           Control.Monad
 import qualified Data.ByteString                            as B (ByteString)
-import           Foreign.Marshal.Array                      (allocaArray,
-                                                             pokeArray)
-import Foreign.C (CFloat)
 import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.StringQueries
@@ -12,7 +10,7 @@ import           Graphics.Rendering.OpenGL.GLU.Errors
 import           Graphics.Rendering.OpenGL.Raw.Core31
 import           System.IO                                  (hPutStrLn, stderr)
 import Linear
-
+import Foreign.C (CFloat)
 
 up :: V3 CFloat
 up = V3 0 1 0
