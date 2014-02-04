@@ -2,18 +2,14 @@
 module Main where
 
 -- Monad-foo and higher functional stuff
-import           Control.Applicative
 import           Control.Monad                        (unless, void, when, join)
-import           Control.Monad.Trans.Maybe            (MaybeT (..), runMaybeT)
 import Control.Arrow ((***))
 
 -- data consistency/conversion
 import           Control.Concurrent                   (threadDelay)
-import           Control.Concurrent.STM               (TQueue, atomically,
-                                                       newTQueueIO,
-                                                       tryReadTQueue,
-                                                       writeTQueue, isEmptyTQueue,
-                                                       STM)
+import           Control.Concurrent.STM               (TQueue,
+                                                       newTQueueIO)
+
 import           Control.Monad.RWS.Strict             (RWST, ask, asks,
                                                        evalRWST, get, liftIO,
                                                        modify, put)
@@ -24,7 +20,7 @@ import           Foreign                              (Ptr, castPtr, with)
 import           Foreign.C                            (CFloat)
 
 -- Math
-import           Control.Lens                         (transposeOf, (^.))
+import           Control.Lens                         ((^.))
 import           Linear                               as L
 
 -- GUI
@@ -40,7 +36,7 @@ import Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
 import           Map.Map
 import           Render.Misc                          (checkError,
                                                        createFrustum, getCam,
-                                                       lookAt, up, curb)
+                                                       curb)
 import           Render.Render                        (initRendering,
                                                        initShader)
 
@@ -128,6 +124,7 @@ main = do
 
         let zDistClosest  = 1
             zDistFarthest = zDistClosest + 30
+            --TODO: Move near/far/fov to state for runtime-changability & central storage
             fov           = 90  --field of view
             near          = 1   --near plane
             far           = 100 --far plane
@@ -188,7 +185,6 @@ main = do
 
 draw :: Pioneers ()
 draw = do
-    env   <- ask
     state <- get
     let xa       = stateXAngle          state
         ya       = stateYAngle          state
@@ -212,23 +208,23 @@ draw = do
         GL.clear [GL.ColorBuffer, GL.DepthBuffer]
         checkError "foo"
         --set up projection (= copy from state)
-        with (distribute $ frust) $ \ptr ->
+        with (distribute frust) $ \ptr ->
               glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
         checkError "foo"
 
         --set up camera
         let ! cam = getCam (camX,camY) zDist xa ya
-        with (distribute $ cam) $ \ptr ->
+        with (distribute cam) $ \ptr ->
               glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
         checkError "foo"
               
         --set up normal--Mat transpose((model*camera)^-1)
-        let normal = (case inv33 ((fmap (^._xyz) cam) ^. _xyz) of
+        let normal = (case inv33 (fmap (^. _xyz) cam ^. _xyz) of
                                              (Just a) -> a
                                              Nothing  -> eye3) :: M33 CFloat
-            nmap = (collect (fmap id) normal) :: M33 CFloat --transpose...
+            nmap = collect id normal :: M33 CFloat --transpose...
         
-        with (distribute $ nmap) $ \ptr ->
+        with (distribute nmap) $ \ptr ->
               glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (M33 CFloat)))
 
         checkError "nmat"
@@ -260,8 +256,7 @@ run = do
 
     -- draw Scene
     draw
-    liftIO $ do
-        glSwapWindow win
+    liftIO $ glSwapWindow win
     -- getEvents & process
     processEvents
 
@@ -292,7 +287,7 @@ run = do
 
     -- get cursor-keys - if pressed
     --TODO: Add sin/cos from stateYAngle
-    (kxrot, kyrot) <- fmap ((join (***)) fromIntegral) getArrowMovement
+    (kxrot, kyrot) <- fmap (join (***) fromIntegral) getArrowMovement
     modify $ \s -> 
                    let 
                         multc = cos $ stateYAngle s
@@ -315,8 +310,8 @@ run = do
     mt <- liftIO $ do
         now <- getCurrentTime
         diff <- return $ diffUTCTime now (stateClock state) -- get time-diffs
-        title <- return $ unwords ["Pioneers @ ",show $ ((round .fromRational.toRational $ 1/diff)::Int),"fps"]
-        setWindowTitle win $ title
+        title <- return $ unwords ["Pioneers @ ",show ((round .fromRational.toRational $ 1.0/diff)::Int),"fps"]
+        setWindowTitle win title
         sleepAmount <- return $ floor (max 0 (0.04 - diff))*1000000 -- get time until next frame in microseconds
         threadDelay sleepAmount
         return now
@@ -384,8 +379,8 @@ processEvent e = do
                     SizeChanged ->
                             adjustWindow
                     _ -> 
-                            liftIO $ putStrLn $ unwords ["Unhandled Window-Event:",(show e)]
-            Keyboard movement _ repeat key -> --up/down window(ignored) true/false actualKey
+                            liftIO $ putStrLn $ unwords ["Unhandled Window-Event:",show e]
+            Keyboard movement _ isRepeated key -> --up/down window(ignored) true/false actualKey
                      -- need modifiers? use "keyModifiers key" to get them
                 case keyScancode key of
                     Escape   ->
@@ -419,20 +414,20 @@ processEvent e = do
                     SDL.KeypadPlus ->
                         when (movement == KeyDown) $ do
                             modify $ \s -> s {
-                                stateTessellationFactor = min ((stateTessellationFactor s)+1) 5
+                                stateTessellationFactor = min (stateTessellationFactor s + 1) 5
                             }
                             state <- get
                             liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ stateTessellationFactor state]
                     SDL.KeypadMinus ->
                         when (movement == KeyDown) $ do
                             modify $ \s -> s {
-                                stateTessellationFactor = max ((stateTessellationFactor s)-1) 1
+                                stateTessellationFactor = max (stateTessellationFactor s - 1) 1
                             }
                             state <- get
                             liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ stateTessellationFactor state]
                     _ ->
                         return ()
-            MouseMotion _ id st (Position x y) xrel yrel -> do
+            MouseMotion _ mouseId st (Position x y) xrel yrel -> do
                 state <- get
                 when (stateMouseDown state && not (stateDragging state)) $
                     put $ state
@@ -446,7 +441,7 @@ processEvent e = do
                       stateCursorPosX      = fromIntegral x
                     , stateCursorPosY      = fromIntegral y
                 }
-            MouseButton _ id button state (Position x y) ->
+            MouseButton _ mouseId button state (Position x y) ->
                 case button of
                     LeftButton -> do
                         let pressed = state == Pressed
@@ -459,13 +454,13 @@ processEvent e = do
                             }
                     _ ->
                         return ()
-            MouseWheel _ id hscroll vscroll -> do
+            MouseWheel _ mouseId hscroll vscroll -> do
                 env <- ask
                 modify $ \s -> s
                     { stateZDist =
-                        let zDist' = stateZDist s + realToFrac (negate $ vscroll)
+                        let zDist' = stateZDist s + realToFrac (negate vscroll)
                         in curb (envZDistClosest env) (envZDistFarthest env) zDist'
                     }
             Quit -> modify $ \s -> s {stateWinClose = True}
             -- there is more (joystic, touchInterface, ...), but currently ignored
-            _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:",(show e)]
+            _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:", show e]
