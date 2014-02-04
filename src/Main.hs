@@ -369,84 +369,103 @@ processEvents = do
 processEvent :: Event -> Pioneers ()
 processEvent e = do
         case eventData e of
-                Window _ winEvent ->
-                        case winEvent of
-                                Closing -> modify $ \s -> s {
-                                                        stateWinClose = True
-                                                }
-                                _ -> return ()
-                Keyboard movement _ repeat key -> --up/down window(ignored) true/false actualKey
-                        -- need modifiers? use "keyModifiers key" to get them
-                        case keyScancode key of
-                                Escape   -> modify $ \s -> s {
-                                                        stateWinClose = True
-                                                }
-                                SDL.Left  -> modify $ \s -> s {
-                                                stateArrowsPressed = (stateArrowsPressed s) {
-                                                        arrowLeft = movement == KeyDown
-                                                        }
-                                                }
-                                SDL.Right -> modify $ \s -> s {
-                                                stateArrowsPressed = (stateArrowsPressed s) {
-                                                        arrowRight = movement == KeyDown
-                                                        }
-                                                }
-                                SDL.Up    -> modify $ \s -> s {
-                                                stateArrowsPressed = (stateArrowsPressed s) {
-                                                        arrowUp = movement == KeyDown
-                                                        }
-                                                }
-                                SDL.Down  -> modify $ \s -> s {
-                                                stateArrowsPressed = (stateArrowsPressed s) {
-                                                        arrowDown = movement == KeyDown
-                                                        }
-                                                }
-                                SDL.KeypadPlus -> when (movement == KeyDown) $ do
-                                                modify $ \s -> s {
-                                                stateTessellationFactor = min ((stateTessellationFactor s)+1) 5
-                                                }
-                                                state <- get
-                                                liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ stateTessellationFactor state]
-                                SDL.KeypadMinus ->  when (movement == KeyDown) $ do
-                                                modify $ \s -> s {
-                                                stateTessellationFactor = max ((stateTessellationFactor s)-1) 1
-                                                }
-                                                state <- get
-                                                liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ stateTessellationFactor state]
-                                _ -> return ()
-                MouseMotion _ id st (Position x y) xrel yrel -> do
-                        state <- get
-                        when (stateMouseDown state && not (stateDragging state)) $
-                          put $ state
-                            { stateDragging        = True
-                            , stateDragStartX      = fromIntegral x
-                            , stateDragStartY      = fromIntegral y
-                            , stateDragStartXAngle = stateXAngle state
-                            , stateDragStartYAngle = stateYAngle state
+            Window _ winEvent ->
+                case winEvent of
+                    Closing ->
+                            modify $ \s -> s {
+                                stateWinClose = True
                             }
+                    Resized {windowResizedTo=size} -> do
+                            modify $ \s -> s {
+                                stateWindowWidth  = sizeWidth  size
+                               ,stateWindowHeight = sizeHeight size
+                            }
+                            adjustWindow
+                    SizeChanged ->
+                            adjustWindow
+                    _ -> 
+                            liftIO $ putStrLn $ unwords ["Unhandled Window-Event:",(show e)]
+            Keyboard movement _ repeat key -> --up/down window(ignored) true/false actualKey
+                     -- need modifiers? use "keyModifiers key" to get them
+                case keyScancode key of
+                    Escape   ->
                         modify $ \s -> s {
-                              stateCursorPosX      = fromIntegral x
-                            , stateCursorPosY      = fromIntegral y
+                            stateWinClose = True
                         }
-                MouseButton _ id button state (Position x y) ->
-                        case button of
-                                LeftButton -> do
-                                      let pressed = state == Pressed
-                                      modify $ \s -> s
-                                        { stateMouseDown = pressed
-                                        }
-                                      unless pressed $
-                                        modify $ \s -> s
-                                          { stateDragging = False
-                                          }
-                                _ -> return ()
-                MouseWheel _ id hscroll vscroll -> do
-                          env <- ask
-                          modify $ \s -> s
-                            { stateZDist =
-                                let zDist' = stateZDist s + realToFrac (negate $ vscroll)
-                                in curb (envZDistClosest env) (envZDistFarthest env) zDist'
+                    SDL.Left  ->
+                        modify $ \s -> s {
+                            stateArrowsPressed = (stateArrowsPressed s) {
+                                    arrowLeft = movement == KeyDown
+                                }
                             }
-                Quit -> modify $ \s -> s {stateWinClose = True}
-                -- there is more (joystic, touchInterface, ...), but currently ignored
-                _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:",(show e)]
+                    SDL.Right ->
+                        modify $ \s -> s {
+                            stateArrowsPressed = (stateArrowsPressed s) {
+                                    arrowRight = movement == KeyDown
+                                }
+                            }
+                    SDL.Up    ->
+                        modify $ \s -> s {
+                            stateArrowsPressed = (stateArrowsPressed s) {
+                                    arrowUp = movement == KeyDown
+                                 }
+                            }
+                    SDL.Down  ->
+                        modify $ \s -> s {
+                            stateArrowsPressed = (stateArrowsPressed s) {
+                                    arrowDown = movement == KeyDown
+                                }
+                            }
+                    SDL.KeypadPlus ->
+                        when (movement == KeyDown) $ do
+                            modify $ \s -> s {
+                                stateTessellationFactor = min ((stateTessellationFactor s)+1) 5
+                            }
+                            state <- get
+                            liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ stateTessellationFactor state]
+                    SDL.KeypadMinus ->
+                        when (movement == KeyDown) $ do
+                            modify $ \s -> s {
+                                stateTessellationFactor = max ((stateTessellationFactor s)-1) 1
+                            }
+                            state <- get
+                            liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ stateTessellationFactor state]
+                    _ ->
+                        return ()
+            MouseMotion _ id st (Position x y) xrel yrel -> do
+                state <- get
+                when (stateMouseDown state && not (stateDragging state)) $
+                    put $ state
+                    { stateDragging        = True
+                    , stateDragStartX      = fromIntegral x
+                    , stateDragStartY      = fromIntegral y
+                    , stateDragStartXAngle = stateXAngle state
+                    , stateDragStartYAngle = stateYAngle state
+                    }
+                modify $ \s -> s {
+                      stateCursorPosX      = fromIntegral x
+                    , stateCursorPosY      = fromIntegral y
+                }
+            MouseButton _ id button state (Position x y) ->
+                case button of
+                    LeftButton -> do
+                        let pressed = state == Pressed
+                        modify $ \s -> s {
+                            stateMouseDown = pressed
+                        }
+                        unless pressed $
+                            modify $ \s -> s {
+                                stateDragging = False
+                            }
+                    _ ->
+                        return ()
+            MouseWheel _ id hscroll vscroll -> do
+                env <- ask
+                modify $ \s -> s
+                    { stateZDist =
+                        let zDist' = stateZDist s + realToFrac (negate $ vscroll)
+                        in curb (envZDistClosest env) (envZDistFarthest env) zDist'
+                    }
+            Quit -> modify $ \s -> s {stateWinClose = True}
+            -- there is more (joystic, touchInterface, ...), but currently ignored
+            _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:",(show e)]
