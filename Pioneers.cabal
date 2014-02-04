@@ -6,7 +6,7 @@ author:         sdressel
 
 executable Pioneers
   hs-source-dirs:  src
-  ghc-options:     -Wall
+  ghc-options:     -Wall -Odph -rtsopts -threaded -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -optlo-O3 -fllvm
   other-modules:   
                    Map.Map,
                    Render.Misc,

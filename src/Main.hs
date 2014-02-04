@@ -378,8 +378,9 @@ processEvent e = do
                             adjustWindow
                     SizeChanged ->
                             adjustWindow
-                    _ -> 
-                            liftIO $ putStrLn $ unwords ["Unhandled Window-Event:",show e]
+                    _ ->
+                        return ()
+                        --liftIO $ putStrLn $ unwords ["Unhandled Window-Event:",show e]
             Keyboard movement _ isRepeated key -> --up/down window(ignored) true/false actualKey
                      -- need modifiers? use "keyModifiers key" to get them
                 case keyScancode key of
