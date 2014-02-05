@@ -63,6 +63,15 @@ else
 	cd ..
 fi
 
+if [ ! -d "hsSDL2-ttf" ]
+then
+	git clone https://github.com/osa1/hsSDL2-ttf hsSDL2-ttf
+else
+	cd hsSDL2-ttf
+	git pull
+	cd ..
+fi
+
 echo "trying to build"
 
 cabal install haddock
@@ -79,7 +88,7 @@ do
 		cabal configure
 		cabal build
 		cabal haddock --hyperlink-source
-		cabal install
+		cabal install --force-reinstalls
 		cd ..
 	fi
 done

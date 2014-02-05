@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, DoAndIfThenElse #-}
 module Main where
 
 -- Monad-foo and higher functional stuff
@@ -25,6 +25,8 @@ import           Linear                               as L
 
 -- GUI
 import           Graphics.UI.SDL                      as SDL
+import           Graphics.UI.SDL.TTF                  as TTF
+import           Graphics.UI.SDL.TTF.Types
 
 -- Render
 import qualified Graphics.Rendering.OpenGL.GL         as GL
@@ -39,65 +41,10 @@ import           Render.Misc                          (checkError,
                                                        curb)
 import           Render.Render                        (initRendering,
                                                        initShader)
+import           UI.Callbacks
+import           Types
 
 import qualified Debug.Trace                          as D (trace)
-
-data ArrowKeyState = ArrowKeyState {
-         arrowUp      :: !Bool
-        ,arrowDown    :: !Bool
-        ,arrowLeft    :: !Bool
-        ,arrowRight   :: !Bool
-}
-
---Static Read-Only-State
-data Env = Env
-    { envEventsChan    :: TQueue Event
-    , envWindow        :: !Window
-    , envZDistClosest  :: !Double
-    , envZDistFarthest :: !Double
-    --, envGLContext     :: !GLContext
-    }
-
---Mutable State
-data State = State
-    { stateWindowWidth     :: !Int
-    , stateWindowHeight    :: !Int
-    , stateWinClose        :: !Bool
-    , stateClock           :: !UTCTime
-    --- IO
-    , stateXAngle          :: !Double
-    , stateYAngle          :: !Double
-    , stateZDist           :: !Double
-    , stateMouseDown       :: !Bool
-    , stateDragging        :: !Bool
-    , stateDragStartX      :: !Double
-    , stateDragStartY      :: !Double
-    , stateDragStartXAngle :: !Double
-    , stateDragStartYAngle :: !Double
-    , statePositionX       :: !Double
-    , statePositionY       :: !Double
-    , stateCursorPosX      :: !Double
-    , stateCursorPosY      :: !Double
-    , stateArrowsPressed   :: !ArrowKeyState
-    , stateFrustum         :: !(M44 CFloat)
-    --- pointer to bindings for locations inside the compiled shader
-    --- mutable because shaders may be changed in the future.
-    , shdrVertexIndex      :: !GL.AttribLocation
-    , shdrColorIndex       :: !GL.AttribLocation
-    , shdrNormalIndex      :: !GL.AttribLocation
-    , shdrProjMatIndex     :: !GL.UniformLocation
-    , shdrViewMatIndex     :: !GL.UniformLocation
-    , shdrModelMatIndex    :: !GL.UniformLocation
-    , shdrNormalMatIndex   :: !GL.UniformLocation
-    , shdrTessInnerIndex   :: !GL.UniformLocation
-    , shdrTessOuterIndex   :: !GL.UniformLocation
-    , stateTessellationFactor :: !Int
-    --- the map
-    , stateMap             :: !GL.BufferObject
-    , mapVert              :: !GL.NumArrayIndices
-    }
-
-type Pioneers = RWST Env () State IO
 
 --------------------------------------------------------------------------------
 main :: IO ()
@@ -108,9 +55,10 @@ main = do
                                                                              ,WindowResizable  -- and resizable 
                                                                              ,WindowInputFocus -- focused (=> active)
                                                                              ,WindowMouseFocus -- Mouse into it
-                                                                             --,WindowInputGrabbed-- never let go of input (KB/Mouse)
+                                                                             ,WindowInputGrabbed-- never let go of input (KB/Mouse)
                                                                              ] $ \window -> do
         withOpenGL window $ do
+        TTF.withInit $ do
         (Size fbWidth fbHeight) <- glGetDrawableSize window
         initRendering
         --generate map vertices
@@ -121,6 +69,9 @@ main = do
         putStrLn "foo"
         now <- getCurrentTime
         putStrLn "foo"
+        font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
+        TTF.setFontStyle font TTFNormal
+        TTF.setFontHinting font TTFHNormal
 
         let zDistClosest  = 1
             zDistFarthest = zDistClosest + 30
@@ -141,6 +92,7 @@ main = do
               , envWindow        = window
               , envZDistClosest  = zDistClosest
               , envZDistFarthest = zDistFarthest
+              , envFont          = font
               }
             state = State
               { stateWindowWidth     = fbWidth
@@ -449,10 +401,16 @@ processEvent e = do
                         modify $ \s -> s {
                             stateMouseDown = pressed
                         }
-                        unless pressed $
-                            modify $ \s -> s {
-                                stateDragging = False
-                            }
+                        unless pressed $ do
+                            st <- get
+                            if stateDragging st then
+                                modify $ \s -> s {
+                                    stateDragging = False
+                                }
+                            else
+                                clickHandler (UI.Callbacks.Pixel x y)
+                    RightButton -> do
+                        when (state == Released) $ alternateClickHandler (UI.Callbacks.Pixel x y)
                     _ ->
                         return ()
             MouseWheel _ mouseId hscroll vscroll -> do
