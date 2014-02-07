@@ -107,7 +107,7 @@ type Pioneers = RWST Env () State IO
 main :: IO ()
 main = do
         SDL.withInit [InitVideo, InitAudio] $ do --also: InitNoParachute -> faster, without parachute!
-        SDL.withWindow "Pioneers" (Position 1500 100) (Size 1024 768) [WindowOpengl     -- we want openGL
+        SDL.withWindow "Pioneers" (Position 100 100) (Size 1024 600) [WindowOpengl     -- we want openGL
                                                                              ,WindowShown      -- window should be visible
                                                                              ,WindowResizable  -- and resizable 
                                                                              ,WindowInputFocus -- focused (=> active)
