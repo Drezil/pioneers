@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, BangPatterns #-}
-module Map.Map 
+module Map.Graphics 
 
 (
 mapVertexArrayDescriptor,
@@ -26,16 +26,10 @@ import           Graphics.Rendering.OpenGL.Raw.Core31
 import Foreign.Marshal.Array (withArray)
 import Foreign.Storable (sizeOf)
 import Foreign.Ptr (Ptr, nullPtr, plusPtr)
-import Render.Misc (checkError)
-import Linear
+--import Render.Misc (checkError)
+--import Linear
 
-
-data TileType =
-        Grass
-        | Sand
-        | Water
-        | Mountain
-        deriving (Show, Eq)
+import Types
 
 type MapEntry = (
                 Float, -- ^ Height
@@ -228,8 +222,8 @@ colorLookup hs t = if inRange (bounds hs) t then c else (0.0, 0.0, 0.0)
                 where 
                         (_,tp) = hs ! t
                         c = case tp of
-                                Water           -> (0.5, 0.5, 1)
-                                Sand            -> (0.9, 0.85, 0.7)
+                                Ocean           -> (0.5, 0.5, 1)
+                                Beach            -> (0.9, 0.85, 0.7)
                                 Grass           -> (0.3, 0.9, 0.1)
                                 Mountain        -> (0.5, 0.5, 0.5)
 
@@ -295,8 +289,8 @@ testmap2 = do
 parseTemplate :: [Int] -> Text -> [MapEntry]
 parseTemplate (r:rs) t = 
         (case T.head t of
-                '~' -> (0, Water)
-                'S' -> (0, Sand)
+                '~' -> (0, Ocean)
+                'S' -> (0, Beach)
                 'G' -> (fromIntegral (r `mod` 10)/10.0,Grass)
                 'M' -> (fromIntegral ((r `mod` 10) + 20)/10.0, Mountain)
                 _ -> error "invalid template format for map"
