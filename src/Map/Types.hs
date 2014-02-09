@@ -3,11 +3,13 @@ where
 
 import PioneerTypes
 
-newtype XCoord  = XCoord Int
-newtype YCoord  = YCoord Int
-newtype ZCoord  = ZCoord Float
+import Data.Array
 
-newtype  Coord  = Coord (XCoord, YCoord, ZCoord) 
+type PlayMap = Array (XCoord, YCoord) Node 
+
+type XCoord  = Int
+type YCoord  = Int
+type ZCoord  = Float 
 
 -- | Ownership information, Parameter to occupied is player number
 data PlayerInfo = NoPlayer
@@ -40,5 +42,7 @@ data TileType   = Ocean
                 | Mountain -- ^ Not accessible
                 deriving (Eq)
 
-data Node = Full    Coord TileType BuildInfo PlayerInfo PathInfo ResInfo StorInfo
-          | Minimal Coord
+-- TODO: Record Syntax
+data Node = Full    (XCoord, YCoord) ZCoord TileType BuildInfo PlayerInfo PathInfo ResInfo StorInfo
+          | Minimal (XCoord, YCoord) ZCoord -- defaults to empty green grass node on height 0.5
+
