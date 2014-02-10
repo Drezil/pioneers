@@ -42,13 +42,13 @@ then
 	fi
 	if [ ! -f "libsdl2-image-2.0-0_2.0.0+dfsg-3_amd64.deb" ]
 	then
-		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2-image/libsdl2-image-2.0-0_2.0.0+dfsg-3_amd64.deb
-		sudo gdebi --n libsdl2-image-2.0-0_2.0.0+dfsg-3_amd64.deb
+		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2-image/libsdl2-image-2.0-0_2.0.0+dfsg-3build2_amd64.deb
+		sudo gdebi --n libsdl2-image-2.0-0_2.0.0+dfsg-3build2_amd64.deb
 	fi
 	if [ ! -f "libsdl2-image-dev_2.0.0+dfsg-3_amd64.deb" ]
 	then
-		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2-image/libsdl2-image-dev_2.0.0+dfsg-3_amd64.deb
-		sudo gdebi --n libsdl2-image-dev_2.0.0+dfsg-3_amd64.deb
+		wget http://de.archive.ubuntu.com/ubuntu/pool/universe/libs/libsdl2-image/libsdl2-image-dev_2.0.0+dfsg-3build2_amd64.deb
+		sudo gdebi --n libsdl2-image-dev_2.0.0+dfsg-3build2_amd64.deb
 	fi
 fi
 ## hack end
