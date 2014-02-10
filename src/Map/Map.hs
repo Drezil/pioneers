@@ -89,52 +89,7 @@ prettyMap :: [GLfloat] -> [(GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfl
 prettyMap (a:b:c:d:x:y:z:u:v:w:ms) = (a,b,c,d,x,y,z,u,v,w):(prettyMap ms)
 prettyMap _ = []
 
-generateCube :: [GLfloat]
-generateCube = [  -- lower plane
-                  -3.0,-3.0,-3.0,
-                  3.0,-3.0,3.0,
-                  3.0,-3.0,-3.0,
-                  -3.0,-3.0,-3.0,
-                  -3.0,-3.0,3.0,
-                  3.0,-3.0,3.0,
-                  -- upper plane
-                  -3.0,3.0,-3.0,
-                  3.0,3.0,3.0,
-                  3.0,3.0,-3.0,
-                  -3.0,3.0,-3.0,
-                  -3.0,3.0,3.0,
-                  3.0,3.0,3.0,
-                   -- left plane
-                  -3.0,-3.0,-3.0,
-                  -3.0,3.0,3.0,
-                  -3.0,-3.0,3.0,
-                  -3.0,-3.0,-3.0,
-                  -3.0,3.0,3.0,
-                  -3.0,3.0,-3.0,
-                   -- right plane
-                  3.0,-3.0,-3.0,
-                  3.0,3.0,3.0,
-                  3.0,-3.0,3.0,
-                  3.0,-3.0,-3.0,
-                  3.0,3.0,3.0,
-                  3.0,3.0,-3.0,
-                   -- front plane
-                  -3.0,-3.0,-3.0,
-                  3.0,3.0,-3.0,
-                  3.0,-3.0,-3.0,
-                  -3.0,-3.0,-3.0,
-                  3.0,3.0,-3.0,
-                  -3.0,3.0,-3.0,
-                   -- back plane
-                  -3.0,-3.0,3.0,
-                  3.0,3.0,3.0,
-                  3.0,-3.0,3.0,
-                  -3.0,-3.0,3.0,
-                  3.0,3.0,3.0,
-                  -3.0,3.0,3.0
-                  ]
-
-generateTriangles :: PlayMap -> [GLfloat] 
+generateTriangles :: PlayMap -> [GLfloat]
 generateTriangles map' =
                 let ((xl,yl),(xh,yh)) = bounds map' in
                 P.concat [P.concat $ P.map (generateFirstTriLine map' y) [xl .. xh - 2] 
@@ -234,7 +189,7 @@ colorLookup hs t = if inRange (bounds hs) t then c else (0.0, 0.0, 0.0)
                                 Mountain        -> (0.5, 0.5, 0.5)
 
 coordLookup :: (Int,Int) -> GLfloat -> V3 GLfloat
-coordLookup (x,z) y = 
+coordLookup (x,z) y =
                 if even x then
                         V3 (fromIntegral $ x `div` 2) y (fromIntegral (2 * z) * lineHeight)
                 else
