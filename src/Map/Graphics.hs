@@ -36,7 +36,7 @@ type MapEntry = (
                 TileType
                 )
 
-type PlayMap = Array (Int, Int) MapEntry
+type GraphicsMap = Array (Int, Int) MapEntry
 
 lineHeight :: GLfloat
 lineHeight = 0.8660254
@@ -128,14 +128,14 @@ generateCube = [  -- lower plane
                   -3.0,3.0,3.0
                   ]
 
-generateTriangles :: PlayMap -> [GLfloat] 
+generateTriangles :: GraphicsMap -> [GLfloat] 
 generateTriangles map' =
                 let ((xl,yl),(xh,yh)) = bounds map' in
                 P.concat [P.concat $ P.map (generateFirstTriLine map' y) [xl .. xh - 2] 
                           ++ P.map (generateSecondTriLine map' (y == yh) y) [xl .. xh - 2]
                          | y <- [yl..yh]]
 
-generateFirstTriLine :: PlayMap -> Int -> Int -> [GLfloat]
+generateFirstTriLine :: GraphicsMap -> Int -> Int -> [GLfloat]
 generateFirstTriLine map' y x =
                 P.concat $
                    if even x then
@@ -149,7 +149,7 @@ generateFirstTriLine map' y x =
                         lookupVertex map' (x + 1) y
                      ]
 
-generateSecondTriLine :: PlayMap -> Bool -> Int -> Int ->  [GLfloat]
+generateSecondTriLine :: GraphicsMap -> Bool -> Int -> Int ->  [GLfloat]
 generateSecondTriLine map' False y x  =
                 P.concat $
                    if even x then
@@ -165,7 +165,7 @@ generateSecondTriLine map' False y x  =
 generateSecondTriLine _ True _ _  = []
 
 
-lookupVertex :: PlayMap -> Int -> Int -> [GLfloat]
+lookupVertex :: GraphicsMap -> Int -> Int -> [GLfloat]
 lookupVertex map' x y = 
                 let 
                         (cr, cg, cb)  = colorLookup map' (x,y)
@@ -179,7 +179,7 @@ lookupVertex map' x y =
                         vx, vy, vz              -- 3 Vertex
                 ]
 
-normalLookup :: PlayMap -> Int -> Int -> V3 GLfloat
+normalLookup :: GraphicsMap -> Int -> Int -> V3 GLfloat
 normalLookup map' x y = normalize $ normN + normNE + normSE + normS + normSW + normNW
                     where
                       --Face Normals
@@ -212,12 +212,12 @@ normalLookup map' x y = normalize $ normN + normNE + normSE + normS + normSW + n
                         | otherwise = coordLookup (x-2,y  ) $ heightLookup map' (x-2,y  )
                       eo = if even x then 1 else -1
 
-heightLookup :: PlayMap -> (Int,Int) -> GLfloat
+heightLookup :: GraphicsMap -> (Int,Int) -> GLfloat
 heightLookup hs t = if inRange (bounds hs) t then fromRational $ toRational h else 0.0
                 where 
                         (h,_) = hs ! t
 
-colorLookup :: PlayMap -> (Int,Int) -> (GLfloat, GLfloat, GLfloat)
+colorLookup :: GraphicsMap -> (Int,Int) -> (GLfloat, GLfloat, GLfloat)
 colorLookup hs t = if inRange (bounds hs) t then c else (0.0, 0.0, 0.0)
                 where 
                         (_,tp) = hs ! t
@@ -273,13 +273,13 @@ testMapTemplate2 = T.transpose [
                 "~~~~~~~~~~~~"
                 ]
 
-testmap :: IO PlayMap
+testmap :: IO GraphicsMap
 testmap = do
                 g <- getStdGen
                 rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate)
                 return $ listArray ((0,0),(79,19)) rawMap
 
-testmap2 :: IO PlayMap
+testmap2 :: IO GraphicsMap
 testmap2 = do
                 g <- getStdGen
                 rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate2)

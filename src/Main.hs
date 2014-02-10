@@ -36,7 +36,7 @@ import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Data.Time                            (getCurrentTime, UTCTime, diffUTCTime)
 
 -- Our modules
-import           Map.Map
+import           Map.Graphics
 import           Render.Misc                          (checkError,
                                                        createFrustum, getCam,
                                                        lookAt, up, curb)
