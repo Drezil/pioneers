@@ -4,8 +4,8 @@ layout(triangles, equal_spacing, cw) in;
 in vec3 tcPosition[];
 in vec4 tcColor[];
 in vec3 tcNormal[];
-out vec3 tePosition;
 out vec4 teColor;
+smooth out vec3 tePosition;
 smooth out vec3 teNormal;
 smooth out float gmix; //mixture of gravel
 //out vec3 tePatchDistance;
