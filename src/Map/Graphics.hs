@@ -26,10 +26,10 @@ import           Graphics.Rendering.OpenGL.Raw.Core31
 import Foreign.Marshal.Array (withArray)
 import Foreign.Storable (sizeOf)
 import Foreign.Ptr (Ptr, nullPtr, plusPtr)
---import Render.Misc (checkError)
---import Linear
+import Render.Misc (checkError)
+import Linear
 
-import Types
+import Map.Types
 
 type MapEntry = (
                 Float, -- ^ Height
