@@ -8,7 +8,10 @@ executable Pioneers
   hs-source-dirs:  src
   ghc-options:     -Wall
   other-modules:   
-                   Map.Map,
+                   Map.Types,
+                   Map.Graphics,
+                   Map.Creation,
+                   Map.StaticMaps,
                    Render.Misc,
                    Render.Render,
                    Render.RenderObject
