@@ -33,7 +33,7 @@ data Structure = Flag           -- Flag
                | DonkeyBreeder
                | Harbor
                | Fortress
-               deriving Eq
+               deriving (Show, Eq)
 
 data Amount    = Infinite   -- Neverending supply
                | Finite Int -- Finite supply 
@@ -50,4 +50,13 @@ data Resource  = Coal
                | Granite
                | Water
                | Fishes
-               deriving Eq
+               deriving (Show, Eq)
+
+instance Show Amount where
+    show (Infinite) = "inexhaustable supply"
+    show (Finite n) = (show n) ++ " left"
+
+instance Show Commodity where
+    show WoodPlank = "wooden plank"
+    show Sword     = "sword" 
+    show Fish      = "fish"

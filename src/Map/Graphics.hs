@@ -41,6 +41,7 @@ type GraphicsMap = Array (Int, Int) MapEntry
 lineHeight :: GLfloat
 lineHeight = 0.8660254
 
+-- Number of GLfloats per Stride
 numComponents :: Int
 numComponents = 10
 
@@ -67,7 +68,6 @@ getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
         map' <- testmap
         ! map' <- return $ generateTriangles map'
-        --putStrLn $ P.unlines $ P.map show (prettyMap map')
         len <- return $ fromIntegral $ P.length map' `div` numComponents
         putStrLn $ P.unwords ["num verts in map:",show len]
         bo <- genObjectName                     -- create a new buffer
@@ -78,55 +78,6 @@ getMapBufferObject = do
                                            StaticDraw)
         checkError "initBuffer"
         return (bo,len)
-
-prettyMap :: [GLfloat] -> [(GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat)]
-prettyMap (a:b:c:d:x:y:z:u:v:w:ms) = (a,b,c,d,x,y,z,u,v,w):(prettyMap ms)
-prettyMap _ = []
-
-generateCube :: [GLfloat]
-generateCube = [  -- lower plane
-                  -3.0,-3.0,-3.0,
-                  3.0,-3.0,3.0,
-                  3.0,-3.0,-3.0,
-                  -3.0,-3.0,-3.0,
-                  -3.0,-3.0,3.0,
-                  3.0,-3.0,3.0,
-                  -- upper plane
-                  -3.0,3.0,-3.0,
-                  3.0,3.0,3.0,
-                  3.0,3.0,-3.0,
-                  -3.0,3.0,-3.0,
-                  -3.0,3.0,3.0,
-                  3.0,3.0,3.0,
-                   -- left plane
-                  -3.0,-3.0,-3.0,
-                  -3.0,3.0,3.0,
-                  -3.0,-3.0,3.0,
-                  -3.0,-3.0,-3.0,
-                  -3.0,3.0,3.0,
-                  -3.0,3.0,-3.0,
-                   -- right plane
-                  3.0,-3.0,-3.0,
-                  3.0,3.0,3.0,
-                  3.0,-3.0,3.0,
-                  3.0,-3.0,-3.0,
-                  3.0,3.0,3.0,
-                  3.0,3.0,-3.0,
-                   -- front plane
-                  -3.0,-3.0,-3.0,
-                  3.0,3.0,-3.0,
-                  3.0,-3.0,-3.0,
-                  -3.0,-3.0,-3.0,
-                  3.0,3.0,-3.0,
-                  -3.0,3.0,-3.0,
-                   -- back plane
-                  -3.0,-3.0,3.0,
-                  3.0,3.0,3.0,
-                  3.0,-3.0,3.0,
-                  -3.0,-3.0,3.0,
-                  3.0,3.0,3.0,
-                  -3.0,3.0,3.0
-                  ]
 
 generateTriangles :: GraphicsMap -> [GLfloat] 
 generateTriangles map' =
