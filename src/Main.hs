@@ -24,9 +24,9 @@ import           Control.Lens                         ((^.))
 import           Linear                               as L
 
 -- GUI
-import           Graphics.UI.SDL                      as SDL
-import           Graphics.UI.SDL.TTF                  as TTF
-import           Graphics.UI.SDL.TTF.Types
+import           Graphics.UI.SDL                      as SDL hiding (Position)
+--import           Graphics.UI.SDL.TTF                  as TTF
+--import           Graphics.UI.SDL.TTF.Types
 
 -- Render
 import qualified Graphics.Rendering.OpenGL.GL         as GL
@@ -58,7 +58,7 @@ main = do
                                                                              ,WindowInputGrabbed-- never let go of input (KB/Mouse)
                                                                              ] $ \window -> do
         withOpenGL window $ do
-        TTF.withInit $ do
+        --TTF.withInit $ do
         (Size fbWidth fbHeight) <- glGetDrawableSize window
         initRendering
         --generate map vertices
@@ -69,9 +69,9 @@ main = do
         putStrLn "foo"
         now <- getCurrentTime
         putStrLn "foo"
-        font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
-        TTF.setFontStyle font TTFNormal
-        TTF.setFontHinting font TTFHNormal
+        --font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
+        --TTF.setFontStyle font TTFNormal
+        --TTF.setFontHinting font TTFHNormal
 
         let zDistClosest  = 1
             zDistFarthest = zDistClosest + 30
@@ -82,50 +82,72 @@ main = do
             ratio         = fromIntegral fbWidth / fromIntegral fbHeight
             frust         = createFrustum fov near far ratio
             aks = ArrowKeyState {
-                 arrowUp       = False
-                ,arrowDown     = False
-                ,arrowLeft     = False
-                ,arrowRight    = False
+                  _up       = False
+                , _down     = False
+                , _left     = False
+                , _right    = False
             }
+            glMap = GLMapState
+                { _shdrVertexIndex      = vi
+                , _shdrNormalIndex      = ni
+                , _shdrColorIndex       = ci
+                , _shdrProjMatIndex     = pri
+                , _shdrViewMatIndex     = vii
+                , _shdrModelMatIndex    = mi
+                , _shdrNormalMatIndex   = nmi
+                , _shdrTessInnerIndex   = tli
+                , _shdrTessOuterIndex   = tlo
+                , _stateTessellationFactor = 4
+                , _stateMap             = mapBuffer
+                , _mapVert              = vert
+                }
             env = Env
-              { envEventsChan    = eventQueue
-              , envWindow        = window
-              , envZDistClosest  = zDistClosest
-              , envZDistFarthest = zDistFarthest
-              , envFont          = font
+              { _eventsChan      = eventQueue
+              , _windowObject    = window
+              , _zDistClosest    = zDistClosest
+              , _zDistFarthest   = zDistFarthest
+              --, envFont          = font
               }
             state = State
-              { stateWindowWidth     = fbWidth
-              , stateWindowHeight    = fbHeight
-              , stateXAngle          = pi/6
-              , stateYAngle          = pi/2
-              , stateZDist           = 10
-              , statePositionX       = 5
-              , statePositionY       = 5
-              , stateCursorPosX      = 0
-              , stateCursorPosY      = 0
-              , stateMouseDown       = False
-              , stateDragging        = False
-              , stateDragStartX      = 0
-              , stateDragStartY      = 0
-              , stateDragStartXAngle = 0
-              , stateDragStartYAngle = 0
-              , shdrVertexIndex      = vi
-              , shdrNormalIndex      = ni
-              , shdrColorIndex       = ci
-              , shdrProjMatIndex     = pri
-              , shdrViewMatIndex     = vii
-              , shdrModelMatIndex    = mi
-              , shdrNormalMatIndex   = nmi
-              , shdrTessInnerIndex   = tli
-              , shdrTessOuterIndex   = tlo
-              , stateMap             = mapBuffer
-              , mapVert              = vert
-              , stateFrustum         = frust
-              , stateWinClose        = False
-              , stateClock           = now
-              , stateArrowsPressed   = aks
-              , stateTessellationFactor = 4
+              { _window              = WindowState
+                        { _width               = fbWidth
+                        , _height              = fbHeight
+                        , _shouldClose         = False
+                        }
+              , _camera              = CameraState
+                        { _xAngle              = pi/6
+                        , _yAngle              = pi/2
+                        , _zDist               = 10
+                        , _frustum             = frust
+                        , _camPosition         = Position
+                                       { Types._x    = 5
+                                       , Types._y    = 5
+                                       }
+                        }
+              , _io                  = IOState
+                        { _clock               = now
+                        }
+              , _mouse               = MouseState
+                        { _isDown              = False
+                        , _isDragging          = False
+                        , _dragStartX          = 0
+                        , _dragStartY          = 0
+                        , _dragStartXAngle     = 0
+                        , _dragStartYAngle     = 0
+                        , _mousePosition       = Position
+                                         { Types._x  = 5
+                                         , Types._y  = 5
+                                         }
+                        }
+              , _keyboard            = KeyboardState
+                        { _arrowsPressed       = aks
+                        }
+              , _gl                  = GLState
+                        { _glMap               = glMap
+                        }
+              , _game                = GameState
+                        {
+                        }
               }
 
         putStrLn "init done."
@@ -138,7 +160,7 @@ main = do
 draw :: Pioneers ()
 draw = do
     state <- get
-    let xa       = stateXAngle          state
+    let xa       = get (camera . xAngle) state --stateXAngle          state
         ya       = stateYAngle          state
         (GL.UniformLocation proj)  = shdrProjMatIndex   state
         (GL.UniformLocation nmat)  = shdrNormalMatIndex state

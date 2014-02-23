@@ -1,71 +1,109 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Types where
 
 import           Control.Concurrent.STM               (TQueue)
 import qualified Graphics.Rendering.OpenGL.GL         as GL
-import           Graphics.UI.SDL                      as SDL
+import           Graphics.UI.SDL                      as SDL (Event, Window)
 import           Foreign.C                            (CFloat)
 import           Data.Time                            (UTCTime)
 import Linear.Matrix (M44)
 import Control.Monad.RWS.Strict (RWST)
-import Graphics.UI.SDL.TTF.Types as TTF
+--import Graphics.UI.SDL.TTF.Types as TTF
+import Control.Lens
+import Data.Label
 
-
-
-
-data ArrowKeyState = ArrowKeyState {
-         arrowUp      :: !Bool
-        ,arrowDown    :: !Bool
-        ,arrowLeft    :: !Bool
-        ,arrowRight   :: !Bool
-}
 
 --Static Read-Only-State
 data Env = Env
-    { envEventsChan    :: TQueue Event
-    , envWindow        :: !Window
-    , envZDistClosest  :: !Double
-    , envZDistFarthest :: !Double
+    { _eventsChan    :: TQueue Event
+    , _windowObject  :: !Window
+    , _zDistClosest  :: !Double
+    , _zDistFarthest :: !Double
     --, envGLContext     :: !GLContext
-    , envFont          :: TTF.TTFFont
+    --, envFont          :: TTF.TTFFont
     }
 
 --Mutable State
-data State = State
-    { stateWindowWidth     :: !Int
-    , stateWindowHeight    :: !Int
-    , stateWinClose        :: !Bool
-    , stateClock           :: !UTCTime
-    --- IO
-    , stateXAngle          :: !Double
-    , stateYAngle          :: !Double
-    , stateZDist           :: !Double
-    , stateMouseDown       :: !Bool
-    , stateDragging        :: !Bool
-    , stateDragStartX      :: !Double
-    , stateDragStartY      :: !Double
-    , stateDragStartXAngle :: !Double
-    , stateDragStartYAngle :: !Double
-    , statePositionX       :: !Double
-    , statePositionY       :: !Double
-    , stateCursorPosX      :: !Double
-    , stateCursorPosY      :: !Double
-    , stateArrowsPressed   :: !ArrowKeyState
-    , stateFrustum         :: !(M44 CFloat)
-    --- pointer to bindings for locations inside the compiled shader
-    --- mutable because shaders may be changed in the future.
-    , shdrVertexIndex      :: !GL.AttribLocation
-    , shdrColorIndex       :: !GL.AttribLocation
-    , shdrNormalIndex      :: !GL.AttribLocation
-    , shdrProjMatIndex     :: !GL.UniformLocation
-    , shdrViewMatIndex     :: !GL.UniformLocation
-    , shdrModelMatIndex    :: !GL.UniformLocation
-    , shdrNormalMatIndex   :: !GL.UniformLocation
-    , shdrTessInnerIndex   :: !GL.UniformLocation
-    , shdrTessOuterIndex   :: !GL.UniformLocation
-    , stateTessellationFactor :: !Int
-    --- the map
-    , stateMap             :: !GL.BufferObject
-    , mapVert              :: !GL.NumArrayIndices
+
+data Position = Position
+    { _x                   :: !Double
+    , _y                   :: !Double
     }
+
+data WindowState = WindowState
+    { _width               :: !Int
+    , _height              :: !Int
+    , _shouldClose         :: !Bool
+    }
+
+data CameraState = CameraState
+    { _xAngle              :: !Double
+    , _yAngle              :: !Double
+    , _zDist               :: !Double
+    , _frustum             :: !(M44 CFloat)
+    , _camPosition         :: !Position --TODO: Get rid of cam-prefix
+    }
+
+data IOState = IOState
+    { _clock               :: !UTCTime
+    }
+
+data GameState = GameState
+    {
+    }
+
+data MouseState = MouseState
+    { _isDown              :: !Bool
+    , _isDragging          :: !Bool
+    , _dragStartX          :: !Double
+    , _dragStartY          :: !Double
+    , _dragStartXAngle     :: !Double
+    , _dragStartYAngle     :: !Double
+    , _mousePosition       :: !Position --TODO: Get rid of mouse-prefix
+    }
+
+data ArrowKeyState = ArrowKeyState {
+         _up      :: !Bool
+        ,_down    :: !Bool
+        ,_left    :: !Bool
+        ,_right   :: !Bool
+}
+
+data KeyboardState = KeyboardState
+    { _arrowsPressed        :: !ArrowKeyState
+    }
+
+data GLMapState = GLMapState
+    { _shdrVertexIndex      :: !GL.AttribLocation
+    , _shdrColorIndex       :: !GL.AttribLocation
+    , _shdrNormalIndex      :: !GL.AttribLocation
+    , _shdrProjMatIndex     :: !GL.UniformLocation
+    , _shdrViewMatIndex     :: !GL.UniformLocation
+    , _shdrModelMatIndex    :: !GL.UniformLocation
+    , _shdrNormalMatIndex   :: !GL.UniformLocation
+    , _shdrTessInnerIndex   :: !GL.UniformLocation
+    , _shdrTessOuterIndex   :: !GL.UniformLocation
+    , _stateTessellationFactor :: !Int
+    , _stateMap             :: !GL.BufferObject
+    , _mapVert              :: !GL.NumArrayIndices
+    }
+
+data GLState = GLState
+    { _glMap               :: !GLMapState
+    }
+
+data State = State
+    { _window              :: !WindowState
+    , _camera              :: !CameraState
+    , _io                  :: !IOState
+    , _mouse               :: !MouseState
+    , _keyboard            :: !KeyboardState
+    , _gl                  :: !GLState
+    , _game                :: !GameState
+    }
+
+$(mkLabels [''State, ''GLState, ''GLMapState, ''KeyboardState, ''ArrowKeyState,
+            ''MouseState, ''GameState, ''IOState, ''CameraState, ''WindowState, 
+            ''Position, ''Env])
 
 type Pioneers = RWST Env () State IO
