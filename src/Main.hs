@@ -25,8 +25,6 @@ import           Linear                               as L
 
 -- GUI
 import           Graphics.UI.SDL                      as SDL
-import           Graphics.UI.SDL.TTF                  as TTF
-import           Graphics.UI.SDL.TTF.Types
 
 -- Render
 import qualified Graphics.Rendering.OpenGL.GL         as GL
@@ -58,7 +56,6 @@ main = do
                                                                              ,WindowInputGrabbed-- never let go of input (KB/Mouse)
                                                                              ] $ \window -> do
         withOpenGL window $ do
-        TTF.withInit $ do
         (Size fbWidth fbHeight) <- glGetDrawableSize window
         initRendering
         --generate map vertices
@@ -69,9 +66,6 @@ main = do
         putStrLn "foo"
         now <- getCurrentTime
         putStrLn "foo"
-        font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
-        TTF.setFontStyle font TTFNormal
-        TTF.setFontHinting font TTFHNormal
 
         let zDistClosest  = 1
             zDistFarthest = zDistClosest + 30
@@ -92,7 +86,6 @@ main = do
               , envWindow        = window
               , envZDistClosest  = zDistClosest
               , envZDistFarthest = zDistFarthest
-              , envFont          = font
               }
             state = State
               { stateWindowWidth     = fbWidth

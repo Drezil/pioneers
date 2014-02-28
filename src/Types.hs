@@ -7,7 +7,6 @@ import           Foreign.C                            (CFloat)
 import           Data.Time                            (UTCTime)
 import Linear.Matrix (M44)
 import Control.Monad.RWS.Strict (RWST)
-import Graphics.UI.SDL.TTF.Types as TTF
 
 
 
@@ -26,7 +25,7 @@ data Env = Env
     , envZDistClosest  :: !Double
     , envZDistFarthest :: !Double
     --, envGLContext     :: !GLContext
-    , envFont          :: TTF.TTFFont
+    --, envFont          :: TTF.TTFFont
     }
 
 --Mutable State
