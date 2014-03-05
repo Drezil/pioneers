@@ -9,7 +9,6 @@ import           Data.Time                            (UTCTime)
 import Linear.Matrix (M44)
 import Control.Monad.RWS.Strict (RWST)
 import Control.Lens
-import Data.Label
 
 
 --Static Read-Only-State
