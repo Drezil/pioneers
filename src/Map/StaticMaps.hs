@@ -16,7 +16,7 @@ mnh2D (a,b) (c,d) = abs (a-c) + abs (b-d)
 
 -- entirely empty map, only uses the minimal constructor
 mapEmpty :: PlayMap
-mapEmpty = array ((0,0), (200,200)) [((a,b), (Minimal (a,b) 0.5)) | a <- [0..200], b <- [0..200]]
+mapEmpty = array ((0,0), (200,200)) [((a,b), (Minimal (a,b))) | a <- [0..200], b <- [0..200]]
 
 -- TODO: Stripify
 mapCenterMountain :: PlayMap

@@ -15,6 +15,7 @@ import System.Random
 import Data.Array.IArray
 import Data.Text as T 
 import Prelude as P
+
 --import Graphics.Rendering.OpenGL.GL
 import           Graphics.Rendering.OpenGL.GL.BufferObjects
 import           Graphics.Rendering.OpenGL.GL.ObjectName
@@ -24,12 +25,13 @@ import           Graphics.Rendering.OpenGL.GL.VertexSpec
 import           Graphics.Rendering.OpenGL.Raw.Core31
 
 import Foreign.Marshal.Array (withArray)
-import Foreign.Storable (sizeOf)
-import Foreign.Ptr (Ptr, nullPtr, plusPtr)
-import Render.Misc (checkError)
+import Foreign.Storable      (sizeOf)
+import Foreign.Ptr           (Ptr, nullPtr, plusPtr)
+import Render.Misc           (checkError)
 import Linear
 
 import Map.Types
+import Map.StaticMaps
 
 type MapEntry = (
                 Float, -- ^ Height
@@ -37,6 +39,14 @@ type MapEntry = (
                 )
 
 type GraphicsMap = Array (Int, Int) MapEntry
+
+-- extract graphics information from Playmap
+convertToGraphicsMap :: PlayMap -> GraphicsMap
+convertToGraphicsMap map = array (bounds map) [(i, graphicsyfy (map!i))| i <- indices map]
+    where
+      graphicsyfy :: Node -> MapEntry
+      graphicsyfy (Minimal _               ) = (0, Grass)
+      graphicsyfy (Full    _ y t _ _ _ _ _ ) = (y, t)
 
 lineHeight :: GLfloat
 lineHeight = 0.8660254
@@ -66,7 +76,7 @@ fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
-        map' <- testmap
+        map'   <- return $ convertToGraphicsMap mapCenterMountain
         ! map' <- return $ generateTriangles map'
         len <- return $ fromIntegral $ P.length map' `div` numComponents
         putStrLn $ P.unwords ["num verts in map:",show len]
