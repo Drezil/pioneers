@@ -1,6 +1,13 @@
-#version 400
-
-//#include "3rdParty/noise.glsl"
+//
+// Description : Array and textureless GLSL 2D/3D/4D simplex 
+//               noise functions.
+//      Author : Ian McEwan, Ashima Arts.
+//  Maintainer : ijm
+//     Lastmod : 20110822 (ijm)
+//     License : Copyright (C) 2011 Ashima Arts. All rights reserved.
+//               Distributed under the MIT License. See LICENSE file.
+//               https://github.com/ashima/webgl-noise
+// 
 
 vec3 mod289(vec3 x) {
   return x - floor(x * (1.0 / 289.0)) * 289.0;
@@ -93,53 +100,3 @@ float snoise(vec3 v)
   return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), 
                                 dot(p2,x2), dot(p3,x3) ) );
   }
-
-
-smooth in vec3 teNormal;
-smooth in vec3 tePosition;
-smooth in float gmix;
-in vec4 teColor;
-
-out vec4 fgColor;
-
-uniform mat4 ViewMatrix;
-
-void main(void)
-{
-    //heliospheric lighting
-    vec4 light = vec4(1.0,1.0,1.0,1.0);
-    vec4 dark  = vec4(0.0,0.0,0.0,1.0);
-    //direction to sun from origin
-    vec3 lightDir = normalize(ViewMatrix * vec4(5.0,5.0,1.0,0.0)).xyz;
-
-    float costheta = dot(teNormal, lightDir);
-    float a = costheta * 0.5 + 0.5;
-
-    //create gravel-texel
-    vec3 uvw = tePosition;
-    // Six components of noise in a fractal sum
-    //float n = snoise(uvw * 10);
-    float n = 0;
-    n += 0.5 * snoise(uvw * 20.0);
-    //n += 0.25 * snoise(uvw * 40.0);
-    //n += 0.125 * snoise(uvw * 80.0);
-    //n += 0.0625 * snoise(uvw * 160.0);
-    //n += 0.03125 * snoise(uvw * 320.0);
-    n = abs(n*2);//[0,1]
-
-    //dirt
-    float d = snoise(uvw);
-    d += 0.5 * snoise(uvw * 2);
-    d += 0.25 * snoise(uvw * 4);
-    d = d/3*2 +0.5;
-
-    //                  base, dirt, noise-level*(above 0?)*(linear blend by y)
-    vec4 texBase = mix(teColor, vec4(0.45,0.27,0.1,1),d*d*step(0.01,tePosition.y)*clamp(tePosition.y/2,0,2));
-    //                  stone highlights
-    vec4 texHighlights = mix(texBase, vec4(0.9*n,0.9*n,0.9*n,1),n*n*n);
-    //mix highlights into Color with inclination, if inclination^2 > 0.35
-    vec4 texColor = mix(texBase,texHighlights, (gmix*(1-gmix))*4*(gmix*(1-gmix))*4);
-    vec4 Color = texColor;
-
-    fgColor = Color * mix(dark, light, a);
-}

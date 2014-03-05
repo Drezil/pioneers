@@ -79,6 +79,11 @@ getMapBufferObject = do
         checkError "initBuffer"
         return (bo,len)
 
+prettyMap :: [GLfloat] -> [(GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat)]
+prettyMap (a:b:c:d:x:y:z:u:v:w:ms) = (a,b,c,d,x,y,z,u,v,w):(prettyMap ms)
+prettyMap _ = []
+
+--generateTriangles :: PlayMap -> [GLfloat]
 generateTriangles :: GraphicsMap -> [GLfloat] 
 generateTriangles map' =
                 let ((xl,yl),(xh,yh)) = bounds map' in
@@ -179,7 +184,7 @@ colorLookup hs t = if inRange (bounds hs) t then c else (0.0, 0.0, 0.0)
                                 Mountain        -> (0.5, 0.5, 0.5)
 
 coordLookup :: (Int,Int) -> GLfloat -> V3 GLfloat
-coordLookup (x,z) y = 
+coordLookup (x,z) y =
                 if even x then
                         V3 (fromIntegral $ x `div` 2) y (fromIntegral (2 * z) * lineHeight)
                 else

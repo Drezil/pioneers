@@ -18,6 +18,10 @@ import           Render.Misc
 
 vertexShaderFile :: String
 vertexShaderFile = "shaders/vertex.shader"
+tessControlShaderFile :: String
+tessControlShaderFile = "shaders/tessControl.shader"
+tessEvalShaderFile :: String
+tessEvalShaderFile = "shaders/tessEval.shader"
 fragmentShaderFile :: String
 fragmentShaderFile = "shaders/fragment.shader"
 
@@ -42,40 +46,55 @@ initShader :: IO (
                       , UniformLocation -- ^ ViewMat
                       , UniformLocation -- ^ ModelMat
                       , UniformLocation -- ^ NormalMat
+                      , UniformLocation -- ^ TessLevelInner
+                      , UniformLocation -- ^ TessLevelOuter
                       )
 initShader = do
    ! vertexSource <- B.readFile vertexShaderFile
+   ! tessControlSource <- B.readFile tessControlShaderFile
+   ! tessEvalSource <- B.readFile tessEvalShaderFile
    ! fragmentSource <- B.readFile fragmentShaderFile
    vertexShader <- compileShaderSource VertexShader vertexSource
    checkError "compile Vertex"
+   tessControlShader <- compileShaderSource TessControlShader tessControlSource
+   checkError "compile Vertex"
+   tessEvalShader <- compileShaderSource TessEvaluationShader tessEvalSource
+   checkError "compile Vertex"
    fragmentShader <- compileShaderSource FragmentShader fragmentSource
    checkError "compile Frag"
-   program <- createProgramUsing [vertexShader, fragmentShader]
+   program <- createProgramUsing [vertexShader, tessControlShader, tessEvalShader, fragmentShader]
    checkError "compile Program"
 
    currentProgram $= Just program
 
-   projectionMatrixIndex <- get (uniformLocation program "fg_ProjectionMatrix")
+   projectionMatrixIndex <- get (uniformLocation program "ProjectionMatrix")
    checkError "projMat"
 
-   viewMatrixIndex <- get (uniformLocation program "fg_ViewMatrix")
+   viewMatrixIndex <- get (uniformLocation program "ViewMatrix")
    checkError "viewMat"
 
-   modelMatrixIndex <- get (uniformLocation program "fg_ModelMatrix")
+   modelMatrixIndex <- get (uniformLocation program "ModelMatrix")
    checkError "modelMat"
 
-   normalMatrixIndex <- get (uniformLocation program "fg_NormalMatrix")
+   normalMatrixIndex <- get (uniformLocation program "NormalMatrix")
    checkError "normalMat"
 
-   vertexIndex <- get (attribLocation program "fg_VertexIn")
+   tessLevelInner <- get (uniformLocation program "TessLevelInner")
+   checkError "TessLevelInner"
+
+   tessLevelOuter <- get (uniformLocation program "TessLevelOuter")
+   checkError "TessLevelOuter"
+
+
+   vertexIndex <- get (attribLocation program "Position")
    vertexAttribArray vertexIndex $= Enabled
    checkError "vertexInd"
 
-   normalIndex <- get (attribLocation program "fg_NormalIn")
+   normalIndex <- get (attribLocation program "Normal")
    vertexAttribArray normalIndex $= Enabled
    checkError "normalInd"
 
-   colorIndex <- get (attribLocation program "fg_Color")
+   colorIndex <- get (attribLocation program "Color")
    vertexAttribArray colorIndex $= Enabled
    checkError "colorInd"
 
@@ -85,7 +104,7 @@ initShader = do
    putStrLn $ unlines $ ["Indices: ", show (colorIndex, normalIndex, vertexIndex)]
 
    checkError "initShader"
-   return (colorIndex, normalIndex, vertexIndex, projectionMatrixIndex, viewMatrixIndex, modelMatrixIndex, normalMatrixIndex)
+   return (colorIndex, normalIndex, vertexIndex, projectionMatrixIndex, viewMatrixIndex, modelMatrixIndex, normalMatrixIndex, tessLevelInner, tessLevelOuter)
 
 initRendering :: IO ()
 initRendering = do
