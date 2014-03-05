@@ -20,11 +20,12 @@ import           Foreign                              (Ptr, castPtr, with)
 import           Foreign.C                            (CFloat)
 
 -- Math
-import           Control.Lens                         ((^.))
+import           Control.Lens                         ((^.), (.~), (%~))
 import           Linear                               as L
 
 -- GUI
-import           Graphics.UI.SDL                      as SDL hiding (Position)
+import qualified Graphics.UI.SDL                      as SDL (Position)
+import           Graphics.UI.SDL                      as SDL
 --import           Graphics.UI.SDL.TTF                  as TTF
 --import           Graphics.UI.SDL.TTF.Types
 
@@ -50,7 +51,7 @@ import qualified Debug.Trace                          as D (trace)
 main :: IO ()
 main = do
         SDL.withInit [InitVideo, InitAudio] $ do --also: InitNoParachute -> faster, without parachute!
-        SDL.withWindow "Pioneers" (Position 100 100) (Size 1024 600) [WindowOpengl     -- we want openGL
+        SDL.withWindow "Pioneers" (SDL.Position 100 100) (Size 1024 600) [WindowOpengl     -- we want openGL
                                                                              ,WindowShown      -- window should be visible
                                                                              ,WindowResizable  -- and resizable 
                                                                              ,WindowInputFocus -- focused (=> active)
@@ -119,7 +120,7 @@ main = do
                         , _yAngle              = pi/2
                         , _zDist               = 10
                         , _frustum             = frust
-                        , _camPosition         = Position
+                        , _camPosition         = Types.Position
                                        { Types._x    = 5
                                        , Types._y    = 5
                                        }
@@ -134,7 +135,7 @@ main = do
                         , _dragStartY          = 0
                         , _dragStartXAngle     = 0
                         , _dragStartYAngle     = 0
-                        , _mousePosition       = Position
+                        , _mousePosition       = Types.Position
                                          { Types._x  = 5
                                          , Types._y  = 5
                                          }
@@ -160,23 +161,23 @@ main = do
 draw :: Pioneers ()
 draw = do
     state <- get
-    let xa       = get (camera . xAngle) state --stateXAngle          state
-        ya       = stateYAngle          state
-        (GL.UniformLocation proj)  = shdrProjMatIndex   state
-        (GL.UniformLocation nmat)  = shdrNormalMatIndex state
-        (GL.UniformLocation vmat)  = shdrViewMatIndex   state
-        (GL.UniformLocation tli)   = shdrTessInnerIndex state
-        (GL.UniformLocation tlo)   = shdrTessOuterIndex state
-        vi       = shdrVertexIndex      state
-        ni       = shdrNormalIndex      state
-        ci       = shdrColorIndex       state
-        numVert  = mapVert              state
-        map'     = stateMap             state
-        frust    = stateFrustum         state
-        camX     = statePositionX       state
-        camY     = statePositionY       state
-        zDist    = stateZDist           state
-        tessFac  = stateTessellationFactor state
+    let xa       = state ^. camera.xAngle
+        ya       = state ^. camera.yAngle
+        (GL.UniformLocation proj)  = state ^. gl.glMap.shdrProjMatIndex   
+        (GL.UniformLocation nmat)  = state ^. gl.glMap.shdrNormalMatIndex 
+        (GL.UniformLocation vmat)  = state ^. gl.glMap.shdrViewMatIndex   
+        (GL.UniformLocation tli)   = state ^. gl.glMap.shdrTessInnerIndex 
+        (GL.UniformLocation tlo)   = state ^. gl.glMap.shdrTessOuterIndex 
+        vi       = state ^. gl.glMap.shdrVertexIndex 
+        ni       = state ^. gl.glMap.shdrNormalIndex 
+        ci       = state ^. gl.glMap.shdrColorIndex  
+        numVert  = state ^. gl.glMap.mapVert         
+        map'     = state ^. gl.glMap.stateMap        
+        frust    = state ^. camera.frustum           
+        camX     = state ^. camera.camPosition.x
+        camY     = state ^. camera.camPosition.y
+        zDist'   = state ^. camera.zDist
+        tessFac  = state ^. gl.glMap.stateTessellationFactor
     liftIO $ do
         --(vi,GL.UniformLocation proj) <- initShader
         GL.clear [GL.ColorBuffer, GL.DepthBuffer]
@@ -187,7 +188,7 @@ draw = do
         checkError "foo"
 
         --set up camera
-        let ! cam = getCam (camX,camY) zDist xa ya
+        let ! cam = getCam (camX,camY) zDist' xa ya
         with (distribute cam) $ \ptr ->
               glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
         checkError "foo"
@@ -226,11 +227,11 @@ draw = do
 
 run :: Pioneers ()
 run = do
-    win <- asks envWindow
+    env <- ask
 
     -- draw Scene
     draw
-    liftIO $ glSwapWindow win
+    liftIO $ glSwapWindow (env ^. windowObject)
     -- getEvents & process
     processEvents
 
@@ -238,15 +239,15 @@ run = do
 
     state <- get
     -- change in camera-angle
-    when (stateDragging state) $ do
-          let sodx  = stateDragStartX      state
-              sody  = stateDragStartY      state
-              sodxa = stateDragStartXAngle state
-              sodya = stateDragStartYAngle state
-              x     = stateCursorPosX      state
-              y     = stateCursorPosY      state
-          let myrot = (x - sodx) / 2
-              mxrot = (y - sody) / 2
+    when (state ^. mouse.isDragging) $ do
+          let sodx  = state ^. mouse.dragStartX
+              sody  = state ^. mouse.dragStartY
+              sodxa = state ^. mouse.dragStartXAngle
+              sodya = state ^. mouse.dragStartYAngle
+              x'    = state ^. mouse.mousePosition.x
+              y'    = state ^. mouse.mousePosition.y
+              myrot = (x' - sodx) / 2
+              mxrot = (y' - sody) / 2
               newXAngle  = curb (pi/12) (0.45*pi) newXAngle'
               newXAngle' = sodxa + mxrot/100
               newYAngle
@@ -254,26 +255,23 @@ run = do
                   | newYAngle' < (-pi) = newYAngle' + 2 * pi
                   | otherwise          = newYAngle'
               newYAngle' = sodya + myrot/100
-          put $ state
-            { stateXAngle = newXAngle
-            , stateYAngle = newYAngle
-            }
+          
+          modify $ ((camera.xAngle) .~ newXAngle)
+                 . ((camera.yAngle) .~ newYAngle)
 
     -- get cursor-keys - if pressed
     --TODO: Add sin/cos from stateYAngle
     (kxrot, kyrot) <- fmap (join (***) fromIntegral) getArrowMovement
-    modify $ \s -> 
-                   let 
-                        multc = cos $ stateYAngle s
-                        mults = sin $ stateYAngle s
-                   in 
-                   s {
-                        statePositionX = statePositionX s - 0.2 * kxrot * multc
-                                                          - 0.2 * kyrot * mults
-                     ,  statePositionY = statePositionY s + 0.2 * kxrot * mults
-                                                          - 0.2 * kyrot * multc
-                     }
-    
+    let 
+        multc = cos $ state ^. camera.yAngle
+        mults = sin $ state ^. camera.yAngle
+        modx x' = x' - 0.2 * kxrot * multc
+                     - 0.2 * kyrot * mults
+        mody y' = y' - 0.2 * kxrot * mults
+                     - 0.2 * kyrot * multc
+    modify $ (camera.camPosition.x %~ modx)
+           . (camera.camPosition.y %~ mody)
+
     {-
     --modify the state with all that happened in mt time.
     mt <- liftIO GLFW.getTime
@@ -281,49 +279,45 @@ run = do
       {
       }
     -}
+
     mt <- liftIO $ do
         now <- getCurrentTime
-        diff <- return $ diffUTCTime now (stateClock state) -- get time-diffs
+        diff <- return $ diffUTCTime now (state ^. io.clock) -- get time-diffs
         title <- return $ unwords ["Pioneers @ ",show ((round .fromRational.toRational $ 1.0/diff)::Int),"fps"]
-        setWindowTitle win title
+        setWindowTitle (env ^. windowObject) title
         sleepAmount <- return $ floor (max 0 (0.04 - diff))*1000000 -- get time until next frame in microseconds
         threadDelay sleepAmount
         return now
     -- set state with new clock-time
-    modify $ \s -> s
-        {
-                stateClock = mt
-        }
-    shouldClose <- return $ stateWinClose state
+    modify $ io.clock .~ mt
+    shouldClose <- return $ state ^. window.shouldClose
     unless shouldClose run
 
 getArrowMovement :: Pioneers (Int, Int)
 getArrowMovement = do
         state <- get
-        aks <- return $ stateArrowsPressed state
+        aks <- return $ state ^. (keyboard.arrowsPressed) 
         let 
                 horz   = left' + right'
                 vert   = up'+down'
-                left'  = if arrowLeft aks  then -1 else 0
-                right' = if arrowRight aks then  1 else 0
-                up'    = if arrowUp aks    then -1 else 0
-                down'  = if arrowDown aks  then  1 else 0
+                left'  = if aks ^. left  then -1 else 0
+                right' = if aks ^. right then  1 else 0
+                up'    = if aks ^. up    then -1 else 0
+                down'  = if aks ^. down  then  1 else 0
         return (horz,vert)
 
 adjustWindow :: Pioneers ()
 adjustWindow = do
     state <- get
-    let fbWidth  = stateWindowWidth  state
-        fbHeight = stateWindowHeight state
+    let fbWidth  = state ^. window.width
+        fbHeight = state ^. window.height
         fov           = 90  --field of view
         near          = 1   --near plane
         far           = 100 --far plane
         ratio         = fromIntegral fbWidth / fromIntegral fbHeight
         frust         = createFrustum fov near far ratio
     liftIO $ glViewport 0 0 (fromIntegral fbWidth) (fromIntegral fbHeight)
-    put $ state {
-        stateFrustum = frust
-    }
+    modify $ camera.frustum .~ frust
 
 
 processEvents :: Pioneers ()
@@ -337,18 +331,15 @@ processEvents = do
 
 processEvent :: Event -> Pioneers ()
 processEvent e = do
+        return ()
         case eventData e of
             Window _ winEvent ->
                 case winEvent of
                     Closing ->
-                            modify $ \s -> s {
-                                stateWinClose = True
-                            }
+                            modify $ window.shouldClose .~ True
                     Resized {windowResizedTo=size} -> do
-                            modify $ \s -> s {
-                                stateWindowWidth  = sizeWidth  size
-                               ,stateWindowHeight = sizeHeight size
-                            }
+                            modify $ (window.width  .~ (sizeWidth  size))
+                                   . (window.height .~ (sizeHeight size))
                             adjustWindow
                     SizeChanged ->
                             adjustWindow
@@ -357,78 +348,50 @@ processEvent e = do
                         --liftIO $ putStrLn $ unwords ["Unhandled Window-Event:",show e]
             Keyboard movement _ isRepeated key -> --up/down window(ignored) true/false actualKey
                      -- need modifiers? use "keyModifiers key" to get them
+                let aks = keyboard.arrowsPressed in
                 case keyScancode key of
                     Escape   ->
-                        modify $ \s -> s {
-                            stateWinClose = True
-                        }
+                        modify $ window.shouldClose .~ True
                     SDL.Left  ->
-                        modify $ \s -> s {
-                            stateArrowsPressed = (stateArrowsPressed s) {
-                                    arrowLeft = movement == KeyDown
-                                }
-                            }
+                        modify $ aks.left  .~ (movement == KeyDown)
                     SDL.Right ->
-                        modify $ \s -> s {
-                            stateArrowsPressed = (stateArrowsPressed s) {
-                                    arrowRight = movement == KeyDown
-                                }
-                            }
+                        modify $ aks.right .~ (movement == KeyDown)
                     SDL.Up    ->
-                        modify $ \s -> s {
-                            stateArrowsPressed = (stateArrowsPressed s) {
-                                    arrowUp = movement == KeyDown
-                                 }
-                            }
+                        modify $ aks.up    .~ (movement == KeyDown)
                     SDL.Down  ->
-                        modify $ \s -> s {
-                            stateArrowsPressed = (stateArrowsPressed s) {
-                                    arrowDown = movement == KeyDown
-                                }
-                            }
+                        modify $ aks.down  .~ (movement == KeyDown)
                     SDL.KeypadPlus ->
                         when (movement == KeyDown) $ do
-                            modify $ \s -> s {
-                                stateTessellationFactor = min (stateTessellationFactor s + 1) 5
-                            }
+                            modify $ (gl.glMap.stateTessellationFactor) %~ ((min 5) . (+1))
                             state <- get
-                            liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ stateTessellationFactor state]
+                            liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ state ^. gl.glMap.stateTessellationFactor]
                     SDL.KeypadMinus ->
                         when (movement == KeyDown) $ do
-                            modify $ \s -> s {
-                                stateTessellationFactor = max (stateTessellationFactor s - 1) 1
-                            }
+                            modify $ (gl.glMap.stateTessellationFactor) %~ ((max 1) . (+(-1)))
                             state <- get
-                            liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ stateTessellationFactor state]
+                            liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ state ^. gl.glMap.stateTessellationFactor]
                     _ ->
                         return ()
-            MouseMotion _ mouseId st (Position x y) xrel yrel -> do
+            MouseMotion _ mouseId st (SDL.Position x y) xrel yrel -> do
                 state <- get
-                when (stateMouseDown state && not (stateDragging state)) $
-                    put $ state
-                    { stateDragging        = True
-                    , stateDragStartX      = fromIntegral x
-                    , stateDragStartY      = fromIntegral y
-                    , stateDragStartXAngle = stateXAngle state
-                    , stateDragStartYAngle = stateYAngle state
-                    }
-                modify $ \s -> s {
-                      stateCursorPosX      = fromIntegral x
-                    , stateCursorPosY      = fromIntegral y
-                }
-            MouseButton _ mouseId button state (Position x y) ->
+                when (state ^. mouse.isDown && not (state ^. mouse.isDragging)) $
+                    modify $ (mouse.isDragging .~ True)
+                           . (mouse.dragStartX .~ (fromIntegral x))
+                           . (mouse.dragStartY .~ (fromIntegral y))
+                           . (mouse.dragStartXAngle .~ (state ^. camera.xAngle))
+                           . (mouse.dragStartYAngle .~ (state ^. camera.yAngle))
+                    
+                modify $ (mouse.mousePosition. Types.x .~ (fromIntegral x))
+                       . (mouse.mousePosition. Types.y .~ (fromIntegral y))
+            MouseButton _ mouseId button state (SDL.Position x y) ->
                 case button of
                     LeftButton -> do
                         let pressed = state == Pressed
-                        modify $ \s -> s {
-                            stateMouseDown = pressed
-                        }
+                        modify $ mouse.isDown .~ pressed
                         unless pressed $ do
                             st <- get
-                            if stateDragging st then
-                                modify $ \s -> s {
-                                    stateDragging = False
-                                }
+                            if st ^. mouse.isDragging then
+                                modify $ mouse.isDragging .~ False
                             else
                                 clickHandler (UI.Callbacks.Pixel x y)
                     RightButton -> do
@@ -437,11 +400,9 @@ processEvent e = do
                         return ()
             MouseWheel _ mouseId hscroll vscroll -> do
                 env <- ask
-                modify $ \s -> s
-                    { stateZDist =
-                        let zDist' = stateZDist s + realToFrac (negate vscroll)
-                        in curb (envZDistClosest env) (envZDistFarthest env) zDist'
-                    }
-            Quit -> modify $ \s -> s {stateWinClose = True}
+                state <- get
+                let zDist' = (state ^. camera.zDist) + realToFrac (negate vscroll) in 
+                  modify $ camera.zDist .~ (curb (env ^. zDistClosest) (env ^. zDistFarthest) zDist')
+            Quit -> modify $ window.shouldClose .~ True
             -- there is more (joystic, touchInterface, ...), but currently ignored
             _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:", show e]

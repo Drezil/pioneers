@@ -101,8 +101,18 @@ data State = State
     , _game                :: !GameState
     }
 
-$(mkLabels [''State, ''GLState, ''GLMapState, ''KeyboardState, ''ArrowKeyState,
-            ''MouseState, ''GameState, ''IOState, ''CameraState, ''WindowState, 
-            ''Position, ''Env])
+$(makeLenses ''State)
+$(makeLenses ''GLState)
+$(makeLenses ''GLMapState)
+$(makeLenses ''KeyboardState)
+$(makeLenses ''ArrowKeyState)
+$(makeLenses ''MouseState)
+$(makeLenses ''GameState)
+$(makeLenses ''IOState)
+$(makeLenses ''CameraState)
+$(makeLenses ''WindowState)
+$(makeLenses ''Position)
+$(makeLenses ''Env)
+
 
 type Pioneers = RWST Env () State IO
