@@ -5,9 +5,11 @@ import Graphics.UI.SDL.Surface
 import Graphics.UI.SDL.Color
 import Graphics.UI.SDL.Rect
 import Graphics.UI.SDL.Types
+import UI.UITypes
 
 --createRGBSurface :: Int32 -> Int32 -> Int32 -> Word32 -> Word32 -> Word32 -> Word32 -> IO Surface
 --                    width    height   depth    rFilter   gFilter   bFilter   aFilter
+-- createRGBSurface width height 32 0xFF000000 0x00FF0000 0x0000FF00 0x000000FF
 
 updateGUI :: Int32 -> Int32 -> IO Surface
 updateGUI width height = do
