@@ -1,4 +1,5 @@
-#version 400
+#version 330
+#extension GL_ARB_tessellation_shader : require
 
 layout(vertices = 3) out;
 in vec3 vPosition[];

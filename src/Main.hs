@@ -24,7 +24,6 @@ import           Control.Lens                         ((^.), (.~), (%~))
 import           Linear                               as L
 
 -- GUI
-import qualified Graphics.UI.SDL                      as SDL (Position)
 import           Graphics.UI.SDL                      as SDL
 --import           Graphics.UI.SDL.TTF                  as TTF
 --import           Graphics.UI.SDL.TTF.Types
@@ -32,7 +31,7 @@ import           Graphics.UI.SDL                      as SDL
 -- Render
 import qualified Graphics.Rendering.OpenGL.GL         as GL
 import           Graphics.Rendering.OpenGL.Raw.Core31
-import           Data.Time                            (getCurrentTime, UTCTime, diffUTCTime)
+import           Data.Time                            (getCurrentTime, diffUTCTime)
 
 import Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
 -- Our modules
@@ -73,6 +72,13 @@ main = do
         --font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
         --TTF.setFontStyle font TTFNormal
         --TTF.setFontHinting font TTFHNormal
+        {-winRenderer <- getRenderer window
+        hudTex      <- createTexture 
+                                       winRenderer            -- where
+                                       PixelFormatRGBA8888    -- RGBA32-bit
+                                       TextureAccessStreaming -- change occasionally
+                                       1024                   -- width
+                                       600                    -- height-}
 
         let zDistClosest  = 1
             zDistFarthest = zDistClosest + 30
@@ -145,6 +151,7 @@ main = do
                         }
               , _gl                  = GLState
                         { _glMap               = glMap
+                        , _hudTexture          = Nothing
                         }
               , _game                = GameState
                         {

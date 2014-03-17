@@ -1,4 +1,4 @@
-#version 400
+#version 330
 
 //#include "3rdParty/noise.glsl"
 

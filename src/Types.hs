@@ -3,7 +3,7 @@ module Types where
 
 import           Control.Concurrent.STM               (TQueue)
 import qualified Graphics.Rendering.OpenGL.GL         as GL
-import           Graphics.UI.SDL                      as SDL (Event, Window)
+import           Graphics.UI.SDL                      as SDL (Event, Window, Texture)
 import           Foreign.C                            (CFloat)
 import           Data.Time                            (UTCTime)
 import Linear.Matrix (M44)
@@ -88,6 +88,7 @@ data GLMapState = GLMapState
 
 data GLState = GLState
     { _glMap               :: !GLMapState
+    , _hudTexture      :: Maybe Texture
     }
 
 data State = State
