@@ -42,6 +42,7 @@ import           Render.Misc                          (checkError,
 import           Render.Render                        (initRendering,
                                                        initShader)
 import           UI.Callbacks
+import           UI.GUIOverlay
 import           Types
 
 import qualified Debug.Trace                          as D (trace)
@@ -55,7 +56,7 @@ main = do
                                                                              ,WindowResizable  -- and resizable 
                                                                              ,WindowInputFocus -- focused (=> active)
                                                                              ,WindowMouseFocus -- Mouse into it
-                                                                             ,WindowInputGrabbed-- never let go of input (KB/Mouse)
+                                                                             --,WindowInputGrabbed-- never let go of input (KB/Mouse)
                                                                              ] $ \window -> do
         withOpenGL window $ do
         --TTF.withInit $ do
