@@ -72,13 +72,6 @@ main = do
         --font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
         --TTF.setFontStyle font TTFNormal
         --TTF.setFontHinting font TTFHNormal
-        {-winRenderer <- getRenderer window
-        hudTex      <- createTexture 
-                                       winRenderer            -- where
-                                       PixelFormatRGBA8888    -- RGBA32-bit
-                                       TextureAccessStreaming -- change occasionally
-                                       1024                   -- width
-                                       600                    -- height-}
 
         let zDistClosest  = 1
             zDistFarthest = zDistClosest + 30
@@ -316,6 +309,7 @@ getArrowMovement = do
 adjustWindow :: Pioneers ()
 adjustWindow = do
     state <- get
+    env <- ask
     let fbWidth  = state ^. window.width
         fbHeight = state ^. window.height
         fov           = 90  --field of view
@@ -325,7 +319,18 @@ adjustWindow = do
         frust         = createFrustum fov near far ratio
     liftIO $ glViewport 0 0 (fromIntegral fbWidth) (fromIntegral fbHeight)
     modify $ camera.frustum .~ frust
-
+    hudTex      <- liftIO $ do
+                   case state ^. gl.hudTexture of
+                        Just tex -> destroyTexture tex
+                        _ -> return ()
+                   winRenderer <- getRenderer (env ^. windowObject)
+                   createTexture 
+                         winRenderer            -- where
+                         PixelFormatRGBA8888    -- RGBA32-bit
+                         TextureAccessStreaming -- change occasionally
+                         fbWidth                -- width
+                         fbHeight               -- height
+    modify $ gl.hudTexture .~ (Just hudTex)
 
 processEvents :: Pioneers ()
 processEvents = do
