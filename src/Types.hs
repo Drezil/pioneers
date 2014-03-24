@@ -84,11 +84,16 @@ data GLMapState = GLMapState
     , _stateTessellationFactor :: !Int
     , _stateMap             :: !GL.BufferObject
     , _mapVert              :: !GL.NumArrayIndices
+    , _mapProgram           :: !GL.Program
     }
 
 data GLState = GLState
     { _glMap               :: !GLMapState
     , _hudTexture      :: Maybe Texture
+    }
+
+data UIState = UIState
+    {
     }
 
 data State = State
@@ -99,6 +104,7 @@ data State = State
     , _keyboard            :: !KeyboardState
     , _gl                  :: !GLState
     , _game                :: !GameState
+    , _ui                  :: !UIState
     }
 
 $(makeLenses ''State)
@@ -113,6 +119,7 @@ $(makeLenses ''CameraState)
 $(makeLenses ''WindowState)
 $(makeLenses ''Position)
 $(makeLenses ''Env)
+$(makeLenses ''UIState)
 
 
 type Pioneers = RWST Env () State IO

@@ -24,5 +24,12 @@ alternateClickHandler :: Pixel -> Pioneers ()
 alternateClickHandler (Pixel x y) = liftIO $ putStrLn $ unwords ["alternate press on (",show x,",",show y,")"]
 
 
+-- | informs the GUI to prepare a blitting of state ^. gl.hudTexture
+--
+--TODO: should be done asynchronously at one point.
+prepareGUI :: Pioneers ()
+prepareGUI = do
+                return ()
+
 --TODO: Add scroll-Handler, return (Pioneers Bool) to indicate event-bubbling etc.
 --TODO: Maybe queues are better?

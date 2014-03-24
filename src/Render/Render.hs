@@ -16,14 +16,20 @@ import           Graphics.Rendering.OpenGL.GL.VertexSpec
 import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Render.Misc
 
-vertexShaderFile :: String
-vertexShaderFile = "shaders/vertex.shader"
-tessControlShaderFile :: String
-tessControlShaderFile = "shaders/tessControl.shader"
-tessEvalShaderFile :: String
-tessEvalShaderFile = "shaders/tessEval.shader"
-fragmentShaderFile :: String
-fragmentShaderFile = "shaders/fragment.shader"
+mapVertexShaderFile :: String
+mapVertexShaderFile = "shaders/map/vertex.shader"
+mapTessControlShaderFile :: String
+mapTessControlShaderFile = "shaders/map/tessControl.shader"
+mapTessEvalShaderFile :: String
+mapTessEvalShaderFile = "shaders/map/tessEval.shader"
+mapFragmentShaderFile :: String
+mapFragmentShaderFile = "shaders/map/fragment.shader"
+
+uiVertexShaderFile :: String
+uiVertexShaderFile = "shaders/ui/vertex.shader"
+uiFragmentShaderFile :: String
+uiFragmentShaderFile = "shaders/ui/fragment.shader"
+
 
 initBuffer :: [GLfloat] -> IO BufferObject
 initBuffer varray =
@@ -38,8 +44,9 @@ initBuffer varray =
            checkError "initBuffer"
            return bufferObject
 
-initShader :: IO (
-                        AttribLocation  -- ^ color
+initMapShader :: IO (
+                      Program           -- ^ the GLSL-Program
+                      , AttribLocation  -- ^ color
                       , AttribLocation  -- ^ normal
                       , AttribLocation  -- ^ vertex
                       , UniformLocation -- ^ ProjectionMat
@@ -49,17 +56,17 @@ initShader :: IO (
                       , UniformLocation -- ^ TessLevelInner
                       , UniformLocation -- ^ TessLevelOuter
                       )
-initShader = do
-   ! vertexSource <- B.readFile vertexShaderFile
-   ! tessControlSource <- B.readFile tessControlShaderFile
-   ! tessEvalSource <- B.readFile tessEvalShaderFile
-   ! fragmentSource <- B.readFile fragmentShaderFile
+initMapShader = do
+   ! vertexSource <- B.readFile mapVertexShaderFile
+   ! tessControlSource <- B.readFile mapTessControlShaderFile
+   ! tessEvalSource <- B.readFile mapTessEvalShaderFile
+   ! fragmentSource <- B.readFile mapFragmentShaderFile
    vertexShader <- compileShaderSource VertexShader vertexSource
    checkError "compile Vertex"
    tessControlShader <- compileShaderSource TessControlShader tessControlSource
-   checkError "compile Vertex"
+   checkError "compile TessControl"
    tessEvalShader <- compileShaderSource TessEvaluationShader tessEvalSource
-   checkError "compile Vertex"
+   checkError "compile TessEval"
    fragmentShader <- compileShaderSource FragmentShader fragmentSource
    checkError "compile Frag"
    program <- createProgramUsing [vertexShader, tessControlShader, tessEvalShader, fragmentShader]
@@ -104,7 +111,30 @@ initShader = do
    putStrLn $ unlines $ ["Indices: ", show (colorIndex, normalIndex, vertexIndex)]
 
    checkError "initShader"
-   return (colorIndex, normalIndex, vertexIndex, projectionMatrixIndex, viewMatrixIndex, modelMatrixIndex, normalMatrixIndex, tessLevelInner, tessLevelOuter)
+   return (program, colorIndex, normalIndex, vertexIndex, projectionMatrixIndex, viewMatrixIndex, modelMatrixIndex, normalMatrixIndex, tessLevelInner, tessLevelOuter)
+
+{-initUIShader :: IO (
+                        Program         -- ^ the GLSL-program
+                      , AttribLocation  -- ^ the UI-Texture
+                   )
+initUIShader = do
+   ! vertexSource <- B.readFile uiVertexShaderFile
+   ! fragmentSource <- B.readFile uiFragmentShaderFile
+   vertexShader <- compileShaderSource VertexShader vertexSource
+   checkError "compile Vertex"
+   fragmentShader <- compileShaderSource FragmentShader fragmentSource
+   checkError "compile Frag"
+   program <- createProgramUsing [vertexShader, fragmentShader]
+   checkError "compile Program"
+   
+   att <- get (activeAttribs program)
+
+   putStrLn $ unlines $ "Attributes: ":map show att
+   putStrLn $ unlines $ ["Indices: ", show (colorIndex, normalIndex, vertexIndex)]
+
+   checkError "initShader"
+   return (program, )-}
+
 
 initRendering :: IO ()
 initRendering = do

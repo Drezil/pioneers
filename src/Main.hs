@@ -38,12 +38,14 @@ import Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
 import           Map.Map
 import           Render.Misc                          (checkError,
                                                        createFrustum, getCam,
-                                                       curb)
+                                                       curb, tryWithTexture)
 import           Render.Render                        (initRendering,
-                                                       initShader)
+                                                       initMapShader)
 import           UI.Callbacks
 import           UI.GUIOverlay
 import           Types
+
+import           ThirdParty.Flippers
 
 import qualified Debug.Trace                          as D (trace)
 
@@ -64,7 +66,7 @@ main = do
         initRendering
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
-        (ci, ni, vi, pri, vii, mi, nmi, tli, tlo) <- initShader
+        (mapprog, ci, ni, vi, pri, vii, mi, nmi, tli, tlo) <- initMapShader
         putStrLn "foo"
         eventQueue <- newTQueueIO :: IO (TQueue Event)
         putStrLn "foo"
@@ -101,6 +103,7 @@ main = do
                 , _stateTessellationFactor = 4
                 , _stateMap             = mapBuffer
                 , _mapVert              = vert
+                , _mapProgram           = mapprog
                 }
             env = Env
               { _eventsChan      = eventQueue
@@ -150,6 +153,9 @@ main = do
               , _game                = GameState
                         {
                         }
+              , _ui                  = UIState
+                        {
+                        }
               }
 
         putStrLn "init done."
@@ -162,6 +168,7 @@ main = do
 draw :: Pioneers ()
 draw = do
     state <- get
+    env <- ask
     let xa       = state ^. camera.xAngle
         ya       = state ^. camera.yAngle
         (GL.UniformLocation proj)  = state ^. gl.glMap.shdrProjMatIndex   
@@ -179,6 +186,8 @@ draw = do
         camY     = state ^. camera.camPosition.y
         zDist'   = state ^. camera.zDist
         tessFac  = state ^. gl.glMap.stateTessellationFactor
+        window   = env ^. windowObject
+    prepareGUI
     liftIO $ do
         --(vi,GL.UniformLocation proj) <- initShader
         GL.clear [GL.ColorBuffer, GL.DepthBuffer]
@@ -223,6 +232,12 @@ draw = do
         glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
         checkError "draw"
 
+        {-renderer <- getRenderer (env ^. windowObject)
+        tryWithTexture
+                (state ^. gl.hudTexture)                          --maybe tex
+                (\tex -> renderCopy renderer tex Nothing Nothing) --function with "hole"
+                                                       --Nothing == whole source-tex, whole dest-tex
+                (return ())                                       --fail-case-}
 
 -- Main game loop
 
@@ -320,7 +335,7 @@ adjustWindow = do
         frust         = createFrustum fov near far ratio
     liftIO $ glViewport 0 0 (fromIntegral fbWidth) (fromIntegral fbHeight)
     modify $ camera.frustum .~ frust
-    hudTex      <- liftIO $ do
+    {-hudTex      <- liftIO $ do
                    case state ^. gl.hudTexture of
                         Just tex -> destroyTexture tex
                         _ -> return ()
@@ -331,7 +346,7 @@ adjustWindow = do
                          TextureAccessStreaming -- change occasionally
                          fbWidth                -- width
                          fbHeight               -- height
-    modify $ gl.hudTexture .~ (Just hudTex)
+    modify $ gl.hudTexture .~ (Just hudTex)-}
 
 processEvents :: Pioneers ()
 processEvents = do
@@ -344,7 +359,7 @@ processEvents = do
 
 processEvent :: Event -> Pioneers ()
 processEvent e = do
-        return ()
+        env <- ask
         case eventData e of
             Window _ winEvent ->
                 case winEvent of
@@ -363,6 +378,10 @@ processEvent e = do
                      -- need modifiers? use "keyModifiers key" to get them
                 let aks = keyboard.arrowsPressed in
                 case keyScancode key of
+                    SDL.R    ->
+                        liftIO $ do
+                                r <- getRenderer $ env ^. windowObject
+                                putStrLn $ unwords ["Renderer: ",show r]
                     Escape   ->
                         modify $ window.shouldClose .~ True
                     SDL.Left  ->

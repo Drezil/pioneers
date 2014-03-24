@@ -8,6 +8,7 @@ import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.StringQueries
 import           Graphics.Rendering.OpenGL.GLU.Errors
 import           Graphics.Rendering.OpenGL.Raw.Core31
+import           Graphics.UI.SDL.Types                      (Texture)
 import           System.IO                                  (hPutStrLn, stderr)
 import Linear
 import Foreign.C (CFloat)
@@ -116,3 +117,10 @@ curb l h x
   | x < l     = l
   | x > h     = h
   | otherwise = x
+
+
+tryWithTexture :: Maybe Texture -> (Texture -> a) -> a -> a
+tryWithTexture t f fail' =
+        case t of
+                Just tex -> f tex
+                _ -> fail'
