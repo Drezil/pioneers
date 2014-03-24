@@ -45,14 +45,14 @@ import           UI.Callbacks
 import           UI.GUIOverlay
 import           Types
 
-import           ThirdParty.Flippers
+--import           ThirdParty.Flippers
 
 import qualified Debug.Trace                          as D (trace)
 
 --------------------------------------------------------------------------------
 main :: IO ()
 main = do
-        SDL.withInit [InitVideo, InitAudio] $ do --also: InitNoParachute -> faster, without parachute!
+        SDL.withInit [InitVideo, InitAudio, InitEvents, InitTimer] $ do --also: InitNoParachute -> faster, without parachute!
         SDL.withWindow "Pioneers" (SDL.Position 100 100) (Size 1024 600) [WindowOpengl     -- we want openGL
                                                                              ,WindowShown      -- window should be visible
                                                                              ,WindowResizable  -- and resizable 
@@ -64,10 +64,12 @@ main = do
         --TTF.withInit $ do
         (Size fbWidth fbHeight) <- glGetDrawableSize window
         initRendering
+        renderer <- createRenderer window FirstSupported [Accelerated, TargetTexture]
+                                                        -- mapybe PresentVSync
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
         (mapprog, ci, ni, vi, pri, vii, mi, nmi, tli, tlo) <- initMapShader
-        putStrLn "foo"
+        putStrLn $ show window
         eventQueue <- newTQueueIO :: IO (TQueue Event)
         putStrLn "foo"
         now <- getCurrentTime
@@ -110,6 +112,7 @@ main = do
               , _windowObject    = window
               , _zDistClosest    = zDistClosest
               , _zDistFarthest   = zDistFarthest
+              , _renderer        = renderer 
               --, envFont          = font
               }
             state = State
@@ -335,7 +338,8 @@ adjustWindow = do
         frust         = createFrustum fov near far ratio
     liftIO $ glViewport 0 0 (fromIntegral fbWidth) (fromIntegral fbHeight)
     modify $ camera.frustum .~ frust
-    {-hudTex      <- liftIO $ do
+    hudTex      <- liftIO $ do
+                   putStrLn $ show (env ^. windowObject)
                    case state ^. gl.hudTexture of
                         Just tex -> destroyTexture tex
                         _ -> return ()
@@ -346,7 +350,7 @@ adjustWindow = do
                          TextureAccessStreaming -- change occasionally
                          fbWidth                -- width
                          fbHeight               -- height
-    modify $ gl.hudTexture .~ (Just hudTex)-}
+    modify $ gl.hudTexture .~ (Just hudTex) -- -}
 
 processEvents :: Pioneers ()
 processEvents = do

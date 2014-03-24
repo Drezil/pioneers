@@ -124,3 +124,4 @@ tryWithTexture t f fail' =
         case t of
                 Just tex -> f tex
                 _ -> fail'
+
