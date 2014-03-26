@@ -53,19 +53,25 @@ import qualified Debug.Trace                          as D (trace)
 main :: IO ()
 main = do
         SDL.withInit [InitVideo, InitAudio, InitEvents, InitTimer] $ do --also: InitNoParachute -> faster, without parachute!
-        SDL.withWindow "Pioneers" (SDL.Position 100 100) (Size 1024 600) [WindowOpengl     -- we want openGL
+        (window, renderer) <- SDL.createWindowAndRenderer (Size 1024 600) [WindowOpengl     -- we want openGL
                                                                              ,WindowShown      -- window should be visible
                                                                              ,WindowResizable  -- and resizable 
                                                                              ,WindowInputFocus -- focused (=> active)
                                                                              ,WindowMouseFocus -- Mouse into it
                                                                              --,WindowInputGrabbed-- never let go of input (KB/Mouse)
-                                                                             ] $ \window -> do
-        withOpenGL window $ do
+                                                                             ]
+{-        SDL.withWindow "Pioneers" (SDL.Position 100 100) (Size 1024 600) [WindowOpengl     -- we want openGL
+                                                                             ,WindowShown      -- window should be visible
+                                                                             ,WindowResizable  -- and resizable 
+                                                                             ,WindowInputFocus -- focused (=> active)
+                                                                             ,WindowMouseFocus -- Mouse into it
+                                                                             --,WindowInputGrabbed-- never let go of input (KB/Mouse)
+                                                                             ] $ \window -> do-}
+        mainGlContext <- SDL.glCreateContext window --        withOpenGL window $ do
         --TTF.withInit $ do
+        
         (Size fbWidth fbHeight) <- glGetDrawableSize window
         initRendering
-        renderer <- createRenderer window FirstSupported [Accelerated, TargetTexture]
-                                                        -- mapybe PresentVSync
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
         (mapprog, ci, ni, vi, pri, vii, mi, nmi, tli, tlo) <- initMapShader
@@ -163,7 +169,9 @@ main = do
 
         putStrLn "init done."
         void $ evalRWST (adjustWindow >> run) env state
-
+        
+        SDL.glDeleteContext mainGlContext
+        SDL.destroyRenderer renderer
         destroyWindow window
 
 -- Render-Pipeline
@@ -194,17 +202,17 @@ draw = do
     liftIO $ do
         --(vi,GL.UniformLocation proj) <- initShader
         GL.clear [GL.ColorBuffer, GL.DepthBuffer]
-        checkError "foo"
+        checkError "clearing buffer"
         --set up projection (= copy from state)
         with (distribute frust) $ \ptr ->
               glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
-        checkError "foo"
+        checkError "copy projection"
 
         --set up camera
         let ! cam = getCam (camX,camY) zDist' xa ya
         with (distribute cam) $ \ptr ->
               glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
-        checkError "foo"
+        checkError "copy cam"
               
         --set up normal--Mat transpose((model*camera)^-1)
         let normal = (case inv33 (fmap (^. _xyz) cam ^. _xyz) of
