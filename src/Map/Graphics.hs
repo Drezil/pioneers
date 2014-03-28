@@ -188,10 +188,13 @@ colorLookup hs t = if inRange (bounds hs) t then c else (0.0, 0.0, 0.0)
                 where 
                         (_,tp) = hs ! t
                         c = case tp of
-                                Ocean           -> (0.5, 0.5, 1)
-                                Beach            -> (0.9, 0.85, 0.7)
-                                Grass           -> (0.3, 0.9, 0.1)
-                                Mountain        -> (0.5, 0.5, 0.5)
+                                Ocean           -> (0.50, 0.50, 1.00)
+                                Lake            -> (0.40, 0.87 ,1.00)
+                                Beach           -> (0.90, 0.85, 0.70)
+                                Desert          -> (1.00, 0.87, 0.39)
+                                Grass           -> (0.30, 0.90, 0.10)
+                                Hill            -> (0.80, 0.80, 0.80)
+                                Mountain        -> (0.50, 0.50, 0.50)
 
 coordLookup :: (Int,Int) -> GLfloat -> V3 GLfloat
 coordLookup (x,z) y =
