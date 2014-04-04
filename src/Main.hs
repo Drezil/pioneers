@@ -69,21 +69,22 @@ import qualified Debug.Trace                          as D (trace)
 main :: IO ()
 main = do
         SDL.withInit [InitVideo, InitAudio, InitEvents, InitTimer] $ do --also: InitNoParachute -> faster, without parachute!
-        (window, renderer) <- SDL.createWindowAndRenderer (Size 1024 600) [WindowOpengl     -- we want openGL
+{-        (window, renderer) <- SDL.createWindowAndRenderer (Size 1024 600) [WindowOpengl     -- we want openGL
                                                                              ,WindowShown      -- window should be visible
                                                                              ,WindowResizable  -- and resizable 
                                                                              ,WindowInputFocus -- focused (=> active)
                                                                              ,WindowMouseFocus -- Mouse into it
                                                                              --,WindowInputGrabbed-- never let go of input (KB/Mouse)
-                                                                             ]
-{-        SDL.withWindow "Pioneers" (SDL.Position 100 100) (Size 1024 600) [WindowOpengl     -- we want openGL
+                                                                             ] -}
+        SDL.withWindow "Pioneers" (SDL.Position 100 100) (Size 1024 600) [WindowOpengl     -- we want openGL
                                                                              ,WindowShown      -- window should be visible
                                                                              ,WindowResizable  -- and resizable 
                                                                              ,WindowInputFocus -- focused (=> active)
                                                                              ,WindowMouseFocus -- Mouse into it
                                                                              --,WindowInputGrabbed-- never let go of input (KB/Mouse)
-                                                                             ] $ \window -> do-}
-        mainGlContext <- SDL.glCreateContext window --        withOpenGL window $ do
+                                                                             ] $ \window -> do
+        --mainGlContext <- SDL.glCreateContext window 
+        withOpenGL window $ do
         --TTF.withInit $ do
         
         (Size fbWidth fbHeight) <- glGetDrawableSize window
@@ -135,7 +136,7 @@ main = do
               , _windowObject    = window
               , _zDistClosest    = zDistClosest
               , _zDistFarthest   = zDistFarthest
-              , _renderer        = renderer 
+              --, _renderer        = renderer 
               --, envFont          = font
               }
             state = State
@@ -187,9 +188,9 @@ main = do
         putStrLn "init done."
         void $ evalRWST (adjustWindow >> run) env state
         
-        SDL.glDeleteContext mainGlContext
-        SDL.destroyRenderer renderer
-        destroyWindow window
+        --SDL.glDeleteContext mainGlContext
+        --SDL.destroyRenderer renderer
+        --destroyWindow window
 
 -- Render-Pipeline
 

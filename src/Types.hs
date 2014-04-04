@@ -20,7 +20,7 @@ data Env = Env
     , _zDistFarthest :: !Double
     --, envGLContext     :: !GLContext
     --, envFont          :: TTF.TTFFont
-    , _renderer      :: !Renderer
+--    , _renderer      :: !Renderer
     }
 
 --Mutable State
