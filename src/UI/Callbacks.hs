@@ -12,7 +12,7 @@ getGUI :: [GUIAny]
 getGUI = [ toGUIAny $ GUIContainer 0 0 120 80 [] 1
          , toGUIAny $ GUIPanel $ GUIContainer 0 0 0 0
              [toGUIAny $ GUIContainer  0 80 100 200 [] 4
-             ,GUIAnyB (GUIButton 50 400 200 175 2 (testMessage) defaultUIState)
+             ,toGUIAny $GUIButton 50 400 200 175 2 defaultUIState testMessage
              ] 3
          ]
 
@@ -29,11 +29,11 @@ clickHandler (Pixel x y) = case concatMap (isInside x y) getGUI of
     hit -> liftIO $ do
         _ <- sequence $ map (\w ->
             case w of
-                 (GUIAnyB b) -> do
+                 (GUIAnyB b h) -> do
                       putStrLn $ "hitting " ++ getShorthand w ++ ": " ++ show (getBoundary w) ++ " " ++ show (getPriority w)
                           ++ " at ["++show x++","++show y++"]"
-                      (b', _) <- onMousePressed x y b b
-                      _ <- onMouseReleased x y b' b'
+                      (b', h') <- onMousePressed x y b h
+                      _ <- onMouseReleased x y b' h'
                       return ()
                  _ -> putStrLn $ "hitting " ++ getShorthand w ++ ": " ++ show (getBoundary w) ++ " " ++ show (getPriority w)
                           ++ " at ["++show x++","++show y++"]"

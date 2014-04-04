@@ -21,23 +21,23 @@ data Viewport = Viewport
     , _viewportHeight          :: !ScreenUnit -- ^viewport height in window
     } deriving (Eq, Show)
     
-data UIState = UIState
-    { _uistateIsFiring      :: Bool
+data UIButtonState = UIButtonState
+    { _buttonstateIsFiring      :: Bool
     -- ^firing if pressed but not confirmed 
-    , _uistateIsFiringAlt   :: Bool
+    , _buttonstateIsFiringAlt   :: Bool
     -- ^firing if pressed but not confirmed (secondary mouse button)
-    , _uistateIsDeferred    :: Bool -- ^ deferred if e. g. dragging but outside component
-    , _uistateIsDeferredAlt :: Bool
+    , _buttonstateIsDeferred    :: Bool -- ^ deferred if e. g. dragging but outside component
+    , _buttonstateIsDeferredAlt :: Bool
     -- ^deferred if e. g. dragging but outside component (secondary mouse button)
-    , _uistateIsReady       :: Bool
+    , _buttonstateIsReady       :: Bool
     -- ^ready if mouse is above component
-    , _uistateIsActivated   :: Bool
+    , _buttonstateIsActivated   :: Bool
     -- ^in activated state (e. g. toggle button)
     } deriving (Eq, Show)
 
 
-defaultUIState :: UIState
-defaultUIState = UIState False False False False False False
+defaultUIState :: UIButtonState
+defaultUIState = UIButtonState False False False False False False
 
 class GUIAnyMap w where
     guiAnyMap :: (w -> b) -> GUIAny -> b
@@ -93,6 +93,16 @@ class (GUIAnyMap uiw) => GUIWidget uiw where
     -- |The 'getShorthand' function returns a descriptive 'String' mainly for debuggin prupose.
     --  The shorthand should be unique for each instance.
     getShorthand :: uiw -> String
+
+-- |A 'GUIClickable' represents a widget with a 'UIButtonState'.
+-- 
+--  Minimal complete definition: 'getButtonState' and either 'updateButtonState' or 'setButtonState'.
+class GUIClickable w where
+    updateButtonState :: (UIButtonState -> UIButtonState) -> w -> w
+    updateButtonState f w = setButtonState (f $ getButtonState w) w
+    setButtonState :: UIButtonState -> w -> w
+    setButtonState s = updateButtonState (\_ -> s)
+    getButtonState :: w -> UIButtonState
 
 class MouseHandler a w where
     -- |The function 'onMousePressed' is called when the primary button is pressed
@@ -191,52 +201,52 @@ instance (MouseHandler h w) => MouseHandler (MouseHandlerSwitch w h) w where
 
 -- !!Important: one handler can only handle one single widget!!
 data ButtonHandler w = ButtonHandler 
-    { _action :: (w -> ScreenUnit -> ScreenUnit -> IO w)
-    , _handlerState :: UIState
-    }
-instance (Show w) => Show (ButtonHandler w) where
-    show (ButtonHandler _ w) = "ButtonHandler [" ++ show w ++ "] " ++ "[action]" 
-instance MouseHandler (ButtonHandler w) w where
-    -- |Change 'UIState's '_uistateIsFiring' to @True@.
-    onMousePressed _ _ wg h@(ButtonHandler _ s) = do
-        return (wg, h {_handlerState = s {_uistateIsFiring = True}})
+    { _action :: (w -> ScreenUnit -> ScreenUnit -> IO w) }
+instance Show (ButtonHandler w) where
+    show _ = "ButtonHandler ***"
+instance (GUIClickable w) => MouseHandler (ButtonHandler w) w where
+    -- |Change 'UIButtonState's '_buttonstateIsFiring' to @True@.
+    onMousePressed _ _ wg h = do
+        return (updateButtonState (\s -> s {_buttonstateIsFiring = True}) wg, h)
 
-    -- |Change 'UIState's '_uistateIsFiring' to @False@ and
+    -- |Change 'UIButtonState's '_buttonstateIsFiring' to @False@ and
     --  call 'action' if inside the widget or
-    --  set '_uistateIsDeferred' to false otherwise.
-    onMouseReleased x y wg h@(ButtonHandler f s) = if _uistateIsFiring s 
+    --  set '_buttonstateIsDeferred' to false otherwise.
+    onMouseReleased x y wg h@(ButtonHandler action) = if _buttonstateIsFiring $ getButtonState wg 
         then do
-            wg' <- f wg x y
-            return (wg', h {_handlerState = s {_uistateIsFiring = False}})
-        else return (wg, h {_handlerState = s {_uistateIsDeferred = False}})
+            wg' <- action wg x y
+            return (updateButtonState (\s -> s {_buttonstateIsFiring = False}) wg', h)
+        else return (updateButtonState (\s -> s {_buttonstateIsDeferred = False}) wg, h)
     
     -- |Do nothing.
     onMouseMove _ _ wg h = return (wg, h)
     
-    -- |Set 'UIState's '_uistateIsReady' to @True@ and
+    -- |Set 'UIButtonState's '_buttonstateIsReady' to @True@ and
     --  update dragging state (only drag if inside widget).
-    --  In detail, change 'UIState's '_uistateIsDeferred' to '_uistateIsFiring's current value
-    --   and set '_uistateIsFiring' to @False@. 
-    onMouseEnter _ _ wg h@(ButtonHandler _ s) = return
-        (wg, h {_handlerState = s { _uistateIsFiring = _uistateIsDeferred s
-                                  , _uistateIsDeferred = False
-                                  , _uistateIsReady = True
-                                  }})
+    --  In detail, change 'UIButtonState's '_buttonstateIsDeferred' to '_buttonstateIsFiring's current value
+    --   and set '_buttonstateIsFiring' to @False@. 
+    onMouseEnter _ _ wg h = return
+        (updateButtonState (\s -> s { _buttonstateIsFiring = _buttonstateIsDeferred s
+                                    , _buttonstateIsDeferred = False
+                                    , _buttonstateIsReady = True
+                                    }) wg
+                                    , h)
     
-    -- |Set 'UIState's 'uistateIsReady' to @False@ and
+    -- |Set 'UIButtonState's 'buttonstateIsReady' to @False@ and
     --  update dragging state (only drag if inside widget).
-    --  In detail, change 'UIState's '_uistateIsFiring' to '_uistateIsDeferred's current value
-    --  and set '_uistateIsDeferred's' to @False@.
-    onMouseLeave _ _ wg h@(ButtonHandler _ s) = return
-        (wg, h {_handlerState = s { _uistateIsFiring = False
-                                  , _uistateIsDeferred = _uistateIsFiring s
-                                  , _uistateIsReady = False
-                                  }})
+    --  In detail, change 'UIButtonState's '_buttonstateIsFiring' to '_buttonstateIsDeferred's current value
+    --  and set '_buttonstateIsDeferred's' to @False@.
+    onMouseLeave _ _ wg h = return
+        (updateButtonState (\s -> s { _buttonstateIsFiring = False
+                                    , _buttonstateIsDeferred = _buttonstateIsFiring s
+                                    , _buttonstateIsReady = False
+                                    }) wg
+                                    , h)
 
 
 data GUIAny = GUIAnyC GUIContainer
             | GUIAnyP GUIPanel
-            | GUIAnyB GUIButton
+            | GUIAnyB GUIButton (ButtonHandler GUIButton)
             deriving (Show)
 instance GUIAnyMap GUIAny where
     guiAnyMap f w = f w
@@ -246,22 +256,22 @@ instance GUIAnyMap GUIAny where
 instance GUIWidget GUIAny where
     getBoundary (GUIAnyC w) = getBoundary w
     getBoundary (GUIAnyP w) = getBoundary w
-    getBoundary (GUIAnyB w) = getBoundary w
+    getBoundary (GUIAnyB w _) = getBoundary w
     getChildren (GUIAnyC w) = getChildren w
     getChildren (GUIAnyP w) = getChildren w
-    getChildren (GUIAnyB w) = getChildren w
+    getChildren (GUIAnyB w _) = getChildren w
     isInsideSelf x y (GUIAnyC w) = (isInsideSelf x y) w
     isInsideSelf x y (GUIAnyP w) = (isInsideSelf x y) w
-    isInsideSelf x y (GUIAnyB w) = (isInsideSelf x y) w
+    isInsideSelf x y (GUIAnyB w _) = (isInsideSelf x y) w
     isInside x y (GUIAnyC w) = (isInside x y) w
     isInside x y (GUIAnyP w) = (isInside x y) w
-    isInside x y (GUIAnyB w) = (isInside x y) w
+    isInside x y (GUIAnyB w _) = (isInside x y) w
     getPriority (GUIAnyC w) = getPriority w
     getPriority (GUIAnyP w) = getPriority w
-    getPriority (GUIAnyB w) = getPriority w
+    getPriority (GUIAnyB w _) = getPriority w
     getShorthand (GUIAnyC w) = "A" ++ getShorthand w
     getShorthand (GUIAnyP w) = "A" ++ getShorthand w
-    getShorthand (GUIAnyB w) = "A" ++ getShorthand w
+    getShorthand (GUIAnyB w _) = "A" ++ getShorthand w
 
 -- |A 'GUIContainer' is a widget that may contain additional widgets but does not have a
 --  functionality itself.
@@ -315,8 +325,8 @@ instance GUIWidget GUIPanel where
 data GUIButton = GUIButton { _screenXB :: ScreenUnit, _screenYB :: ScreenUnit
                            , _widthB :: ScreenUnit, _heightB :: ScreenUnit
                            , _priorityB :: Int
-                           , _actionB :: (GUIButton -> ScreenUnit -> ScreenUnit -> IO GUIButton)
-                           , _handlerStateB :: UIState
+                           , _buttonState :: UIButtonState
+                           , _buttonAction :: (GUIButton -> ScreenUnit -> ScreenUnit -> IO GUIButton)
                            } deriving ()
 
 instance Show GUIButton where
@@ -325,59 +335,18 @@ instance Show GUIButton where
                     ++ " _widthB = " ++ show (_widthB w)
                     ++ " _heightB = " ++ show (_heightB w)
                     ++ " _priorityB = " ++ show (_screenYB w)
-                    ++ " _actionB = " ++ "***"
-                    ++ " _handlerStateB = " ++ show (_handlerStateB w)
+                    ++ " _buttonState = " ++ show (_buttonState w)
+                    ++ " _buttonAction = " ++ "***"
                     ++ "}"
-instance MouseHandler GUIButton GUIButton where
-    -- |Change 'UIState's '_uistateIsFiring' to @True@.
-    onMousePressed _ _ _ h = let
-        h' = h {_handlerStateB = (_handlerStateB h) {_uistateIsFiring = True}}
-        in return (h', h')
-
-    -- |Change 'UIState's '_uistateIsFiring' to @False@ and
-    --  call '_actionB' if inside the widget or
-    --  set '_uistateIsDeferred' to false otherwise.
-    onMouseReleased x y wg h =
-        if _uistateIsFiring (_handlerStateB h) then do
-            wg' <- _actionB h wg x y
-            wg'' <- return wg' {_handlerStateB = (_handlerStateB wg') {_uistateIsFiring = False}}
-            return (wg'', wg'')
-        else let
-            wg' = wg {_handlerStateB = (_handlerStateB wg) {_uistateIsDeferred = False}}
-            in return (wg', wg')
-    
-    -- |Do nothing.
-    onMouseMove _ _ wg h = return (wg, h)
-    
-    -- |Set 'UIState's '_uistateIsReady' to @True@ and
-    --  update dragging state (only drag if inside widget).
-    --  In detail, change 'UIState's '_uistateIsDeferred' to '_uistateIsFiring's current value
-    --   and set '_uistateIsFiring' to @False@. 
-    onMouseEnter _ _ _ h = let
-        s = _handlerStateB h
-        h' = h {_handlerStateB = s { _uistateIsFiring = _uistateIsDeferred s
-                                    , _uistateIsDeferred = False
-                                    , _uistateIsReady = True
-                                    }}
-        in return (h', h')
-    
-    -- |Set 'UIState's 'uistateIsReady' to @False@ and
-    --  update dragging state (only drag if inside widget).
-    --  In detail, change 'UIState's 'uistateIsFiring' to 'uistateIsDeferred's current value
-    --  and set 'uistateIsDeferred's' to @False@.
-    onMouseLeave _ _ _ h = let
-        s = _handlerStateB h
-        h' = h {_handlerStateB = s { _uistateIsFiring = False
-                                    , _uistateIsDeferred = _uistateIsFiring s
-                                    , _uistateIsReady = False
-                                    }}
-        in return (h', h')
 instance GUIAnyMap GUIButton where
-    guiAnyMap f (GUIAnyB btn) = f btn
+    guiAnyMap f (GUIAnyB btn _) = f btn
     guiAnyMap _ _ = error "invalid types in guiAnyMap"
-    toGUIAny btn = GUIAnyB btn
-    fromGUIAny (GUIAnyB btn) = btn
+    toGUIAny btn = GUIAnyB btn $ ButtonHandler $ _buttonAction btn
+    fromGUIAny (GUIAnyB btn _) = btn
     fromGUIAny _ = error "invalid GUIAny type"
+instance GUIClickable GUIButton where
+    getButtonState = _buttonState
+    updateButtonState f btn = btn {_buttonState = f $ _buttonState btn}
 instance GUIWidget GUIButton where
     getBoundary btn = (_screenXB btn, _screenYB btn, _widthB btn, _heightB btn)
     getChildren _ = []
