@@ -1,9 +1,11 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, InstanceSigs, ExistentialQuantification #-}
 module Render.Render where
 
 import qualified Data.ByteString                            as B
+import           Data.Array.Storable
+import qualified Data.Vector.Storable                       as V
 import           Foreign.Marshal.Array                      (withArray)
-import           Foreign.Storable                           (sizeOf)
+import           Foreign.Storable
 import           Graphics.Rendering.OpenGL.GL.BufferObjects
 import           Graphics.Rendering.OpenGL.GL.Framebuffer   (clearColor)
 import           Graphics.Rendering.OpenGL.GL.ObjectName
@@ -11,10 +13,16 @@ import           Graphics.Rendering.OpenGL.GL.PerFragment
 import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.VertexArrays  (Capability (..),
-                                                             vertexAttribArray)
+                                                             vertexAttribArray,
+                                                             VertexArrayDescriptor,
+                                                             DataType(Float))
 import           Graphics.Rendering.OpenGL.GL.VertexSpec
 import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Render.Misc
+import           Foreign.Ptr                                (Ptr, wordPtrToPtr)
+
+import           Types
+import           Graphics.GLUtil.BufferObjects              (makeBuffer)
 
 mapVertexShaderFile :: String
 mapVertexShaderFile = "shaders/map/vertex.shader"
@@ -29,7 +37,6 @@ uiVertexShaderFile :: String
 uiVertexShaderFile = "shaders/ui/vertex.shader"
 uiFragmentShaderFile :: String
 uiFragmentShaderFile = "shaders/ui/fragment.shader"
-
 
 initBuffer :: [GLfloat] -> IO BufferObject
 initBuffer varray =
@@ -113,27 +120,51 @@ initMapShader = do
    checkError "initShader"
    return (program, colorIndex, normalIndex, vertexIndex, projectionMatrixIndex, viewMatrixIndex, modelMatrixIndex, normalMatrixIndex, tessLevelInner, tessLevelOuter)
 
-{-initUIShader :: IO (
-                        Program         -- ^ the GLSL-program
-                      , AttribLocation  -- ^ the UI-Texture
-                   )
-initUIShader = do
-   ! vertexSource <- B.readFile uiVertexShaderFile
-   ! fragmentSource <- B.readFile uiFragmentShaderFile
+initHud :: IO GLHud
+initHud = do
+   ! vertexSource <- B.readFile "shaders/ui/vertex.shader"
+   ! fragmentSource <- B.readFile "shaders/ui/fragment.shader"
    vertexShader <- compileShaderSource VertexShader vertexSource
-   checkError "compile Vertex"
+   checkError "compile UI-Vertex"
    fragmentShader <- compileShaderSource FragmentShader fragmentSource
-   checkError "compile Frag"
+   checkError "compile UI-Fragment"
    program <- createProgramUsing [vertexShader, fragmentShader]
    checkError "compile Program"
-   
+
+   tex <- genObjectName
+
+   currentProgram $= Just program
+
+   texIndex <- get (uniformLocation program "tex")
+   checkError "ui-tex"
+
+   -- | simple triangle over the whole screen.
+   let vertexBufferData = reverse [-1, -1, 1, -1, -1, 1, 1, 1] :: [GLfloat]
+
+   vertexIndex <- get (attribLocation program "position")
+   vertexAttribArray vertexIndex $= Enabled
+   checkError "vertexInd"
+
+   ebo <- makeBuffer ElementArrayBuffer ([0..3] :: [GLuint])
+   vbo <- makeBuffer ArrayBuffer        vertexBufferData
+
    att <- get (activeAttribs program)
 
    putStrLn $ unlines $ "Attributes: ":map show att
-   putStrLn $ unlines $ ["Indices: ", show (colorIndex, normalIndex, vertexIndex)]
+   putStrLn $ unlines $ ["Indices: ", show (texIndex)]
 
-   checkError "initShader"
-   return (program, )-}
+   checkError "initHud"
+   return GLHud
+        { _hudTexture           = tex
+        , _hudTexIndex          = texIndex
+        , _hudVertexIndex       = vertexIndex
+        , _hudVert              = 4
+        , _hudVBO               = vbo
+        , _hudEBO               = ebo
+        , _hudProgram           = program
+        }
+        
+
 
 
 initRendering :: IO ()

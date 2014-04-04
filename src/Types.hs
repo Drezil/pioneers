@@ -9,6 +9,7 @@ import           Data.Time                            (UTCTime)
 import Linear.Matrix (M44)
 import Control.Monad.RWS.Strict (RWST)
 import Control.Lens
+import Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
 
 
 --Static Read-Only-State
@@ -88,9 +89,19 @@ data GLMapState = GLMapState
     , _mapProgram           :: !GL.Program
     }
 
+data GLHud = GLHud
+    { _hudTexture               :: !TextureObject       -- ^ Texture itself
+    , _hudTexIndex              :: !GL.UniformLocation  -- ^ Position of Texture in Shader
+    , _hudVertexIndex           :: !GL.AttribLocation   -- ^ Position of Vertices in Shader
+    , _hudVert                  :: !GL.NumArrayIndices  -- ^ Number of Vertices to draw
+    , _hudVBO                   :: !GL.BufferObject     -- ^ Vertex-Buffer-Object
+    , _hudEBO                   :: !GL.BufferObject     -- ^ Element-Buffer-Object
+    , _hudProgram               :: !GL.Program          -- ^ Program for rendering HUD
+    }
+
 data GLState = GLState
     { _glMap               :: !GLMapState
-    , _hudTexture      :: Maybe Texture
+    , _glHud               :: !GLHud
     }
 
 data UIState = UIState
@@ -111,6 +122,7 @@ data State = State
 $(makeLenses ''State)
 $(makeLenses ''GLState)
 $(makeLenses ''GLMapState)
+$(makeLenses ''GLHud)
 $(makeLenses ''KeyboardState)
 $(makeLenses ''ArrowKeyState)
 $(makeLenses ''MouseState)

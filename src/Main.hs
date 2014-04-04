@@ -1,6 +1,18 @@
 {-# LANGUAGE BangPatterns, DoAndIfThenElse #-}
 module Main where
 
+import Data.Int (Int8)
+import Graphics.Rendering.OpenGL.GL.Texturing.Specification (TextureSize2D)
+import Graphics.Rendering.OpenGL.GL.PixelRectangles.ColorTable (PixelInternalFormat(..))
+import Graphics.Rendering.OpenGL.GL.Texturing.Specification (texImage2D)
+import Foreign.Marshal.Array (pokeArray)
+import Control.Monad (liftM)
+import Foreign.Marshal.Alloc (allocaBytes)
+import Graphics.Rendering.OpenGL.GL.Texturing.Parameters (textureFilter)
+import Graphics.Rendering.OpenGL.GL.Texturing.Specification (TextureTarget2D(Texture2D))
+import Graphics.Rendering.OpenGL.GL.Texturing.Objects (textureBinding)
+import Graphics.Rendering.OpenGL.GL.Texturing.Parameters (TextureFilter(..))
+
 -- Monad-foo and higher functional stuff
 import           Control.Monad                        (unless, void, when, join)
 import Control.Arrow ((***))
@@ -16,8 +28,10 @@ import           Control.Monad.RWS.Strict             (RWST, ask, asks,
 import           Data.Distributive                    (distribute, collect)
 
 -- FFI
-import           Foreign                              (Ptr, castPtr, with)
+import           Foreign                              (Ptr, castPtr, with, sizeOf)
 import           Foreign.C                            (CFloat)
+import           Foreign.C.Types                      (CInt)
+import           Data.Word                            (Word8)
 
 -- Math
 import           Control.Lens                         ((^.), (.~), (%~))
@@ -32,6 +46,7 @@ import           Graphics.UI.SDL                      as SDL
 import qualified Graphics.Rendering.OpenGL.GL         as GL
 import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Data.Time                            (getCurrentTime, diffUTCTime)
+import           Graphics.GLUtil.BufferObjects        (offset0)
 
 import Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
 -- Our modules
@@ -40,7 +55,8 @@ import           Render.Misc                          (checkError,
                                                        createFrustum, getCam,
                                                        curb, tryWithTexture)
 import           Render.Render                        (initRendering,
-                                                       initMapShader)
+                                                       initMapShader,
+                                                       initHud)
 import           UI.Callbacks
 import           UI.GUIOverlay
 import           Types
@@ -84,6 +100,7 @@ main = do
         --TTF.setFontStyle font TTFNormal
         --TTF.setFontHinting font TTFHNormal
 
+        glHud <- initHud
         let zDistClosest  = 1
             zDistFarthest = zDistClosest + 30
             --TODO: Move near/far/fov to state for runtime-changability & central storage
@@ -157,7 +174,7 @@ main = do
                         }
               , _gl                  = GLState
                         { _glMap               = glMap
-                        , _hudTexture          = Nothing
+                        , _glHud               = glHud
                         }
               , _game                = GameState
                         {
@@ -202,6 +219,9 @@ draw = do
     liftIO $ do
         --(vi,GL.UniformLocation proj) <- initShader
         GL.clear [GL.ColorBuffer, GL.DepthBuffer]
+
+        GL.currentProgram GL.$= Just (state ^. gl.glMap.mapProgram)
+
         checkError "clearing buffer"
         --set up projection (= copy from state)
         with (distribute frust) $ \ptr ->
@@ -213,18 +233,18 @@ draw = do
         with (distribute cam) $ \ptr ->
               glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
         checkError "copy cam"
-              
+
         --set up normal--Mat transpose((model*camera)^-1)
         let normal = (case inv33 (fmap (^. _xyz) cam ^. _xyz) of
                                              (Just a) -> a
                                              Nothing  -> eye3) :: M33 CFloat
             nmap = collect id normal :: M33 CFloat --transpose...
-        
+
         with (distribute nmap) $ \ptr ->
               glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (M33 CFloat)))
 
         checkError "nmat"
-        
+
         glUniform1f tli (fromIntegral tessFac)
         glUniform1f tlo (fromIntegral tessFac)
 
@@ -236,17 +256,33 @@ draw = do
         GL.vertexAttribPointer vi GL.$= fgVertexIndex
         GL.vertexAttribArray vi   GL.$= GL.Enabled
         checkError "beforeDraw"
-        
+
         glPatchParameteri gl_PATCH_VERTICES 3
         glPolygonMode gl_FRONT gl_LINE
 
         glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
-        checkError "draw"
+        checkError "draw map"
 
-        {-renderer <- getRenderer (env ^. windowObject)
+        -- Drawing HUD
+        let hud    = state ^. gl.glHud
+            stride = fromIntegral $ sizeOf (undefined::GLfloat) * 2
+            vad    = GL.VertexArrayDescriptor 2 GL.Float stride offset0
+        GL.currentProgram GL.$= Just (hud ^. hudProgram)
+        GL.activeTexture  GL.$= GL.TextureUnit 0
+        textureBinding GL.Texture2D GL.$= Just (hud ^. hudTexture)
+        
+        GL.bindBuffer GL.ArrayBuffer GL.$= Just (hud ^. hudVBO)
+        GL.vertexAttribPointer (hud ^. hudVertexIndex) GL.$= (GL.ToFloat, vad)
+        GL.vertexAttribArray   (hud ^. hudVertexIndex) GL.$= GL.Enabled
+        
+        GL.bindBuffer GL.ElementArrayBuffer GL.$= Just (hud ^. hudEBO)
+        GL.drawElements GL.TriangleStrip 4 GL.UnsignedInt offset0
+
+
+        {-let winRenderer = env ^. renderer
         tryWithTexture
                 (state ^. gl.hudTexture)                          --maybe tex
-                (\tex -> renderCopy renderer tex Nothing Nothing) --function with "hole"
+                (\tex -> renderCopy winRenderer tex Nothing Nothing) --function with "hole"
                                                        --Nothing == whole source-tex, whole dest-tex
                 (return ())                                       --fail-case-}
 
@@ -346,19 +382,20 @@ adjustWindow = do
         frust         = createFrustum fov near far ratio
     liftIO $ glViewport 0 0 (fromIntegral fbWidth) (fromIntegral fbHeight)
     modify $ camera.frustum .~ frust
-    hudTex      <- liftIO $ do
-                   putStrLn $ show (env ^. windowObject)
-                   case state ^. gl.hudTexture of
-                        Just tex -> destroyTexture tex
-                        _ -> return ()
-                   winRenderer <- getRenderer (env ^. windowObject)
-                   createTexture 
-                         winRenderer            -- where
-                         PixelFormatRGBA8888    -- RGBA32-bit
-                         TextureAccessStreaming -- change occasionally
-                         fbWidth                -- width
-                         fbHeight               -- height
-    modify $ gl.hudTexture .~ (Just hudTex) -- -}
+    liftIO $ do
+                   let texid = state ^. gl.glHud.hudTexture
+                       int = fromInteger . toInteger
+                   textureBinding Texture2D GL.$= Just texid
+                   checkError "bind HUD-Tex"
+                   textureFilter  Texture2D GL.$= ((Linear', Nothing), Linear')
+                   checkError "filter HUD-Tex"
+                   allocaBytes (fbWidth*fbHeight*4) $ \ptr -> do
+                        let imData = take (fbWidth*fbHeight*4) (cycle [255,0,0,128] :: [Int8])
+                        --putStrLn $ show imData
+                        pokeArray ptr imData
+                        texImage2D Texture2D GL.NoProxy 0 RGBA8 (GL.TextureSize2D (int fbWidth) (int fbHeight)) 0
+                                                (GL.PixelData GL.RGBA GL.UnsignedByte ptr)
+                   checkError "setting up HUD-Tex"
 
 processEvents :: Pioneers ()
 processEvents = do

@@ -1,8 +1,10 @@
-#version 330
+#version 110
 
-uniform sampler2D blitTexture;
+uniform sampler2D tex;
+varying vec2 texcoord;
 
-void main(void)
+void main()
 {
-    
+
+    gl_FragColor = texture2D(tex, texcoord);
 }
