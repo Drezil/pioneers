@@ -12,7 +12,10 @@ executable Pioneers
     ghc-options:     -Wall -Odph -rtsopts -threaded -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -optlo-O3 -fllvm
   }
   other-module
-                   Map.Map,
+                   Map.Types,
+                   Map.Graphics,
+                   Map.Creation,
+                   Map.StaticMaps,
                    Render.Misc,
                    Render.Render,
                    Render.RenderObject,

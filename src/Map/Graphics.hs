@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, BangPatterns #-}
-module Map.Map 
+module Map.Graphics 
 
 (
 mapVertexArrayDescriptor,
@@ -15,6 +15,7 @@ import System.Random
 import Data.Array.IArray
 import Data.Text as T 
 import Prelude as P
+
 --import Graphics.Rendering.OpenGL.GL
 import           Graphics.Rendering.OpenGL.GL.BufferObjects
 import           Graphics.Rendering.OpenGL.GL.ObjectName
@@ -24,29 +25,33 @@ import           Graphics.Rendering.OpenGL.GL.VertexSpec
 import           Graphics.Rendering.OpenGL.Raw.Core31
 
 import Foreign.Marshal.Array (withArray)
-import Foreign.Storable (sizeOf)
-import Foreign.Ptr (Ptr, nullPtr, plusPtr)
-import Render.Misc (checkError)
+import Foreign.Storable      (sizeOf)
+import Foreign.Ptr           (Ptr, nullPtr, plusPtr)
+import Render.Misc           (checkError)
 import Linear
 
-
-data TileType =
-        Grass
-        | Sand
-        | Water
-        | Mountain
-        deriving (Show, Eq)
+import Map.Types
+import Map.StaticMaps
 
 type MapEntry = (
                 Float, -- ^ Height
                 TileType
                 )
 
-type PlayMap = Array (Int, Int) MapEntry
+type GraphicsMap = Array (Int, Int) MapEntry
+
+-- extract graphics information from Playmap
+convertToGraphicsMap :: PlayMap -> GraphicsMap
+convertToGraphicsMap map = array (bounds map) [(i, graphicsyfy (map!i))| i <- indices map]
+    where
+      graphicsyfy :: Node -> MapEntry
+      graphicsyfy (Minimal _               ) = (0, Grass)
+      graphicsyfy (Full    _ y t _ _ _ _ _ ) = (y, t)
 
 lineHeight :: GLfloat
 lineHeight = 0.8660254
 
+-- Number of GLfloats per Stride
 numComponents :: Int
 numComponents = 10
 
@@ -71,9 +76,8 @@ fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
-        map' <- testmap
+        map'   <- return $ convertToGraphicsMap mapCenterMountain
         ! map' <- return $ generateTriangles map'
-        --putStrLn $ P.unlines $ P.map show (prettyMap map')
         len <- return $ fromIntegral $ P.length map' `div` numComponents
         putStrLn $ P.unwords ["num verts in map:",show len]
         bo <- genObjectName                     -- create a new buffer
@@ -89,14 +93,15 @@ prettyMap :: [GLfloat] -> [(GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfloat,GLfl
 prettyMap (a:b:c:d:x:y:z:u:v:w:ms) = (a,b,c,d,x,y,z,u,v,w):(prettyMap ms)
 prettyMap _ = []
 
-generateTriangles :: PlayMap -> [GLfloat]
+--generateTriangles :: PlayMap -> [GLfloat]
+generateTriangles :: GraphicsMap -> [GLfloat] 
 generateTriangles map' =
                 let ((xl,yl),(xh,yh)) = bounds map' in
                 P.concat [P.concat $ P.map (generateFirstTriLine map' y) [xl .. xh - 2] 
                           ++ P.map (generateSecondTriLine map' (y == yh) y) [xl .. xh - 2]
                          | y <- [yl..yh]]
 
-generateFirstTriLine :: PlayMap -> Int -> Int -> [GLfloat]
+generateFirstTriLine :: GraphicsMap -> Int -> Int -> [GLfloat]
 generateFirstTriLine map' y x =
                 P.concat $
                    if even x then
@@ -110,7 +115,7 @@ generateFirstTriLine map' y x =
                         lookupVertex map' (x + 1) y
                      ]
 
-generateSecondTriLine :: PlayMap -> Bool -> Int -> Int ->  [GLfloat]
+generateSecondTriLine :: GraphicsMap -> Bool -> Int -> Int ->  [GLfloat]
 generateSecondTriLine map' False y x  =
                 P.concat $
                    if even x then
@@ -126,7 +131,7 @@ generateSecondTriLine map' False y x  =
 generateSecondTriLine _ True _ _  = []
 
 
-lookupVertex :: PlayMap -> Int -> Int -> [GLfloat]
+lookupVertex :: GraphicsMap -> Int -> Int -> [GLfloat]
 lookupVertex map' x y = 
                 let 
                         (cr, cg, cb)  = colorLookup map' (x,y)
@@ -140,7 +145,7 @@ lookupVertex map' x y =
                         vx, vy, vz              -- 3 Vertex
                 ]
 
-normalLookup :: PlayMap -> Int -> Int -> V3 GLfloat
+normalLookup :: GraphicsMap -> Int -> Int -> V3 GLfloat
 normalLookup map' x y = normalize $ normN + normNE + normSE + normS + normSW + normNW
                     where
                       --Face Normals
@@ -173,20 +178,23 @@ normalLookup map' x y = normalize $ normN + normNE + normSE + normS + normSW + n
                         | otherwise = coordLookup (x-2,y  ) $ heightLookup map' (x-2,y  )
                       eo = if even x then 1 else -1
 
-heightLookup :: PlayMap -> (Int,Int) -> GLfloat
+heightLookup :: GraphicsMap -> (Int,Int) -> GLfloat
 heightLookup hs t = if inRange (bounds hs) t then fromRational $ toRational h else 0.0
                 where 
                         (h,_) = hs ! t
 
-colorLookup :: PlayMap -> (Int,Int) -> (GLfloat, GLfloat, GLfloat)
+colorLookup :: GraphicsMap -> (Int,Int) -> (GLfloat, GLfloat, GLfloat)
 colorLookup hs t = if inRange (bounds hs) t then c else (0.0, 0.0, 0.0)
                 where 
                         (_,tp) = hs ! t
                         c = case tp of
-                                Water           -> (0.5, 0.5, 1)
-                                Sand            -> (0.9, 0.85, 0.7)
-                                Grass           -> (0.3, 0.9, 0.1)
-                                Mountain        -> (0.5, 0.5, 0.5)
+                                Ocean           -> (0.50, 0.50, 1.00)
+                                Lake            -> (0.40, 0.87 ,1.00)
+                                Beach           -> (0.90, 0.85, 0.70)
+                                Desert          -> (1.00, 0.87, 0.39)
+                                Grass           -> (0.30, 0.90, 0.10)
+                                Hill            -> (0.80, 0.80, 0.80)
+                                Mountain        -> (0.50, 0.50, 0.50)
 
 coordLookup :: (Int,Int) -> GLfloat -> V3 GLfloat
 coordLookup (x,z) y =
@@ -234,13 +242,13 @@ testMapTemplate2 = T.transpose [
                 "~~~~~~~~~~~~"
                 ]
 
-testmap :: IO PlayMap
+testmap :: IO GraphicsMap
 testmap = do
                 g <- getStdGen
                 rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate)
                 return $ listArray ((0,0),(79,19)) rawMap
 
-testmap2 :: IO PlayMap
+testmap2 :: IO GraphicsMap
 testmap2 = do
                 g <- getStdGen
                 rawMap <- return $ parseTemplate (randoms g) (T.concat testMapTemplate2)
@@ -250,8 +258,8 @@ testmap2 = do
 parseTemplate :: [Int] -> Text -> [MapEntry]
 parseTemplate (r:rs) t = 
         (case T.head t of
-                '~' -> (0, Water)
-                'S' -> (0, Sand)
+                '~' -> (0, Ocean)
+                'S' -> (0, Beach)
                 'G' -> (fromIntegral (r `mod` 10)/10.0,Grass)
                 'M' -> (fromIntegral ((r `mod` 10) + 20)/10.0, Mountain)
                 _ -> error "invalid template format for map"

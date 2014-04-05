@@ -50,7 +50,7 @@ import           Graphics.GLUtil.BufferObjects        (offset0)
 
 import Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
 -- Our modules
-import           Map.Map
+import           Map.Graphics
 import           Render.Misc                          (checkError,
                                                        createFrustum, getCam,
                                                        curb, tryWithTexture,
