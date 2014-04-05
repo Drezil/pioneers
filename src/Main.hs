@@ -468,7 +468,9 @@ adjustWindow = do
                    let hudtexid = state ^. gl.glHud.hudTexture
                        maptexid = state ^. gl.glMap.mapTexture
                    allocaBytes (fbWidth*fbHeight*4) $ \ptr -> do
-                        let imData = take (fbWidth*fbHeight*4) (cycle [255,0,0,64] :: [Int8])
+                                                               --default to ugly pink to see if
+                                                               --somethings go wrong.
+                        let imData = take (fbWidth*fbHeight*4) (cycle [255,0,255,0] :: [Int8])
                         --putStrLn $ show imData
                         pokeArray ptr imData
                         -- HUD
