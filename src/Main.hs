@@ -111,11 +111,11 @@ main = do
 
         glHud <- initHud
         let zDistClosest  = 1
-            zDistFarthest = zDistClosest + 30
+            zDistFarthest = zDistClosest + 50
             --TODO: Move near/far/fov to state for runtime-changability & central storage
             fov           = 90  --field of view
             near          = 1   --near plane
-            far           = 100 --far plane
+            far           = 500 --far plane
             ratio         = fromIntegral fbWidth / fromIntegral fbHeight
             frust         = createFrustum fov near far ratio
             aks = ArrowKeyState {
@@ -160,8 +160,8 @@ main = do
                         , _zDist               = 10
                         , _frustum             = frust
                         , _camPosition         = Types.Position
-                                       { Types._x    = 5
-                                       , Types._y    = 5
+                                       { Types._x    = 25
+                                       , Types._y    = 25
                                        }
                         }
               , _io                  = IOState
