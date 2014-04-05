@@ -3,6 +3,7 @@ module Render.Misc where
 
 import           Control.Monad
 import qualified Data.ByteString                            as B (ByteString)
+import           Data.Int                                   (Int8)
 import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.StringQueries
@@ -124,4 +125,9 @@ tryWithTexture t f fail' =
         case t of
                 Just tex -> f tex
                 _ -> fail'
+
+genColorData ::      Int  -- ^ Amount
+                -> [Int8] -- ^ [r,g,b,a], [r,g,b] - whatever should be repeatet.
+                -> [Int8]
+genColorData n c = take ((length c)*n) (cycle c)
 

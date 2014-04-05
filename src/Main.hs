@@ -5,8 +5,8 @@ import Data.Int (Int8)
 import Graphics.Rendering.OpenGL.GL.Texturing.Specification (TextureSize2D)
 import Graphics.Rendering.OpenGL.GL.PixelRectangles.ColorTable (PixelInternalFormat(..))
 import Graphics.Rendering.OpenGL.GL.Texturing.Specification (texImage2D)
-import Foreign.Marshal.Array (pokeArray)
 import Control.Monad (liftM)
+import Foreign.Marshal.Array (pokeArray)
 import Foreign.Marshal.Alloc (allocaBytes)
 import Graphics.Rendering.OpenGL.GL.Texturing.Parameters (textureFilter)
 import Graphics.Rendering.OpenGL.GL.Texturing.Specification (TextureTarget2D(Texture2D))
@@ -53,7 +53,8 @@ import Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
 import           Map.Map
 import           Render.Misc                          (checkError,
                                                        createFrustum, getCam,
-                                                       curb, tryWithTexture)
+                                                       curb, tryWithTexture,
+                                                       genColorData)
 import           Render.Render                        (initRendering,
                                                        initMapShader,
                                                        initHud)
@@ -191,7 +192,7 @@ main = do
                         {
                         }
               , _ui                  = UIState
-                        {
+                        { _uiHasChanged        = True
                         }
               }
 
@@ -227,7 +228,10 @@ draw = do
         tessFac  = state ^. gl.glMap.stateTessellationFactor
         window   = env ^. windowObject
         rb       = state ^. gl.glRenderbuffer
-    prepareGUI
+    if state ^. ui.uiHasChanged then
+        prepareGUI
+    else
+        return ()
     liftIO $ do
         --bind renderbuffer and set sample 0 as target
         --GL.bindRenderbuffer GL.Renderbuffer GL.$= rb
@@ -470,7 +474,7 @@ adjustWindow = do
                    allocaBytes (fbWidth*fbHeight*4) $ \ptr -> do
                                                                --default to ugly pink to see if
                                                                --somethings go wrong.
-                        let imData = take (fbWidth*fbHeight*4) (cycle [255,0,255,0] :: [Int8])
+                        let imData = genColorData (fbWidth*fbHeight) [255,0,255,0]
                         --putStrLn $ show imData
                         pokeArray ptr imData
                         -- HUD
@@ -486,6 +490,7 @@ adjustWindow = do
                    checkError "setting up HUD-Tex"
                    return renderBuffer
     modify $ gl.glRenderbuffer .~ rb
+    modify $ ui.uiHasChanged .~ True
 
 processEvents :: Pioneers ()
 processEvents = do

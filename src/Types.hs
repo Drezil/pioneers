@@ -109,7 +109,7 @@ data GLState = GLState
     }
 
 data UIState = UIState
-    {
+    { _uiHasChanged        :: !Bool
     }
 
 data State = State
