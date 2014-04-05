@@ -87,11 +87,18 @@ main = do
         withOpenGL window $ do
         --TTF.withInit $ do
         
+        --Create Renderbuffer & Framebuffer
+        -- We will render to this buffer to copy the result into textures
+        renderBuffer <- GL.genObjectName
+        frameBuffer <- GL.genObjectName
+        GL.bindFramebuffer GL.Framebuffer GL.$= frameBuffer
+        GL.bindRenderbuffer GL.Renderbuffer GL.$= renderBuffer
+        
         (Size fbWidth fbHeight) <- glGetDrawableSize window
         initRendering
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
-        (mapprog, ci, ni, vi, pri, vii, mi, nmi, tli, tlo) <- initMapShader
+        (mapprog, ci, ni, vi, pri, vii, mi, nmi, tli, tlo, mapTex) <- initMapShader
         putStrLn $ show window
         eventQueue <- newTQueueIO :: IO (TQueue Event)
         putStrLn "foo"
@@ -130,6 +137,7 @@ main = do
                 , _stateMap             = mapBuffer
                 , _mapVert              = vert
                 , _mapProgram           = mapprog
+                , _mapTexture           = mapTex
                 }
             env = Env
               { _eventsChan      = eventQueue
@@ -176,6 +184,8 @@ main = do
               , _gl                  = GLState
                         { _glMap               = glMap
                         , _glHud               = glHud
+                        , _glRenderbuffer      = renderBuffer
+                        , _glFramebuffer       = frameBuffer
                         }
               , _game                = GameState
                         {
@@ -216,14 +226,52 @@ draw = do
         zDist'   = state ^. camera.zDist
         tessFac  = state ^. gl.glMap.stateTessellationFactor
         window   = env ^. windowObject
+        rb       = state ^. gl.glRenderbuffer
     prepareGUI
     liftIO $ do
+        --bind renderbuffer and set sample 0 as target
+        --GL.bindRenderbuffer GL.Renderbuffer GL.$= rb
+        --GL.bindFramebuffer  GL.Framebuffer  GL.$= GL.defaultFramebufferObject 
+        --checkError "bind renderbuffer"
+
+        --checkError "clear renderbuffer"
+        {-GL.framebufferRenderbuffer
+                GL.Framebuffer                  --framebuffer
+                (GL.ColorAttachment 1)          --sample 1
+                GL.Renderbuffer                 --const
+                rb                              --buffer
+        checkError "setup renderbuffer"-}
+
+        -- draw map
         --(vi,GL.UniformLocation proj) <- initShader
+        
+        GL.bindFramebuffer GL.Framebuffer GL.$= (state ^. gl.glFramebuffer)
+        GL.bindRenderbuffer GL.Renderbuffer GL.$= (state ^. gl.glRenderbuffer)
+        GL.framebufferRenderbuffer
+                GL.Framebuffer
+                GL.DepthAttachment
+                GL.Renderbuffer
+                (state ^. gl.glRenderbuffer)
+        textureBinding GL.Texture2D GL.$= Just (state ^. gl.glMap.mapTexture)
+        
+        GL.framebufferTexture2D
+                GL.Framebuffer
+                (GL.ColorAttachment 0)
+                GL.Texture2D
+                (state ^. gl.glMap.mapTexture)
+                0
+        
+        -- Render to FrameBufferObject
+        GL.drawBuffers GL.$= [GL.FBOColorAttachment 0]
+        checkError "setup Render-Target"
+
         GL.clear [GL.ColorBuffer, GL.DepthBuffer]
+        checkError "clear buffer"
+
 
         GL.currentProgram GL.$= Just (state ^. gl.glMap.mapProgram)
 
-        checkError "clearing buffer"
+        checkError "setting up buffer"
         --set up projection (= copy from state)
         with (distribute frust) $ \ptr ->
               glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
@@ -264,13 +312,32 @@ draw = do
         glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
         checkError "draw map"
 
+        -- set sample 1 as target in renderbuffer
+        {-GL.framebufferRenderbuffer
+                GL.DrawFramebuffer              --write-only
+                (GL.ColorAttachment 1)          --sample 1
+                GL.Renderbuffer                 --const
+                rb                              --buffer-}
+
+        -- Render to BackBuffer (=Screen)
+        GL.bindFramebuffer GL.Framebuffer GL.$= GL.defaultFramebufferObject
+        GL.drawBuffer GL.$= GL.BackBuffers
         -- Drawing HUD
+        GL.clear [GL.ColorBuffer, GL.DepthBuffer]
+        checkError "clear buffer"
+
         let hud    = state ^. gl.glHud
             stride = fromIntegral $ sizeOf (undefined::GLfloat) * 2
             vad    = GL.VertexArrayDescriptor 2 GL.Float stride offset0
         GL.currentProgram GL.$= Just (hud ^. hudProgram)
+
         GL.activeTexture  GL.$= GL.TextureUnit 0
         textureBinding GL.Texture2D GL.$= Just (hud ^. hudTexture)
+        GL.uniform (hud ^. hudTexIndex) GL.$= GL.Index1 (0::GL.GLint)
+
+        GL.activeTexture  GL.$= GL.TextureUnit 1
+        textureBinding GL.Texture2D GL.$= Just (state ^. gl.glMap.mapTexture)
+        GL.uniform (hud ^. hudBackIndex) GL.$= GL.Index1 (1::GL.GLint)
         
         GL.bindBuffer GL.ArrayBuffer GL.$= Just (hud ^. hudVBO)
         GL.vertexAttribPointer (hud ^. hudVertexIndex) GL.$= (GL.ToFloat, vad)
@@ -331,7 +398,7 @@ run = do
         mults = sin $ state ^. camera.yAngle
         modx x' = x' - 0.2 * kxrot * multc
                      - 0.2 * kyrot * mults
-        mody y' = y' - 0.2 * kxrot * mults
+        mody y' = y' + 0.2 * kxrot * mults
                      - 0.2 * kyrot * multc
     modify $ (camera.camPosition.x %~ modx)
            . (camera.camPosition.y %~ mody)
@@ -383,20 +450,40 @@ adjustWindow = do
         frust         = createFrustum fov near far ratio
     liftIO $ glViewport 0 0 (fromIntegral fbWidth) (fromIntegral fbHeight)
     modify $ camera.frustum .~ frust
-    liftIO $ do
-                   let texid = state ^. gl.glHud.hudTexture
-                       int = fromInteger . toInteger
-                   textureBinding Texture2D GL.$= Just texid
-                   checkError "bind HUD-Tex"
-                   textureFilter  Texture2D GL.$= ((Linear', Nothing), Linear')
-                   checkError "filter HUD-Tex"
+    rb <- liftIO $ do
+                   -- bind ints to CInt for lateron.
+                   let fbCWidth  = (fromInteger.toInteger) fbWidth
+                       fbCHeight = (fromInteger.toInteger) fbHeight
+                   -- free old renderbuffer & create new (reuse is NOT advised!)
+                   GL.deleteObjectName (state ^. gl.glRenderbuffer)
+                   renderBuffer <- GL.genObjectName
+                   GL.bindRenderbuffer GL.Renderbuffer GL.$= renderBuffer
+                   GL.renderbufferStorage
+                       GL.Renderbuffer                         -- use the only available renderbuffer 
+                                                               -- - must be this constant.
+                       GL.DepthComponent'                      -- 32-bit float-rgba-color
+                       (GL.RenderbufferSize fbCWidth fbCHeight)  -- size of buffer
+
+
+                   let hudtexid = state ^. gl.glHud.hudTexture
+                       maptexid = state ^. gl.glMap.mapTexture
                    allocaBytes (fbWidth*fbHeight*4) $ \ptr -> do
-                        let imData = take (fbWidth*fbHeight*4) (cycle [255,0,0,128] :: [Int8])
+                        let imData = take (fbWidth*fbHeight*4) (cycle [255,0,0,64] :: [Int8])
                         --putStrLn $ show imData
                         pokeArray ptr imData
-                        texImage2D Texture2D GL.NoProxy 0 RGBA8 (GL.TextureSize2D (int fbWidth) (int fbHeight)) 0
+                        -- HUD
+                        textureBinding Texture2D GL.$= Just hudtexid
+                        textureFilter  Texture2D GL.$= ((Linear', Nothing), Linear')
+                        texImage2D Texture2D GL.NoProxy 0 RGBA8 (GL.TextureSize2D fbCWidth fbCHeight) 0
+                                                (GL.PixelData GL.RGBA GL.UnsignedByte ptr)
+                        -- MAP
+                        textureBinding Texture2D GL.$= Just maptexid
+                        textureFilter  Texture2D GL.$= ((Linear', Nothing), Linear')
+                        texImage2D Texture2D GL.NoProxy 0 RGBA8 (GL.TextureSize2D fbCWidth fbCHeight) 0
                                                 (GL.PixelData GL.RGBA GL.UnsignedByte ptr)
                    checkError "setting up HUD-Tex"
+                   return renderBuffer
+    modify $ gl.glRenderbuffer .~ rb
 
 processEvents :: Pioneers ()
 processEvents = do

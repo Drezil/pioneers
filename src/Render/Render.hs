@@ -12,6 +12,7 @@ import           Graphics.Rendering.OpenGL.GL.ObjectName
 import           Graphics.Rendering.OpenGL.GL.PerFragment
 import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
+import           Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
 import           Graphics.Rendering.OpenGL.GL.VertexArrays  (Capability (..),
                                                              vertexAttribArray,
                                                              VertexArrayDescriptor,
@@ -62,6 +63,7 @@ initMapShader :: IO (
                       , UniformLocation -- ^ NormalMat
                       , UniformLocation -- ^ TessLevelInner
                       , UniformLocation -- ^ TessLevelOuter
+                      , TextureObject   -- ^ Texture where to draw into
                       )
 initMapShader = do
    ! vertexSource <- B.readFile mapVertexShaderFile
@@ -117,8 +119,10 @@ initMapShader = do
    putStrLn $ unlines $ "Attributes: ":map show att
    putStrLn $ unlines $ ["Indices: ", show (colorIndex, normalIndex, vertexIndex)]
 
+   tex <- genObjectName
+
    checkError "initShader"
-   return (program, colorIndex, normalIndex, vertexIndex, projectionMatrixIndex, viewMatrixIndex, modelMatrixIndex, normalMatrixIndex, tessLevelInner, tessLevelOuter)
+   return (program, colorIndex, normalIndex, vertexIndex, projectionMatrixIndex, viewMatrixIndex, modelMatrixIndex, normalMatrixIndex, tessLevelInner, tessLevelOuter, tex)
 
 initHud :: IO GLHud
 initHud = do
@@ -135,7 +139,8 @@ initHud = do
 
    currentProgram $= Just program
 
-   texIndex <- get (uniformLocation program "tex")
+   backIndex <- get (uniformLocation program "tex[0]")
+   texIndex <- get (uniformLocation program "tex[1]")
    checkError "ui-tex"
 
    -- | simple triangle over the whole screen.
@@ -157,6 +162,7 @@ initHud = do
    return GLHud
         { _hudTexture           = tex
         , _hudTexIndex          = texIndex
+        , _hudBackIndex         = backIndex
         , _hudVertexIndex       = vertexIndex
         , _hudVert              = 4
         , _hudVBO               = vbo

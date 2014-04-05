@@ -87,11 +87,13 @@ data GLMapState = GLMapState
     , _stateMap             :: !GL.BufferObject
     , _mapVert              :: !GL.NumArrayIndices
     , _mapProgram           :: !GL.Program
+    , _mapTexture           :: !TextureObject
     }
 
 data GLHud = GLHud
-    { _hudTexture               :: !TextureObject       -- ^ Texture itself
-    , _hudTexIndex              :: !GL.UniformLocation  -- ^ Position of Texture in Shader
+    { _hudTexture               :: !TextureObject       -- ^ HUD-Texture itself
+    , _hudTexIndex              :: !GL.UniformLocation  -- ^ Position of Overlay-Texture in Shader
+    , _hudBackIndex             :: !GL.UniformLocation  -- ^ Position of Background-Texture in Shader
     , _hudVertexIndex           :: !GL.AttribLocation   -- ^ Position of Vertices in Shader
     , _hudVert                  :: !GL.NumArrayIndices  -- ^ Number of Vertices to draw
     , _hudVBO                   :: !GL.BufferObject     -- ^ Vertex-Buffer-Object
@@ -102,6 +104,8 @@ data GLHud = GLHud
 data GLState = GLState
     { _glMap               :: !GLMapState
     , _glHud               :: !GLHud
+    , _glRenderbuffer      :: !GL.RenderbufferObject
+    , _glFramebuffer       :: !GL.FramebufferObject
     }
 
 data UIState = UIState
