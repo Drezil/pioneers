@@ -26,8 +26,8 @@ data Env = Env
 --Mutable State
 
 data Position = Position
-    { _x                   :: !Double
-    , _y                   :: !Double
+    { __x                   :: !Double
+    , __y                   :: !Double
     }
 
 data WindowState = WindowState

@@ -5,17 +5,14 @@ import Data.Int (Int8)
 import Graphics.Rendering.OpenGL.GL.Texturing.Specification (TextureSize2D)
 import Graphics.Rendering.OpenGL.GL.PixelRectangles.ColorTable (PixelInternalFormat(..))
 import Graphics.Rendering.OpenGL.GL.Texturing.Specification (texImage2D)
-import Control.Monad (liftM)
-import Foreign.Marshal.Array (pokeArray)
-import Foreign.Marshal.Alloc (allocaBytes)
 import Graphics.Rendering.OpenGL.GL.Texturing.Parameters (textureFilter)
 import Graphics.Rendering.OpenGL.GL.Texturing.Specification (TextureTarget2D(Texture2D))
 import Graphics.Rendering.OpenGL.GL.Texturing.Objects (textureBinding)
 import Graphics.Rendering.OpenGL.GL.Texturing.Parameters (TextureFilter(..))
 
 -- Monad-foo and higher functional stuff
-import           Control.Monad                        (unless, void, when, join)
-import Control.Arrow ((***))
+import           Control.Monad                        (unless, void, when, join, liftM)
+import           Control.Arrow                        ((***))
 
 -- data consistency/conversion
 import           Control.Concurrent                   (threadDelay)
@@ -31,11 +28,13 @@ import           Data.Distributive                    (distribute, collect)
 import           Foreign                              (Ptr, castPtr, with, sizeOf)
 import           Foreign.C                            (CFloat)
 import           Foreign.C.Types                      (CInt)
+import           Foreign.Marshal.Array                (pokeArray)
+import           Foreign.Marshal.Alloc                (allocaBytes)
 import           Data.Word                            (Word8)
 
 -- Math
 import           Control.Lens                         ((^.), (.~), (%~))
-import           Linear                               as L
+import qualified Linear                               as L
 
 -- GUI
 import           Graphics.UI.SDL                      as SDL
@@ -100,7 +99,7 @@ main = do
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
         (mapprog, ci, ni, vi, pri, vii, mi, nmi, tli, tlo, mapTex) <- initMapShader
-        putStrLn $ show window
+        print window
         eventQueue <- newTQueueIO :: IO (TQueue Event)
         putStrLn "foo"
         now <- getCurrentTime
@@ -160,8 +159,8 @@ main = do
                         , _zDist               = 10
                         , _frustum             = frust
                         , _camPosition         = Types.Position
-                                       { Types._x    = 25
-                                       , Types._y    = 25
+                                       { Types.__x    = 25
+                                       , Types.__y    = 25
                                        }
                         }
               , _io                  = IOState
@@ -175,8 +174,8 @@ main = do
                         , _dragStartXAngle     = 0
                         , _dragStartYAngle     = 0
                         , _mousePosition       = Types.Position
-                                         { Types._x  = 5
-                                         , Types._y  = 5
+                                         { Types.__x  = 5
+                                         , Types.__y  = 5
                                          }
                         }
               , _keyboard            = KeyboardState
@@ -222,16 +221,13 @@ draw = do
         numVert  = state ^. gl.glMap.mapVert         
         map'     = state ^. gl.glMap.stateMap        
         frust    = state ^. camera.frustum           
-        camX     = state ^. camera.camPosition.x
-        camY     = state ^. camera.camPosition.y
+        camX     = state ^. camera.camPosition._x
+        camY     = state ^. camera.camPosition._y
         zDist'   = state ^. camera.zDist
         tessFac  = state ^. gl.glMap.stateTessellationFactor
         window   = env ^. windowObject
         rb       = state ^. gl.glRenderbuffer
-    if state ^. ui.uiHasChanged then
-        prepareGUI
-    else
-        return ()
+    when (state ^. ui . uiHasChanged) prepareGUI
     liftIO $ do
         --bind renderbuffer and set sample 0 as target
         --GL.bindRenderbuffer GL.Renderbuffer GL.$= rb
@@ -278,23 +274,23 @@ draw = do
         checkError "setting up buffer"
         --set up projection (= copy from state)
         with (distribute frust) $ \ptr ->
-              glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
+              glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
         checkError "copy projection"
 
         --set up camera
         let ! cam = getCam (camX,camY) zDist' xa ya
         with (distribute cam) $ \ptr ->
-              glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
+              glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
         checkError "copy cam"
 
         --set up normal--Mat transpose((model*camera)^-1)
-        let normal = (case inv33 (fmap (^. _xyz) cam ^. _xyz) of
+        let normal = (case L.inv33 (fmap (^. L._xyz) cam ^. L._xyz) of
                                              (Just a) -> a
-                                             Nothing  -> eye3) :: M33 CFloat
-            nmap = collect id normal :: M33 CFloat --transpose...
+                                             Nothing  -> L.eye3) :: L.M33 CFloat
+            nmap = collect id normal :: L.M33 CFloat --transpose...
 
         with (distribute nmap) $ \ptr ->
-              glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (M33 CFloat)))
+              glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (L.M33 CFloat)))
 
         checkError "nmat"
 
@@ -379,8 +375,8 @@ run = do
               sody  = state ^. mouse.dragStartY
               sodxa = state ^. mouse.dragStartXAngle
               sodya = state ^. mouse.dragStartYAngle
-              x'    = state ^. mouse.mousePosition.x
-              y'    = state ^. mouse.mousePosition.y
+              x'    = state ^. mouse.mousePosition._x
+              y'    = state ^. mouse.mousePosition._y
               myrot = (x' - sodx) / 2
               mxrot = (y' - sody) / 2
               newXAngle  = curb (pi/12) (0.45*pi) newXAngle'
@@ -404,8 +400,8 @@ run = do
                      - 0.2 * kyrot * mults
         mody y' = y' + 0.2 * kxrot * mults
                      - 0.2 * kyrot * multc
-    modify $ (camera.camPosition.x %~ modx)
-           . (camera.camPosition.y %~ mody)
+    modify $ (camera.camPosition._x %~ modx)
+           . (camera.camPosition._y %~ mody)
 
     {-
     --modify the state with all that happened in mt time.
@@ -510,8 +506,8 @@ processEvent e = do
                     Closing ->
                             modify $ window.shouldClose .~ True
                     Resized {windowResizedTo=size} -> do
-                            modify $ (window.width  .~ (sizeWidth  size))
-                                   . (window.height .~ (sizeHeight size))
+                            modify $ (window . width .~ sizeWidth size)
+                                   . (window . height .~ sizeHeight size)
                             adjustWindow
                     SizeChanged ->
                             adjustWindow
@@ -557,8 +553,8 @@ processEvent e = do
                            . (mouse.dragStartXAngle .~ (state ^. camera.xAngle))
                            . (mouse.dragStartYAngle .~ (state ^. camera.yAngle))
                     
-                modify $ (mouse.mousePosition. Types.x .~ (fromIntegral x))
-                       . (mouse.mousePosition. Types.y .~ (fromIntegral y))
+                modify $ (mouse.mousePosition. Types._x .~ (fromIntegral x))
+                       . (mouse.mousePosition. Types._y .~ (fromIntegral y))
             MouseButton _ mouseId button state (SDL.Position x y) ->
                 case button of
                     LeftButton -> do
