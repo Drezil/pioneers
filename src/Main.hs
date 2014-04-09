@@ -68,24 +68,15 @@ import qualified Debug.Trace                          as D (trace)
 --------------------------------------------------------------------------------
 main :: IO ()
 main = do
-        SDL.withInit [InitVideo, InitAudio, InitEvents, InitTimer] $ do --also: InitNoParachute -> faster, without parachute!
-{-        (window, renderer) <- SDL.createWindowAndRenderer (Size 1024 600) [WindowOpengl     -- we want openGL
-                                                                             ,WindowShown      -- window should be visible
-                                                                             ,WindowResizable  -- and resizable 
-                                                                             ,WindowInputFocus -- focused (=> active)
-                                                                             ,WindowMouseFocus -- Mouse into it
-                                                                             --,WindowInputGrabbed-- never let go of input (KB/Mouse)
-                                                                             ] -}
-        SDL.withWindow "Pioneers" (SDL.Position 100 100) (Size 1024 600) [WindowOpengl     -- we want openGL
+     SDL.withInit [InitVideo, InitAudio, InitEvents, InitTimer] $ do --also: InitNoParachute -> faster, without parachute!
+      SDL.withWindow "Pioneers" (SDL.Position 100 100) (Size 1024 600) [WindowOpengl     -- we want openGL
                                                                              ,WindowShown      -- window should be visible
                                                                              ,WindowResizable  -- and resizable 
                                                                              ,WindowInputFocus -- focused (=> active)
                                                                              ,WindowMouseFocus -- Mouse into it
                                                                              --,WindowInputGrabbed-- never let go of input (KB/Mouse)
                                                                              ] $ \window -> do
-        --mainGlContext <- SDL.glCreateContext window 
-        withOpenGL window $ do
-        --TTF.withInit $ do
+       withOpenGL window $ do
         
         --Create Renderbuffer & Framebuffer
         -- We will render to this buffer to copy the result into textures
