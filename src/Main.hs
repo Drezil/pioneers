@@ -60,12 +60,21 @@ import           Render.Render                        (initRendering,
 import           UI.Callbacks
 import           UI.GUIOverlay
 import           Types
+import           Importer.IQM.Parser
+import           Data.Attoparsec.Char8 (parseTest)
+import qualified Data.ByteString as B
 
 --import           ThirdParty.Flippers
 
 import qualified Debug.Trace                          as D (trace)
 
 --------------------------------------------------------------------------------
+
+testParser = do
+        B.readFile "sample.iqm" >>= parseTest parseIQM
+
+--------------------------------------------------------------------------------
+
 main :: IO ()
 main = do
      SDL.withInit [InitVideo, InitAudio, InitEvents, InitTimer] $ do --also: InitNoParachute -> faster, without parachute!

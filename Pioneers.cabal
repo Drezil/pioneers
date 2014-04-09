@@ -16,6 +16,9 @@ executable Pioneers
                    Map.Graphics,
                    Map.Creation,
                    Map.StaticMaps,
+                   IQM.Types,
+                   IQM.TestMain,
+                   IQM.Parser,
                    Render.Misc,
                    Render.Render,
                    Render.RenderObject,
@@ -41,6 +44,7 @@ executable Pioneers
                    lens >=4.0,
                    SDL2 >= 0.1.0,
                    time >=1.4.0,
-                   GLUtil >= 0.7
+                   GLUtil >= 0.7,
+                   attoparsec >= 0.11.2
   Default-Language: Haskell2010
 
