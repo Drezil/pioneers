@@ -1,6 +1,6 @@
 name:           Pioneers
 version:        0.1
-cabal-version:  >= 1.18
+cabal-version:  >= 1.16
 build-type:     Simple
 author:         sdressel
 
