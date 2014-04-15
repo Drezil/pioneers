@@ -2,8 +2,6 @@
 module Render.Render where
 
 import qualified Data.ByteString                            as B
-import           Data.Array.Storable
-import qualified Data.Vector.Storable                       as V
 import           Foreign.Marshal.Array                      (withArray)
 import           Foreign.Storable
 import           Graphics.Rendering.OpenGL.GL.BufferObjects
@@ -14,13 +12,10 @@ import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
 import           Graphics.Rendering.OpenGL.GL.VertexArrays  (Capability (..),
-                                                             vertexAttribArray,
-                                                             VertexArrayDescriptor,
-                                                             DataType(Float))
+                                                             vertexAttribArray)
 import           Graphics.Rendering.OpenGL.GL.VertexSpec
 import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Render.Misc
-import           Foreign.Ptr                                (Ptr, wordPtrToPtr)
 
 import           Types
 import           Graphics.GLUtil.BufferObjects              (makeBuffer)
@@ -169,7 +164,7 @@ initHud = do
         , _hudEBO               = ebo
         , _hudProgram           = program
         }
-        
+
 
 
 

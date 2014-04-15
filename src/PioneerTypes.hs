@@ -1,4 +1,4 @@
-module PioneerTypes 
+module PioneerTypes
 where
 
 data Structure = Flag           -- Flag
@@ -36,7 +36,7 @@ data Structure = Flag           -- Flag
                deriving (Show, Eq)
 
 data Amount    = Infinite   -- Neverending supply
-               | Finite Int -- Finite supply 
+               | Finite Int -- Finite supply
 
 -- Extremely preliminary, expand when needed
 data Commodity = WoodPlank
@@ -54,9 +54,9 @@ data Resource  = Coal
 
 instance Show Amount where
     show (Infinite) = "inexhaustable supply"
-    show (Finite n) = (show n) ++ " left"
+    show (Finite n) = show n ++ " left"
 
 instance Show Commodity where
     show WoodPlank = "wooden plank"
-    show Sword     = "sword" 
+    show Sword     = "sword"
     show Fish      = "fish"

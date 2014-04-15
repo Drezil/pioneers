@@ -3,7 +3,7 @@ module Types where
 
 import           Control.Concurrent.STM               (TQueue)
 import qualified Graphics.Rendering.OpenGL.GL         as GL
-import           Graphics.UI.SDL                      as SDL (Event, Window, Texture, Renderer)
+import           Graphics.UI.SDL                      as SDL (Event, Window)
 import           Foreign.C                            (CFloat)
 import           Data.Time                            (UTCTime)
 import Linear.Matrix (M44)

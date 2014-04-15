@@ -8,7 +8,6 @@ import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.StringQueries
 import           Graphics.Rendering.OpenGL.GLU.Errors
-import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Graphics.UI.SDL.Types                      (Texture)
 import           System.IO                                  (hPutStrLn, stderr)
 import Linear
@@ -62,7 +61,7 @@ createProgramUsing shaders = do
 
 createFrustum :: Float -> Float -> Float -> Float -> M44 CFloat
 createFrustum fov n' f' rat =
-                let 
+                let
                     f = realToFrac f'
                     n = realToFrac n'
                     s = realToFrac $ recip (tan $ fov*0.5 * pi / 180)
@@ -78,7 +77,7 @@ createFrustum fov n' f' rat =
 
 -- from vmath.h
 lookAt :: V3 CFloat -> V3 CFloat -> V3 CFloat -> M44 CFloat
-lookAt eye@(V3 ex ey ez) center up =
+lookAt eye center up' =
         V4
          (V4 xx xy xz (-dot x eye))
          (V4 yx yy yz (-dot y eye))
@@ -86,7 +85,7 @@ lookAt eye@(V3 ex ey ez) center up =
          (V4 0 0 0 1)
         where
                 z@(V3 zx zy zz) = normalize (eye ^-^ center)
-                x@(V3 xx xy xz) = normalize (cross up z)
+                x@(V3 xx xy xz) = normalize (cross up' z)
                 y@(V3 yx yy yz) = normalize (cross z x)
 
 
