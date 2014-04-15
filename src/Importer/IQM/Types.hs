@@ -2,9 +2,11 @@ module Importer.IQM.Types where
 
 import Data.Int
 import Data.ByteString
+import Data.Attoparsec.ByteString.Char8
+import Control.Monad.Trans.State.Lazy (StateT)
 
 newtype Mesh = Mesh Int32 deriving (Show, Eq)
-newtype CParser a = Parser (a, Int64)
+type CParser a = StateT Int64 Parser a
 
 -- Int32 or Int64 - depending on implementation. Format just specifies "uint".
 -- 4-Byte indicates Int32

@@ -22,6 +22,8 @@ import           Control.Concurrent.STM               (TQueue,
 import           Control.Monad.RWS.Strict             (RWST, ask, asks,
                                                        evalRWST, get, liftIO,
                                                        modify, put)
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.State            (evalStateT)
 import           Data.Distributive                    (distribute, collect)
 
 -- FFI
@@ -70,8 +72,10 @@ import qualified Debug.Trace                          as D (trace)
 
 --------------------------------------------------------------------------------
 
+testParser :: IO ()
 testParser = do
-        B.readFile "sample.iqm" >>= parseTest parseIQM
+        f <- B.readFile "sample.iqm" 
+        parseTest (evalStateT parseIQM 0) f
 
 --------------------------------------------------------------------------------
 
