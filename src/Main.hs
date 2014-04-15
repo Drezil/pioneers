@@ -24,7 +24,9 @@ import           Control.Monad.RWS.Strict             (RWST, ask, asks,
                                                        modify, put)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State            (evalStateT)
+import           Data.Functor                         ((<$>))
 import           Data.Distributive                    (distribute, collect)
+import           Data.Monoid                          (mappend)
 
 -- FFI
 import           Foreign                              (Ptr, castPtr, with, sizeOf)
@@ -200,7 +202,8 @@ main = do
               }
 
         putStrLn "init done."
-        void $ evalRWST (adjustWindow >> run) env state
+        uncurry mappend <$> evalRWST (adjustWindow >> run) env state
+	putStrLn "shutdown complete."
         
         --SDL.glDeleteContext mainGlContext
         --SDL.destroyRenderer renderer
