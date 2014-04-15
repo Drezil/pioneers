@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, BangPatterns #-}
-module Map.Graphics 
+module Map.Graphics
 
 (
 mapVertexArrayDescriptor,
@@ -13,7 +13,7 @@ where
 
 import System.Random
 import Data.Array.IArray
-import Data.Text as T 
+import Data.Text as T
 import Prelude as P
 
 --import Graphics.Rendering.OpenGL.GL
@@ -33,8 +33,10 @@ import Linear
 import Map.Types
 import Map.StaticMaps
 
+type Height = Float
+
 type MapEntry = (
-                Float, -- ^ Height
+                Height,
                 TileType
                 )
 
@@ -94,10 +96,10 @@ prettyMap (a:b:c:d:x:y:z:u:v:w:ms) = (a,b,c,d,x,y,z,u,v,w):(prettyMap ms)
 prettyMap _ = []
 
 --generateTriangles :: PlayMap -> [GLfloat]
-generateTriangles :: GraphicsMap -> [GLfloat] 
+generateTriangles :: GraphicsMap -> [GLfloat]
 generateTriangles map' =
                 let ((xl,yl),(xh,yh)) = bounds map' in
-                P.concat [P.concat $ P.map (generateFirstTriLine map' y) [xl .. xh - 2] 
+                P.concat [P.concat $ P.map (generateFirstTriLine map' y) [xl .. xh - 2]
                           ++ P.map (generateSecondTriLine map' (y == yh) y) [xl .. xh - 2]
                          | y <- [yl..yh]]
 
@@ -132,8 +134,8 @@ generateSecondTriLine _ True _ _  = []
 
 
 lookupVertex :: GraphicsMap -> Int -> Int -> [GLfloat]
-lookupVertex map' x y = 
-                let 
+lookupVertex map' x y =
+                let
                         (cr, cg, cb)  = colorLookup map' (x,y)
                         (V3 vx vy vz) = coordLookup (x,y) $ heightLookup map' (x,y)
                         (V3 nx ny nz) = normalLookup map' x y
@@ -157,7 +159,7 @@ normalLookup map' x y = normalize $ normN + normNE + normSE + normS + normSW + n
                       normNW = cross (vNW-vC) (vW -vC)
                       --Vertex Normals
                       vC     = coordLookup (x,y) $ heightLookup map' (x,y)
-                      --TODO: kill guards with eo 
+                      --TODO: kill guards with eo
                       vNW
                         | even x    = coordLookup (x-1,y-1) $ heightLookup map' (x-1,y-1)
                         | otherwise = coordLookup (x-1,y  ) $ heightLookup map' (x-1,y  )
@@ -180,12 +182,12 @@ normalLookup map' x y = normalize $ normN + normNE + normSE + normS + normSW + n
 
 heightLookup :: GraphicsMap -> (Int,Int) -> GLfloat
 heightLookup hs t = if inRange (bounds hs) t then fromRational $ toRational h else 0.0
-                where 
+                where
                         (h,_) = hs ! t
 
 colorLookup :: GraphicsMap -> (Int,Int) -> (GLfloat, GLfloat, GLfloat)
 colorLookup hs t = if inRange (bounds hs) t then c else (0.0, 0.0, 0.0)
-                where 
+                where
                         (_,tp) = hs ! t
                         c = case tp of
                                 Ocean           -> (0.50, 0.50, 1.00)
@@ -256,7 +258,7 @@ testmap2 = do
 
 
 parseTemplate :: [Int] -> Text -> [MapEntry]
-parseTemplate (r:rs) t = 
+parseTemplate (r:rs) t =
         (case T.head t of
                 '~' -> (0, Ocean)
                 'S' -> (0, Beach)

@@ -48,18 +48,20 @@ initBuffer varray =
            return bufferObject
 
 initMapShader :: IO (
-                      Program           -- ^ the GLSL-Program
-                      , AttribLocation  -- ^ color
-                      , AttribLocation  -- ^ normal
-                      , AttribLocation  -- ^ vertex
-                      , UniformLocation -- ^ ProjectionMat
-                      , UniformLocation -- ^ ViewMat
-                      , UniformLocation -- ^ ModelMat
-                      , UniformLocation -- ^ NormalMat
-                      , UniformLocation -- ^ TessLevelInner
-                      , UniformLocation -- ^ TessLevelOuter
-                      , TextureObject   -- ^ Texture where to draw into
-                      )
+                      Program           -- the GLSL-Program
+                      , AttribLocation  -- color
+                      , AttribLocation  -- normal
+                      , AttribLocation  -- vertex
+                      , UniformLocation -- ProjectionMat
+                      , UniformLocation -- ViewMat
+                      , UniformLocation -- ModelMat
+                      , UniformLocation -- NormalMat
+                      , UniformLocation -- TessLevelInner
+                      , UniformLocation -- TessLevelOuter
+                      , TextureObject   -- Texture where to draw into
+                      ) -- ^ (the GLSL-Program, color, normal, vertex, ProjectionMat, ViewMat,
+                        --    ModelMat, NormalMat, TessLevelInner, TessLevelOuter,
+                        --    Texture where to draw into)
 initMapShader = do
    ! vertexSource <- B.readFile mapVertexShaderFile
    ! tessControlSource <- B.readFile mapTessControlShaderFile
@@ -138,7 +140,7 @@ initHud = do
    texIndex <- get (uniformLocation program "tex[1]")
    checkError "ui-tex"
 
-   -- | simple triangle over the whole screen.
+   -- simple triangle over the whole screen.
    let vertexBufferData = reverse [-1, -1, 1, -1, -1, 1, 1, 1] :: [GLfloat]
 
    vertexIndex <- get (attribLocation program "position")
