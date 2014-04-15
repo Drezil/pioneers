@@ -135,16 +135,23 @@ readMeshes n = do
 
 infix 5 .-
 
+skipToCounter :: Integral a => a -> CParser ()
+skipToCounter a = do
+                        let d = fromIntegral a
+			c <- get
+                        when (d < c) $ fail "wanting to skip to counter already passed"
+			_ <- lift $ take $ d .- c
+			put d
+
 parseIQM :: CParser IQM
 parseIQM = do
-        put 0
-        h <- readHeader
-	soFar <- get
-        _ <- lift $ take $ ofs_text h .- soFar
-        text <- lift $ take $ fromIntegral $ num_text h
-        soFar <- get
-        _ <- lift $ take $ ofs_meshes h .- soFar
-        meshes' <- readMeshes (fromIntegral (num_meshes h))
+        put 0 							--start at offset 0
+        h <- readHeader						--read header
+        skipToCounter $ ofs_text h				--skip 0-n bytes to get to text
+        text <- lift . take . fromIntegral $ num_text h         --read texts
+	modify . (+) . fromIntegral $ num_text h                --put offset forward
+        skipToCounter $ ofs_meshes h                            --skip 0-n bytes to get to meshes
+        meshes' <- readMeshes (fromIntegral (num_meshes h))     --read meshes
         return IQM
                 { header = h
                 , texts = filter (not.null) (split (unsafeCoerce '\0') text)
