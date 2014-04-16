@@ -1,3 +1,5 @@
+-- | Int32 or Int64 - depending on implementation. Format just specifies "uint".
+--   4-Byte in the documentation indicates Int32 - but not specified!
 module Importer.IQM.Types where
 
 import Data.Int
@@ -5,14 +7,20 @@ import Data.ByteString
 import Data.Attoparsec.ByteString.Char8
 import Control.Monad.Trans.State.Lazy (StateT)
 
+-- | Mesh-Indices to distinguish the meshes referenced
 newtype Mesh = Mesh Int32 deriving (Show, Eq)
+-- | State-Wrapped Parser-Monad which is capable of counting the
+--   Bytes read for offset-gap reasons
 type CParser a = StateT Int64 Parser a
 
--- Int32 or Int64 - depending on implementation. Format just specifies "uint".
--- 4-Byte indicates Int32
 
--- | ofs_* fields are relative tot he beginning of the iqmheader struct
+
+-- | Header of IQM-Format.
+--
+--   ofs_* fields are relative to the beginning of the iqmheader struct
+--
 --   ofs_* fields are set to 0 when data is empty
+--
 --   ofs_* fields are aligned at 4-byte-boundaries
 data IQMHeader = IQMHeader
                 { version            :: Int32 -- ^ Must be 2
@@ -43,8 +51,10 @@ data IQMHeader = IQMHeader
                 , num_extensions     :: Int32 -- ^ stored as linked list, not as array.
                 , ofs_extensions     :: Int32
                 } deriving (Show, Eq)
- 
- 
+
+-- | Format of an IQM-Mesh Structure.
+--
+--   Read it like a Header of the Meshes lateron in the Format
 data IQMMesh = IQMMesh
                 { meshName              :: Maybe Mesh
                 , meshMaterial          :: Int32
@@ -53,10 +63,13 @@ data IQMMesh = IQMMesh
                 , meshFirstTriangle     :: Int32
                 , meshNumTriangles      :: Int32
                 } deriving (Show, Eq)
-                
+
+-- | Format of a whole IQM-File
+--
+--   still unfinished!
 data IQM = IQM
         { header                :: IQMHeader
         , texts                 :: [ByteString]
         , meshes                :: [IQMMesh]
         } deriving (Show, Eq)
-        
+
