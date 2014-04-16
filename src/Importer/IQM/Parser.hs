@@ -30,7 +30,7 @@ parseNum = (foldl1 w8ToInt) . map fromIntegral
 -- | read a 16-Bit Int from Parsing-Input and log 2 bytes in our Parsing-Monad
 --
 --   begins with _ to defeat ghc-warnings. Rename if used!
-_int16 :: CParser Int16
+_int16 :: CParser Word16
 _int16 = do
         ret <- lift $ do
                          a <- anyWord8 :: Parser Word8
@@ -40,7 +40,7 @@ _int16 = do
         return ret
 
 -- | read a 32-Bit Int from Parsing-Input and log 4 bytes in our Parsing-Monad
-int32 :: CParser Int32
+int32 :: CParser Word32
 int32 = do
         ret <- lift $ do
                          a <- anyWord8 :: Parser Word8
@@ -55,6 +55,7 @@ int32 = do
 readHeader :: CParser IQMHeader
 readHeader = do
          _ <- lift $ string (pack "INTERQUAKEMODEL\0")
+         modify (+16)
          v <- int32
          -- when v /= 2 then --TODO: error something
          size' <- int32
@@ -85,7 +86,7 @@ readHeader = do
          ofs_extensions' <- int32
          return IQMHeader { version = v
                 , filesize           = size'
-                , flags              = flags'
+                , flags              = fromIntegral flags'
                 , num_text           = num_text'
                 , ofs_text           = ofs_text'
                 , num_meshes         = num_meshes'
@@ -140,6 +141,26 @@ readMeshes n = do
         ms <- readMeshes (n-1)
         return $ m:ms
 
+-- | Parser for Mesh-Structure
+readVAF :: CParser IQMVertexArray
+readVAF = do
+        vat <- rawEnumToVAT =<< int32
+        flags' <- int32
+        format <- rawEnumToVAF =<< int32
+        size <- int32
+        offset <- int32
+        return $ IQMVertexArray vat (fromIntegral flags') format (fromIntegral size) offset
+
+-- | helper to read n consecutive Meshes tail-recursive
+readVAFs :: Int -> CParser [IQMVertexArray]
+readVAFs 1 = do
+        f <- readVAF
+        return [f]
+readVAFs n = do
+        f <- readVAF
+        fs <- readVAFs (n-1)
+        return $ f:fs
+
 -- | helper-Notation for subtracting 2 integral values of different kind in the precision
 --   of the target-kind
 (.-) :: forall a a1 a2.
@@ -171,9 +192,12 @@ parseIQM = do
         modify . (+) . fromIntegral $ num_text h                --put offset forward
         skipToCounter $ ofs_meshes h                            --skip 0-n bytes to get to meshes
         meshes' <- readMeshes (fromIntegral (num_meshes h))     --read meshes
+        skipToCounter $ ofs_vertexarrays h                      --skip 0-n byots to get to vertexarray definition
+        va <- readVAFs (fromIntegral (num_vertexarrays h))      --read them
         return IQM
                 { header = h
                 , texts = filter (not.null) (split (unsafeCoerce '\0') text)
                 , meshes = meshes'
+                , vertexArrays = va
                 }
 

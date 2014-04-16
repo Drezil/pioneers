@@ -23,12 +23,12 @@ mapCenterMountain :: PlayMap
 mapCenterMountain = array ((0,0),(200,200)) nodes
     where
       nodes    = water ++ beach ++ grass ++ hill ++ mountain
-      water    = [((a,b), (Full (a,b) 0.0       Ocean    BNothing NoPlayer NoPath Plain [])) | a <- [0..200], b <- [0..200], (m2d (a,b)) > 95] 
+      water    = [((a,b), (Full (a,b) 0.0       Ocean    BNothing NoPlayer NoPath Plain [])) | a <- [0..200], b <- [0..200], (m2d (a,b)) > 95]
       beach    = [((a,b), (Full (a,b) (g2d a b) Beach    BNothing NoPlayer NoPath Plain [])) | a <- [0..200], b <- [0..200], (m2d (a,b)) <= 95, (m2d (a,b)) > 75]
       grass    = [((a,b), (Full (a,b) (g2d a b) Grass    BNothing NoPlayer NoPath Plain [])) | a <- [0..200], b <- [0..200], (m2d (a,b)) <= 75, (m2d (a,b)) > 25]
       hill     = [((a,b), (Full (a,b) (g2d a b) Hill     BNothing NoPlayer NoPath Plain [])) | a <- [0..200], b <- [0..200], (m2d (a,b)) <= 25, (m2d (a,b)) > 10]
       mountain = [((a,b), (Full (a,b) (g2d a b) Mountain BNothing NoPlayer NoPath Plain [])) | a <- [0..200], b <- [0..200], (m2d (a,b)) <= 10]
-     
+
       g2d :: Int -> Int -> Float
       g2d x y = gauss2D (fromIntegral x) (fromIntegral y)
 
