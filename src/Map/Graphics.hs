@@ -33,10 +33,7 @@ import Linear
 import Map.Types
 import Map.StaticMaps
 
-type MapEntry = (
-                Float, -- ^ Height
-                TileType
-                )
+type MapEntry = (Float, TileType)
 
 type GraphicsMap = Array (Int, Int) MapEntry
 
