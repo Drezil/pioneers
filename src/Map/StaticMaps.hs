@@ -4,8 +4,17 @@ where
 import Map.Types
 import Data.Array
 
-gauss2Dgeneral :: Floating q => q -> q -> q -> q -> q -> q -> q -> q
-gauss2Dgeneral amp x0 y0 sX sY x y = amp * exp (-(((x-x0)^2/(2 * sX^2))+((y-y0)^2/(2 * sY^2))))
+-- general 2D-Gaussian
+gauss2Dgeneral :: Floating q => 
+                  q    -- ^ Amplitude
+                  -> q -- ^ Origin on X-Achsis
+                  -> q -- ^ Origin on Y-Achsis
+                  -> q -- ^ Sigma on X
+                  -> q -- ^ Sigma on Y
+                  -> q -- ^ Coordinate in question on X
+                  -> q -- ^ Coordinate in question on Y
+                  -> q -- ^ elevation on coordinate in question
+gauss2Dgeneral amp x0 y0 sX sY x y = amp * exp(-(((x-x0)^2/(2 * sX^2))+((y-y0)^2/(2 * sY^2))))
 
 gauss2D :: Floating q => q -> q -> q
 gauss2D x y = gauss2Dgeneral 15 100.0 100.0 15.0 15.0 x y
