@@ -97,7 +97,7 @@ float snoise(vec3 v)
 float fog(float dist) {
     dist = max(0,dist - 50);
     dist = dist * 0.05;
-    dist = dist;
+//    dist = dist*dist;
     return 1-exp(-dist);
 }
 
