@@ -1,46 +1,38 @@
 {-# LANGUAGE BangPatterns, DoAndIfThenElse #-}
 module Main where
 
-import Data.Int (Int8)
-import Graphics.Rendering.OpenGL.GL.Texturing.Specification (TextureSize2D)
+import Graphics.Rendering.OpenGL.GL.Texturing.Specification (texImage2D,TextureTarget2D(Texture2D))
 import Graphics.Rendering.OpenGL.GL.PixelRectangles.ColorTable (PixelInternalFormat(..))
-import Graphics.Rendering.OpenGL.GL.Texturing.Specification (texImage2D)
-import Control.Monad (liftM)
-import Foreign.Marshal.Array (pokeArray)
-import Foreign.Marshal.Alloc (allocaBytes)
-import Graphics.Rendering.OpenGL.GL.Texturing.Parameters (textureFilter)
-import Graphics.Rendering.OpenGL.GL.Texturing.Specification (TextureTarget2D(Texture2D))
 import Graphics.Rendering.OpenGL.GL.Texturing.Objects (textureBinding)
-import Graphics.Rendering.OpenGL.GL.Texturing.Parameters (TextureFilter(..))
+import Graphics.Rendering.OpenGL.GL.Texturing.Parameters (TextureFilter(..),textureFilter)
 
 -- Monad-foo and higher functional stuff
-import           Control.Monad                        (unless, void, when, join)
-import Control.Arrow ((***))
+import           Control.Monad                        (unless, when, join)
+import           Control.Arrow                        ((***))
 
 -- data consistency/conversion
 import           Control.Concurrent                   (threadDelay)
 import           Control.Concurrent.STM               (TQueue,
                                                        newTQueueIO)
 
-import           Control.Monad.RWS.Strict             (RWST, ask, asks,
-                                                       evalRWST, get, liftIO,
-                                                       modify, put)
+import           Control.Monad.RWS.Strict             (ask, evalRWST, get, liftIO, modify)
+import           Control.Monad.Trans.State            (evalStateT)
+import           Data.Functor                         ((<$>))
 import           Data.Distributive                    (distribute, collect)
+import           Data.Monoid                          (mappend)
 
 -- FFI
 import           Foreign                              (Ptr, castPtr, with, sizeOf)
 import           Foreign.C                            (CFloat)
-import           Foreign.C.Types                      (CInt)
-import           Data.Word                            (Word8)
+import           Foreign.Marshal.Array                (pokeArray)
+import           Foreign.Marshal.Alloc                (allocaBytes)
 
 -- Math
 import           Control.Lens                         ((^.), (.~), (%~))
-import           Linear                               as L
+import qualified Linear                               as L
 
 -- GUI
 import           Graphics.UI.SDL                      as SDL
---import           Graphics.UI.SDL.TTF                  as TTF
---import           Graphics.UI.SDL.TTF.Types
 
 -- Render
 import qualified Graphics.Rendering.OpenGL.GL         as GL
@@ -51,56 +43,53 @@ import           Graphics.GLUtil.BufferObjects        (offset0)
 import Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
 -- Our modules
 import           Map.Graphics
-import           Render.Misc                          (checkError,
-                                                       createFrustum, getCam,
-                                                       curb, tryWithTexture,
+import           Render.Misc                          (checkError, createFrustum, getCam, curb,
                                                        genColorData)
 import           Render.Render                        (initRendering,
                                                        initMapShader,
                                                        initHud)
 import           UI.Callbacks
-import           UI.GUIOverlay
 import           Types
+import           Importer.IQM.Parser
+import           Data.Attoparsec.Char8 (parseTest)
+import qualified Data.ByteString as B
 
---import           ThirdParty.Flippers
-
-import qualified Debug.Trace                          as D (trace)
+-- import qualified Debug.Trace                          as D (trace)
 
 --------------------------------------------------------------------------------
+
+testParser :: IO ()
+testParser = do
+        f <- B.readFile "sample.iqm"
+        parseTest (evalStateT parseIQM 0) f
+
+--------------------------------------------------------------------------------
+
 main :: IO ()
-main = do
-        SDL.withInit [InitVideo, InitAudio, InitEvents, InitTimer] $ do --also: InitNoParachute -> faster, without parachute!
-{-        (window, renderer) <- SDL.createWindowAndRenderer (Size 1024 600) [WindowOpengl     -- we want openGL
+main =
+    SDL.withInit [InitVideo, InitAudio, InitEvents, InitTimer] $ --also: InitNoParachute -> faster, without parachute!
+      SDL.withWindow "Pioneers" (SDL.Position 100 100) (Size 1024 600) [WindowOpengl     -- we want openGL
                                                                              ,WindowShown      -- window should be visible
-                                                                             ,WindowResizable  -- and resizable 
+                                                                             ,WindowResizable  -- and resizable
                                                                              ,WindowInputFocus -- focused (=> active)
                                                                              ,WindowMouseFocus -- Mouse into it
                                                                              --,WindowInputGrabbed-- never let go of input (KB/Mouse)
-                                                                             ] -}
-        SDL.withWindow "Pioneers" (SDL.Position 100 100) (Size 1024 600) [WindowOpengl     -- we want openGL
-                                                                             ,WindowShown      -- window should be visible
-                                                                             ,WindowResizable  -- and resizable 
-                                                                             ,WindowInputFocus -- focused (=> active)
-                                                                             ,WindowMouseFocus -- Mouse into it
-                                                                             --,WindowInputGrabbed-- never let go of input (KB/Mouse)
-                                                                             ] $ \window -> do
-        --mainGlContext <- SDL.glCreateContext window 
-        withOpenGL window $ do
-        --TTF.withInit $ do
-        
+                                                                             ] $ \window' -> do
+       withOpenGL window' $ do
+
         --Create Renderbuffer & Framebuffer
         -- We will render to this buffer to copy the result into textures
         renderBuffer <- GL.genObjectName
         frameBuffer <- GL.genObjectName
         GL.bindFramebuffer GL.Framebuffer GL.$= frameBuffer
         GL.bindRenderbuffer GL.Renderbuffer GL.$= renderBuffer
-        
-        (Size fbWidth fbHeight) <- glGetDrawableSize window
+
+        (Size fbWidth fbHeight) <- glGetDrawableSize window'
         initRendering
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
         (mapprog, ci, ni, vi, pri, vii, mi, nmi, tli, tlo, mapTex) <- initMapShader
-        putStrLn $ show window
+        print window'
         eventQueue <- newTQueueIO :: IO (TQueue Event)
         putStrLn "foo"
         now <- getCurrentTime
@@ -109,9 +98,9 @@ main = do
         --TTF.setFontStyle font TTFNormal
         --TTF.setFontHinting font TTFHNormal
 
-        glHud <- initHud
-        let zDistClosest  = 1
-            zDistFarthest = zDistClosest + 50
+        glHud' <- initHud
+        let zDistClosest'  = 1
+            zDistFarthest' = zDistClosest' + 50
             --TODO: Move near/far/fov to state for runtime-changability & central storage
             fov           = 90  --field of view
             near          = 1   --near plane
@@ -124,7 +113,7 @@ main = do
                 , _left     = False
                 , _right    = False
             }
-            glMap = GLMapState
+            glMap' = GLMapState
                 { _shdrVertexIndex      = vi
                 , _shdrNormalIndex      = ni
                 , _shdrColorIndex       = ci
@@ -142,11 +131,9 @@ main = do
                 }
             env = Env
               { _eventsChan      = eventQueue
-              , _windowObject    = window
-              , _zDistClosest    = zDistClosest
-              , _zDistFarthest   = zDistFarthest
-              --, _renderer        = renderer 
-              --, envFont          = font
+              , _windowObject    = window'
+              , _zDistClosest    = zDistClosest'
+              , _zDistFarthest   = zDistFarthest'
               }
             state = State
               { _window              = WindowState
@@ -160,8 +147,8 @@ main = do
                         , _zDist               = 10
                         , _frustum             = frust
                         , _camPosition         = Types.Position
-                                       { Types._x    = 25
-                                       , Types._y    = 25
+                                       { Types.__x    = 25
+                                       , Types.__y    = 25
                                        }
                         }
               , _io                  = IOState
@@ -175,16 +162,16 @@ main = do
                         , _dragStartXAngle     = 0
                         , _dragStartYAngle     = 0
                         , _mousePosition       = Types.Position
-                                         { Types._x  = 5
-                                         , Types._y  = 5
+                                         { Types.__x  = 5
+                                         , Types.__y  = 5
                                          }
                         }
               , _keyboard            = KeyboardState
                         { _arrowsPressed       = aks
                         }
               , _gl                  = GLState
-                        { _glMap               = glMap
-                        , _glHud               = glHud
+                        { _glMap               = glMap'
+                        , _glHud               = glHud'
                         , _glRenderbuffer      = renderBuffer
                         , _glFramebuffer       = frameBuffer
                         }
@@ -197,8 +184,9 @@ main = do
               }
 
         putStrLn "init done."
-        void $ evalRWST (adjustWindow >> run) env state
-        
+        uncurry mappend <$> evalRWST (adjustWindow >> run) env state
+        putStrLn "shutdown complete."
+
         --SDL.glDeleteContext mainGlContext
         --SDL.destroyRenderer renderer
         --destroyWindow window
@@ -208,34 +196,28 @@ main = do
 draw :: Pioneers ()
 draw = do
     state <- get
-    env <- ask
     let xa       = state ^. camera.xAngle
         ya       = state ^. camera.yAngle
-        (GL.UniformLocation proj)  = state ^. gl.glMap.shdrProjMatIndex   
-        (GL.UniformLocation nmat)  = state ^. gl.glMap.shdrNormalMatIndex 
-        (GL.UniformLocation vmat)  = state ^. gl.glMap.shdrViewMatIndex   
-        (GL.UniformLocation tli)   = state ^. gl.glMap.shdrTessInnerIndex 
-        (GL.UniformLocation tlo)   = state ^. gl.glMap.shdrTessOuterIndex 
-        vi       = state ^. gl.glMap.shdrVertexIndex 
-        ni       = state ^. gl.glMap.shdrNormalIndex 
-        ci       = state ^. gl.glMap.shdrColorIndex  
-        numVert  = state ^. gl.glMap.mapVert         
-        map'     = state ^. gl.glMap.stateMap        
-        frust    = state ^. camera.frustum           
-        camX     = state ^. camera.camPosition.x
-        camY     = state ^. camera.camPosition.y
+        (GL.UniformLocation proj)  = state ^. gl.glMap.shdrProjMatIndex
+        (GL.UniformLocation nmat)  = state ^. gl.glMap.shdrNormalMatIndex
+        (GL.UniformLocation vmat)  = state ^. gl.glMap.shdrViewMatIndex
+        (GL.UniformLocation tli)   = state ^. gl.glMap.shdrTessInnerIndex
+        (GL.UniformLocation tlo)   = state ^. gl.glMap.shdrTessOuterIndex
+        vi       = state ^. gl.glMap.shdrVertexIndex
+        ni       = state ^. gl.glMap.shdrNormalIndex
+        ci       = state ^. gl.glMap.shdrColorIndex
+        numVert  = state ^. gl.glMap.mapVert
+        map'     = state ^. gl.glMap.stateMap
+        frust    = state ^. camera.frustum
+        camX     = state ^. camera.camPosition._x
+        camY     = state ^. camera.camPosition._y
         zDist'   = state ^. camera.zDist
         tessFac  = state ^. gl.glMap.stateTessellationFactor
-        window   = env ^. windowObject
-        rb       = state ^. gl.glRenderbuffer
-    if state ^. ui.uiHasChanged then
-        prepareGUI
-    else
-        return ()
+    when (state ^. ui . uiHasChanged) prepareGUI
     liftIO $ do
         --bind renderbuffer and set sample 0 as target
         --GL.bindRenderbuffer GL.Renderbuffer GL.$= rb
-        --GL.bindFramebuffer  GL.Framebuffer  GL.$= GL.defaultFramebufferObject 
+        --GL.bindFramebuffer  GL.Framebuffer  GL.$= GL.defaultFramebufferObject
         --checkError "bind renderbuffer"
 
         --checkError "clear renderbuffer"
@@ -248,7 +230,7 @@ draw = do
 
         -- draw map
         --(vi,GL.UniformLocation proj) <- initShader
-        
+
         GL.bindFramebuffer GL.Framebuffer GL.$= (state ^. gl.glFramebuffer)
         GL.bindRenderbuffer GL.Renderbuffer GL.$= (state ^. gl.glRenderbuffer)
         GL.framebufferRenderbuffer
@@ -257,14 +239,14 @@ draw = do
                 GL.Renderbuffer
                 (state ^. gl.glRenderbuffer)
         textureBinding GL.Texture2D GL.$= Just (state ^. gl.glMap.mapTexture)
-        
+
         GL.framebufferTexture2D
                 GL.Framebuffer
                 (GL.ColorAttachment 0)
                 GL.Texture2D
                 (state ^. gl.glMap.mapTexture)
                 0
-        
+
         -- Render to FrameBufferObject
         GL.drawBuffers GL.$= [GL.FBOColorAttachment 0]
         checkError "setup Render-Target"
@@ -278,23 +260,23 @@ draw = do
         checkError "setting up buffer"
         --set up projection (= copy from state)
         with (distribute frust) $ \ptr ->
-              glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
+              glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
         checkError "copy projection"
 
         --set up camera
         let ! cam = getCam (camX,camY) zDist' xa ya
         with (distribute cam) $ \ptr ->
-              glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (M44 CFloat)))
+              glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
         checkError "copy cam"
 
         --set up normal--Mat transpose((model*camera)^-1)
-        let normal = (case inv33 (fmap (^. _xyz) cam ^. _xyz) of
+        let normal = (case L.inv33 (fmap (^. L._xyz) cam ^. L._xyz) of
                                              (Just a) -> a
-                                             Nothing  -> eye3) :: M33 CFloat
-            nmap = collect id normal :: M33 CFloat --transpose...
+                                             Nothing  -> L.eye3) :: L.M33 CFloat
+            nmap = collect id normal :: L.M33 CFloat --transpose...
 
         with (distribute nmap) $ \ptr ->
-              glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (M33 CFloat)))
+              glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (L.M33 CFloat)))
 
         checkError "nmat"
 
@@ -311,7 +293,8 @@ draw = do
         checkError "beforeDraw"
 
         glPatchParameteri gl_PATCH_VERTICES 3
-        glPolygonMode gl_FRONT gl_LINE
+
+        GL.cullFace GL.$= Just GL.Front
 
         glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
         checkError "draw map"
@@ -342,11 +325,11 @@ draw = do
         GL.activeTexture  GL.$= GL.TextureUnit 1
         textureBinding GL.Texture2D GL.$= Just (state ^. gl.glMap.mapTexture)
         GL.uniform (hud ^. hudBackIndex) GL.$= GL.Index1 (1::GL.GLint)
-        
+
         GL.bindBuffer GL.ArrayBuffer GL.$= Just (hud ^. hudVBO)
         GL.vertexAttribPointer (hud ^. hudVertexIndex) GL.$= (GL.ToFloat, vad)
         GL.vertexAttribArray   (hud ^. hudVertexIndex) GL.$= GL.Enabled
-        
+
         GL.bindBuffer GL.ElementArrayBuffer GL.$= Just (hud ^. hudEBO)
         GL.drawElements GL.TriangleStrip 4 GL.UnsignedInt offset0
 
@@ -379,8 +362,8 @@ run = do
               sody  = state ^. mouse.dragStartY
               sodxa = state ^. mouse.dragStartXAngle
               sodya = state ^. mouse.dragStartYAngle
-              x'    = state ^. mouse.mousePosition.x
-              y'    = state ^. mouse.mousePosition.y
+              x'    = state ^. mouse.mousePosition._x
+              y'    = state ^. mouse.mousePosition._y
               myrot = (x' - sodx) / 2
               mxrot = (y' - sody) / 2
               newXAngle  = curb (pi/12) (0.45*pi) newXAngle'
@@ -390,22 +373,22 @@ run = do
                   | newYAngle' < (-pi) = newYAngle' + 2 * pi
                   | otherwise          = newYAngle'
               newYAngle' = sodya + myrot/100
-          
+
           modify $ ((camera.xAngle) .~ newXAngle)
                  . ((camera.yAngle) .~ newYAngle)
 
     -- get cursor-keys - if pressed
     --TODO: Add sin/cos from stateYAngle
     (kxrot, kyrot) <- fmap (join (***) fromIntegral) getArrowMovement
-    let 
+    let
         multc = cos $ state ^. camera.yAngle
         mults = sin $ state ^. camera.yAngle
         modx x' = x' - 0.2 * kxrot * multc
                      - 0.2 * kyrot * mults
         mody y' = y' + 0.2 * kxrot * mults
                      - 0.2 * kyrot * multc
-    modify $ (camera.camPosition.x %~ modx)
-           . (camera.camPosition.y %~ mody)
+    modify $ (camera.camPosition._x %~ modx)
+           . (camera.camPosition._y %~ mody)
 
     {-
     --modify the state with all that happened in mt time.
@@ -416,23 +399,24 @@ run = do
     -}
 
     mt <- liftIO $ do
+        let double = fromRational.toRational :: (Real a) => a -> Double
         now <- getCurrentTime
         diff <- return $ diffUTCTime now (state ^. io.clock) -- get time-diffs
-        title <- return $ unwords ["Pioneers @ ",show ((round .fromRational.toRational $ 1.0/diff)::Int),"fps"]
+        title <- return $ unwords ["Pioneers @ ",show ((round . double $ 1.0/diff)::Int),"fps"]
         setWindowTitle (env ^. windowObject) title
         sleepAmount <- return $ floor (max 0 (0.04 - diff))*1000000 -- get time until next frame in microseconds
         threadDelay sleepAmount
         return now
     -- set state with new clock-time
     modify $ io.clock .~ mt
-    shouldClose <- return $ state ^. window.shouldClose
-    unless shouldClose run
+    shouldClose' <- return $ state ^. window.shouldClose
+    unless shouldClose' run
 
 getArrowMovement :: Pioneers (Int, Int)
 getArrowMovement = do
         state <- get
-        aks <- return $ state ^. (keyboard.arrowsPressed) 
-        let 
+        aks <- return $ state ^. (keyboard.arrowsPressed)
+        let
                 horz   = left' + right'
                 vert   = up'+down'
                 left'  = if aks ^. left  then -1 else 0
@@ -444,7 +428,6 @@ getArrowMovement = do
 adjustWindow :: Pioneers ()
 adjustWindow = do
     state <- get
-    env <- ask
     let fbWidth  = state ^. window.width
         fbHeight = state ^. window.height
         fov           = 90  --field of view
@@ -463,7 +446,7 @@ adjustWindow = do
                    renderBuffer <- GL.genObjectName
                    GL.bindRenderbuffer GL.Renderbuffer GL.$= renderBuffer
                    GL.renderbufferStorage
-                       GL.Renderbuffer                         -- use the only available renderbuffer 
+                       GL.Renderbuffer                         -- use the only available renderbuffer
                                                                -- - must be this constant.
                        GL.DepthComponent'                      -- 32-bit float-rgba-color
                        (GL.RenderbufferSize fbCWidth fbCHeight)  -- size of buffer
@@ -510,15 +493,15 @@ processEvent e = do
                     Closing ->
                             modify $ window.shouldClose .~ True
                     Resized {windowResizedTo=size} -> do
-                            modify $ (window.width  .~ (sizeWidth  size))
-                                   . (window.height .~ (sizeHeight size))
+                            modify $ (window . width .~ sizeWidth size)
+                                   . (window . height .~ sizeHeight size)
                             adjustWindow
                     SizeChanged ->
                             adjustWindow
                     _ ->
                         return ()
                         --liftIO $ putStrLn $ unwords ["Unhandled Window-Event:",show e]
-            Keyboard movement _ isRepeated key -> --up/down window(ignored) true/false actualKey
+            Keyboard movement _ _{-isRepeated-} key -> --up/down window(ignored) true/false actualKey
                      -- need modifiers? use "keyModifiers key" to get them
                 let aks = keyboard.arrowsPressed in
                 case keyScancode key of
@@ -548,7 +531,7 @@ processEvent e = do
                             liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ state ^. gl.glMap.stateTessellationFactor]
                     _ ->
                         return ()
-            MouseMotion _ mouseId st (SDL.Position x y) xrel yrel -> do
+            MouseMotion _ _{-mouseId-} _{-st-} (SDL.Position x y) _{-xrel-} _{-yrel-} -> do
                 state <- get
                 when (state ^. mouse.isDown && not (state ^. mouse.isDragging)) $
                     modify $ (mouse.isDragging .~ True)
@@ -556,10 +539,10 @@ processEvent e = do
                            . (mouse.dragStartY .~ (fromIntegral y))
                            . (mouse.dragStartXAngle .~ (state ^. camera.xAngle))
                            . (mouse.dragStartYAngle .~ (state ^. camera.yAngle))
-                    
-                modify $ (mouse.mousePosition. Types.x .~ (fromIntegral x))
-                       . (mouse.mousePosition. Types.y .~ (fromIntegral y))
-            MouseButton _ mouseId button state (SDL.Position x y) ->
+
+                modify $ (mouse.mousePosition. Types._x .~ (fromIntegral x))
+                       . (mouse.mousePosition. Types._y .~ (fromIntegral y))
+            MouseButton _ _{-mouseId-} button state (SDL.Position x y) ->
                 case button of
                     LeftButton -> do
                         let pressed = state == Pressed
@@ -574,10 +557,9 @@ processEvent e = do
                         when (state == Released) $ alternateClickHandler (UI.Callbacks.Pixel x y)
                     _ ->
                         return ()
-            MouseWheel _ mouseId hscroll vscroll -> do
-                env <- ask
+            MouseWheel _ _{-mouseId-} _{-hscroll-} vscroll -> do
                 state <- get
-                let zDist' = (state ^. camera.zDist) + realToFrac (negate vscroll) in 
+                let zDist' = (state ^. camera.zDist) + realToFrac (negate vscroll) in
                   modify $ camera.zDist .~ (curb (env ^. zDistClosest) (env ^. zDistFarthest) zDist')
             Quit -> modify $ window.shouldClose .~ True
             -- there is more (joystic, touchInterface, ...), but currently ignored

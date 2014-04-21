@@ -2,8 +2,6 @@
 module Render.Render where
 
 import qualified Data.ByteString                            as B
-import           Data.Array.Storable
-import qualified Data.Vector.Storable                       as V
 import           Foreign.Marshal.Array                      (withArray)
 import           Foreign.Storable
 import           Graphics.Rendering.OpenGL.GL.BufferObjects
@@ -14,13 +12,10 @@ import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
 import           Graphics.Rendering.OpenGL.GL.VertexArrays  (Capability (..),
-                                                             vertexAttribArray,
-                                                             VertexArrayDescriptor,
-                                                             DataType(Float))
+                                                             vertexAttribArray)
 import           Graphics.Rendering.OpenGL.GL.VertexSpec
 import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Render.Misc
-import           Foreign.Ptr                                (Ptr, wordPtrToPtr)
 
 import           Types
 import           Graphics.GLUtil.BufferObjects              (makeBuffer)
@@ -53,18 +48,20 @@ initBuffer varray =
            return bufferObject
 
 initMapShader :: IO (
-                      Program           -- ^ the GLSL-Program
-                      , AttribLocation  -- ^ color
-                      , AttribLocation  -- ^ normal
-                      , AttribLocation  -- ^ vertex
-                      , UniformLocation -- ^ ProjectionMat
-                      , UniformLocation -- ^ ViewMat
-                      , UniformLocation -- ^ ModelMat
-                      , UniformLocation -- ^ NormalMat
-                      , UniformLocation -- ^ TessLevelInner
-                      , UniformLocation -- ^ TessLevelOuter
-                      , TextureObject   -- ^ Texture where to draw into
-                      )
+                      Program           -- the GLSL-Program
+                      , AttribLocation  -- color
+                      , AttribLocation  -- normal
+                      , AttribLocation  -- vertex
+                      , UniformLocation -- ProjectionMat
+                      , UniformLocation -- ViewMat
+                      , UniformLocation -- ModelMat
+                      , UniformLocation -- NormalMat
+                      , UniformLocation -- TessLevelInner
+                      , UniformLocation -- TessLevelOuter
+                      , TextureObject   -- Texture where to draw into
+                      ) -- ^ (the GLSL-Program, color, normal, vertex, ProjectionMat, ViewMat,
+                        --    ModelMat, NormalMat, TessLevelInner, TessLevelOuter,
+                        --    Texture where to draw into)
 initMapShader = do
    ! vertexSource <- B.readFile mapVertexShaderFile
    ! tessControlSource <- B.readFile mapTessControlShaderFile
@@ -143,7 +140,7 @@ initHud = do
    texIndex <- get (uniformLocation program "tex[1]")
    checkError "ui-tex"
 
-   -- | simple triangle over the whole screen.
+   -- simple triangle over the whole screen.
    let vertexBufferData = reverse [-1, -1, 1, -1, -1, 1, 1, 1] :: [GLfloat]
 
    vertexIndex <- get (attribLocation program "position")
@@ -169,7 +166,7 @@ initHud = do
         , _hudEBO               = ebo
         , _hudProgram           = program
         }
-        
+
 
 
 
