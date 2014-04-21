@@ -172,7 +172,7 @@ initHud = do
 
 initRendering :: IO ()
 initRendering = do
-        clearColor $= Color4 0 0 0 0
+        clearColor $= Color4 0.6 0.7 0.8 1
         depthFunc $= Just Less
         glCullFace gl_BACK
         checkError "initRendering"

@@ -94,18 +94,29 @@ float snoise(vec3 v)
                                 dot(p2,x2), dot(p3,x3) ) );
   }
 
+float fog(float dist) {
+    dist = max(0,dist - 50);
+    dist = dist * 0.05;
+    dist = dist;
+    return 1-exp(-dist);
+}
 
 smooth in vec3 teNormal;
 smooth in vec3 tePosition;
+smooth in float fogDist;
 smooth in float gmix;
 in vec4 teColor;
 
 out vec4 fgColor;
 
 uniform mat4 ViewMatrix;
+uniform mat4 ProjectionMatrix;
 
 void main(void)
 {
+    //fog color
+    vec4 fogColor = vec4(0.6,0.7,0.8,1.0);
+
     //heliospheric lighting
     vec4 light = vec4(1.0,1.0,1.0,1.0);
     vec4 dark  = vec4(0.0,0.0,0.0,1.0);
@@ -142,4 +153,5 @@ void main(void)
     vec4 Color = texColor;
 
     fgColor = Color * mix(dark, light, a);
+    fgColor = mix(fgColor,fogColor,fog(fogDist));
 }

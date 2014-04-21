@@ -9,6 +9,7 @@ in vec3 tcNormal[];
 out vec4 teColor;
 smooth out vec3 tePosition;
 smooth out vec3 teNormal;
+out float fogDist;
 smooth out float gmix; //mixture of gravel
 //out vec3 tePatchDistance;
 //constant projection matrix
@@ -38,6 +39,7 @@ void main()
     float standout = i0+i1+i2;
     tePosition = tePosition+tessNormal*standout;
     gl_Position = ProjectionMatrix * ViewMatrix * vec4(tePosition, 1);
+    fogDist = gl_Position.z;
 
     //COLOR-BLENDING
     vec4 c0 = sqrt(gl_TessCoord.x) * tcColor[0];
