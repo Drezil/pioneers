@@ -9,7 +9,7 @@ type PlayMap = Array (XCoord, ZCoord) Node
 
 type XCoord  = Int
 type ZCoord  = Int
-type YCoord  = Float 
+type YCoord  = Float
 
 data MapType    = GrassIslandMap
                 | DesertMap
@@ -22,10 +22,10 @@ instance Show PlayerInfo where
     show (NoPlayer)   = "not occupied"
     show (Occupied i) = "occupied by player " ++ (show i)
 
--- | Path info, is this node part of a path?
+-- | Path info, is this node part of a path and if so, where does it lead?
 data PathInfo   = NoPath
-                | Path
                 | Border
+                | Paths [(XCoord, YCoord)]
                 deriving (Show, Eq)
 
 -- | What resources can be harvested here?
