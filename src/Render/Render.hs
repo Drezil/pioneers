@@ -4,20 +4,23 @@ module Render.Render where
 import qualified Data.ByteString                            as B
 import           Foreign.Marshal.Array                      (withArray)
 import           Foreign.Storable
-import           Graphics.Rendering.OpenGL.GL.BufferObjects
-import           Graphics.Rendering.OpenGL.GL.Framebuffer   (clearColor)
-import           Graphics.Rendering.OpenGL.GL.ObjectName
-import           Graphics.Rendering.OpenGL.GL.PerFragment
-import           Graphics.Rendering.OpenGL.GL.Shaders
-import           Graphics.Rendering.OpenGL.GL.StateVar
-import           Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
-import           Graphics.Rendering.OpenGL.GL.VertexArrays  (Capability (..),
-                                                             vertexAttribArray)
-import           Graphics.Rendering.OpenGL.GL.VertexSpec
+import           Graphics.Rendering.OpenGL.GL
 import           Graphics.Rendering.OpenGL.Raw.Core31
-import           Render.Misc
+import           Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
+import           Graphics.GLUtil.BufferObjects        (offset0)
+import qualified Linear as L
+import           Control.Lens                               ((^.))
+import           Control.Monad.RWS.Strict             (liftIO)
+import qualified Control.Monad.RWS.Strict as RWS      (get)
+import           Data.Distributive                    (distribute, collect)
+-- FFI
+import           Foreign                              (Ptr, castPtr, with)
+import           Foreign.C                            (CFloat)
 
+import           Map.Graphics
 import           Types
+import           Render.Misc
+import           Render.Types
 import           Graphics.GLUtil.BufferObjects              (makeBuffer)
 
 mapVertexShaderFile :: String
@@ -176,3 +179,137 @@ initRendering = do
         depthFunc $= Just Less
         glCullFace gl_BACK
         checkError "initRendering"
+
+render :: Pioneers ()
+render = do
+    state <- RWS.get
+    let xa       = state ^. camera.xAngle
+        ya       = state ^. camera.yAngle
+        (UniformLocation proj)  = state ^. gl.glMap.shdrProjMatIndex
+        (UniformLocation nmat)  = state ^. gl.glMap.shdrNormalMatIndex
+        (UniformLocation vmat)  = state ^. gl.glMap.shdrViewMatIndex
+        (UniformLocation tli)   = state ^. gl.glMap.shdrTessInnerIndex
+        (UniformLocation tlo)   = state ^. gl.glMap.shdrTessOuterIndex
+        vi       = state ^. gl.glMap.shdrVertexIndex
+        ni       = state ^. gl.glMap.shdrNormalIndex
+        ci       = state ^. gl.glMap.shdrColorIndex
+        numVert  = state ^. gl.glMap.mapVert
+        map'     = state ^. gl.glMap.stateMap
+        frust    = state ^. camera.Types.frustum
+        camPos   = state ^. camera.camObject
+        zDist'   = state ^. camera.zDist
+        tessFac  = state ^. gl.glMap.stateTessellationFactor
+    liftIO $ do
+        ---- RENDER MAP IN TEXTURE ------------------------------------------
+
+        bindFramebuffer Framebuffer $= (state ^. gl.glFramebuffer)
+        bindRenderbuffer Renderbuffer $= (state ^. gl.glRenderbuffer)
+        framebufferRenderbuffer
+                Framebuffer
+                DepthAttachment
+                Renderbuffer
+                (state ^. gl.glRenderbuffer)
+        textureBinding Texture2D $= Just (state ^. gl.glMap.mapTexture)
+
+        framebufferTexture2D
+                Framebuffer
+                (ColorAttachment 0)
+                Texture2D
+                (state ^. gl.glMap.mapTexture)
+                0
+
+        -- Render to FrameBufferObject
+        drawBuffers $= [FBOColorAttachment 0]
+        checkError "setup Render-Target"
+
+        clear [ColorBuffer, DepthBuffer]
+        checkError "clear buffer"
+
+
+        currentProgram $= Just (state ^. gl.glMap.mapProgram)
+
+        checkError "setting up buffer"
+        --set up projection (= copy from state)
+        with (distribute frust) $ \ptr ->
+              glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
+        checkError "copy projection"
+
+        --set up camera
+        let ! cam = getCam camPos zDist' xa ya
+        with (distribute cam) $ \ptr ->
+              glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
+        checkError "copy cam"
+
+        --set up normal--Mat transpose((model*camera)^-1)
+        let normal' = (case L.inv33 (fmap (^. L._xyz) cam ^. L._xyz) of
+                                             (Just a) -> a
+                                             Nothing  -> L.eye3) :: L.M33 CFloat
+            nmap = collect id normal' :: L.M33 CFloat --transpose...
+
+        with (distribute nmap) $ \ptr ->
+              glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (L.M33 CFloat)))
+
+        checkError "nmat"
+
+        glUniform1f tli (fromIntegral tessFac)
+        glUniform1f tlo (fromIntegral tessFac)
+
+        bindBuffer ArrayBuffer $= Just map'
+        vertexAttribPointer ci $= fgColorIndex
+        vertexAttribArray ci   $= Enabled
+        vertexAttribPointer ni $= fgNormalIndex
+        vertexAttribArray ni   $= Enabled
+        vertexAttribPointer vi $= fgVertexIndex
+        vertexAttribArray vi   $= Enabled
+        checkError "beforeDraw"
+
+        glPatchParameteri gl_PATCH_VERTICES 3
+
+        cullFace $= Just Front
+
+        glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
+        checkError "draw map"
+
+        -- set sample 1 as target in renderbuffer
+        {-framebufferRenderbuffer
+                DrawFramebuffer              --write-only
+                (ColorAttachment 1)          --sample 1
+                Renderbuffer                 --const
+                rb                              --buffer-}
+
+        ---- COMPOSE RENDERING --------------------------------------------
+        -- Render to BackBuffer (=Screen)
+        bindFramebuffer Framebuffer $= defaultFramebufferObject
+        drawBuffer $= BackBuffers
+        -- Drawing HUD
+        clear [ColorBuffer, DepthBuffer]
+        checkError "clear buffer"
+
+        let hud    = state ^. gl.glHud
+            stride = fromIntegral $ sizeOf (undefined::GLfloat) * 2
+            vad    = VertexArrayDescriptor 2 Float stride offset0
+        currentProgram $= Just (hud ^. hudProgram)
+
+        activeTexture  $= TextureUnit 0
+        textureBinding Texture2D $= Just (hud ^. hudTexture)
+        uniform (hud ^. hudTexIndex) $= Index1 (0::GLint)
+
+        activeTexture  $= TextureUnit 1
+        textureBinding Texture2D $= Just (state ^. gl.glMap.mapTexture)
+        uniform (hud ^. hudBackIndex) $= Index1 (1::GLint)
+
+        bindBuffer ArrayBuffer $= Just (hud ^. hudVBO)
+        vertexAttribPointer (hud ^. hudVertexIndex) $= (ToFloat, vad)
+        vertexAttribArray   (hud ^. hudVertexIndex) $= Enabled
+
+        bindBuffer ElementArrayBuffer $= Just (hud ^. hudEBO)
+        drawElements TriangleStrip 4 UnsignedInt offset0
+
+
+        {-let winRenderer = env ^. renderer
+        tryWithTexture
+                (state ^. hudTexture)                          --maybe tex
+                (\tex -> renderCopy winRenderer tex Nothing Nothing) --function with "hole"
+                                                       --Nothing == whole source-tex, whole dest-tex
+                (return ())                                       --fail-case-}
+

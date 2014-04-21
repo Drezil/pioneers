@@ -18,18 +18,14 @@ import           Control.Concurrent.STM               (TQueue,
 import           Control.Monad.RWS.Strict             (ask, evalRWST, get, liftIO, modify)
 import           Control.Monad.Trans.State            (evalStateT)
 import           Data.Functor                         ((<$>))
-import           Data.Distributive                    (distribute, collect)
 import           Data.Monoid                          (mappend)
 
 -- FFI
-import           Foreign                              (Ptr, castPtr, with, sizeOf)
-import           Foreign.C                            (CFloat)
 import           Foreign.Marshal.Array                (pokeArray)
 import           Foreign.Marshal.Alloc                (allocaBytes)
 
 -- Math
 import           Control.Lens                         ((^.), (.~), (%~))
-import qualified Linear                               as L
 
 -- GUI
 import           Graphics.UI.SDL                      as SDL
@@ -38,18 +34,16 @@ import           Graphics.UI.SDL                      as SDL
 import qualified Graphics.Rendering.OpenGL.GL         as GL
 import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Data.Time                            (getCurrentTime, diffUTCTime)
-import           Graphics.GLUtil.BufferObjects        (offset0)
 
-import Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
 -- Our modules
-import           Map.Graphics
 import           Render.Misc                          (checkError, createFrustum, curb,
                                                        genColorData)
 import           Render.Render                        (initRendering,
                                                        initMapShader,
-                                                       initHud)
+                                                       initHud, render)
 import           Render.Types
 import           UI.Callbacks
+import           Map.Graphics
 import           Types
 import           Importer.IQM.Parser
 import           Data.Attoparsec.Char8 (parseTest)
@@ -189,155 +183,6 @@ main =
         --SDL.destroyRenderer renderer
         --destroyWindow window
 
--- Render-Pipeline
-
-draw :: Pioneers ()
-draw = do
-    state <- get
-    let xa       = state ^. camera.xAngle
-        ya       = state ^. camera.yAngle
-        (GL.UniformLocation proj)  = state ^. gl.glMap.shdrProjMatIndex
-        (GL.UniformLocation nmat)  = state ^. gl.glMap.shdrNormalMatIndex
-        (GL.UniformLocation vmat)  = state ^. gl.glMap.shdrViewMatIndex
-        (GL.UniformLocation tli)   = state ^. gl.glMap.shdrTessInnerIndex
-        (GL.UniformLocation tlo)   = state ^. gl.glMap.shdrTessOuterIndex
-        vi       = state ^. gl.glMap.shdrVertexIndex
-        ni       = state ^. gl.glMap.shdrNormalIndex
-        ci       = state ^. gl.glMap.shdrColorIndex
-        numVert  = state ^. gl.glMap.mapVert
-        map'     = state ^. gl.glMap.stateMap
-        frust    = state ^. camera.frustum
-        camPos   = state ^. camera.camObject
-        zDist'   = state ^. camera.zDist
-        tessFac  = state ^. gl.glMap.stateTessellationFactor
-    when (state ^. ui . uiHasChanged) prepareGUI
-    liftIO $ do
-        --bind renderbuffer and set sample 0 as target
-        --GL.bindRenderbuffer GL.Renderbuffer GL.$= rb
-        --GL.bindFramebuffer  GL.Framebuffer  GL.$= GL.defaultFramebufferObject
-        --checkError "bind renderbuffer"
-
-        --checkError "clear renderbuffer"
-        {-GL.framebufferRenderbuffer
-                GL.Framebuffer                  --framebuffer
-                (GL.ColorAttachment 1)          --sample 1
-                GL.Renderbuffer                 --const
-                rb                              --buffer
-        checkError "setup renderbuffer"-}
-
-        -- draw map
-        --(vi,GL.UniformLocation proj) <- initShader
-
-        GL.bindFramebuffer GL.Framebuffer GL.$= (state ^. gl.glFramebuffer)
-        GL.bindRenderbuffer GL.Renderbuffer GL.$= (state ^. gl.glRenderbuffer)
-        GL.framebufferRenderbuffer
-                GL.Framebuffer
-                GL.DepthAttachment
-                GL.Renderbuffer
-                (state ^. gl.glRenderbuffer)
-        textureBinding GL.Texture2D GL.$= Just (state ^. gl.glMap.mapTexture)
-
-        GL.framebufferTexture2D
-                GL.Framebuffer
-                (GL.ColorAttachment 0)
-                GL.Texture2D
-                (state ^. gl.glMap.mapTexture)
-                0
-
-        -- Render to FrameBufferObject
-        GL.drawBuffers GL.$= [GL.FBOColorAttachment 0]
-        checkError "setup Render-Target"
-
-        GL.clear [GL.ColorBuffer, GL.DepthBuffer]
-        checkError "clear buffer"
-
-
-        GL.currentProgram GL.$= Just (state ^. gl.glMap.mapProgram)
-
-        checkError "setting up buffer"
-        --set up projection (= copy from state)
-        with (distribute frust) $ \ptr ->
-              glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
-        checkError "copy projection"
-
-        --set up camera
-        let ! cam = getCam camPos zDist' xa ya
-        with (distribute cam) $ \ptr ->
-              glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
-        checkError "copy cam"
-
-        --set up normal--Mat transpose((model*camera)^-1)
-        let normal = (case L.inv33 (fmap (^. L._xyz) cam ^. L._xyz) of
-                                             (Just a) -> a
-                                             Nothing  -> L.eye3) :: L.M33 CFloat
-            nmap = collect id normal :: L.M33 CFloat --transpose...
-
-        with (distribute nmap) $ \ptr ->
-              glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (L.M33 CFloat)))
-
-        checkError "nmat"
-
-        glUniform1f tli (fromIntegral tessFac)
-        glUniform1f tlo (fromIntegral tessFac)
-
-        GL.bindBuffer GL.ArrayBuffer GL.$= Just map'
-        GL.vertexAttribPointer ci GL.$= fgColorIndex
-        GL.vertexAttribArray ci   GL.$= GL.Enabled
-        GL.vertexAttribPointer ni GL.$= fgNormalIndex
-        GL.vertexAttribArray ni   GL.$= GL.Enabled
-        GL.vertexAttribPointer vi GL.$= fgVertexIndex
-        GL.vertexAttribArray vi   GL.$= GL.Enabled
-        checkError "beforeDraw"
-
-        glPatchParameteri gl_PATCH_VERTICES 3
-
-        GL.cullFace GL.$= Just GL.Front
-
-        glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
-        checkError "draw map"
-
-        -- set sample 1 as target in renderbuffer
-        {-GL.framebufferRenderbuffer
-                GL.DrawFramebuffer              --write-only
-                (GL.ColorAttachment 1)          --sample 1
-                GL.Renderbuffer                 --const
-                rb                              --buffer-}
-
-        -- Render to BackBuffer (=Screen)
-        GL.bindFramebuffer GL.Framebuffer GL.$= GL.defaultFramebufferObject
-        GL.drawBuffer GL.$= GL.BackBuffers
-        -- Drawing HUD
-        GL.clear [GL.ColorBuffer, GL.DepthBuffer]
-        checkError "clear buffer"
-
-        let hud    = state ^. gl.glHud
-            stride = fromIntegral $ sizeOf (undefined::GLfloat) * 2
-            vad    = GL.VertexArrayDescriptor 2 GL.Float stride offset0
-        GL.currentProgram GL.$= Just (hud ^. hudProgram)
-
-        GL.activeTexture  GL.$= GL.TextureUnit 0
-        textureBinding GL.Texture2D GL.$= Just (hud ^. hudTexture)
-        GL.uniform (hud ^. hudTexIndex) GL.$= GL.Index1 (0::GL.GLint)
-
-        GL.activeTexture  GL.$= GL.TextureUnit 1
-        textureBinding GL.Texture2D GL.$= Just (state ^. gl.glMap.mapTexture)
-        GL.uniform (hud ^. hudBackIndex) GL.$= GL.Index1 (1::GL.GLint)
-
-        GL.bindBuffer GL.ArrayBuffer GL.$= Just (hud ^. hudVBO)
-        GL.vertexAttribPointer (hud ^. hudVertexIndex) GL.$= (GL.ToFloat, vad)
-        GL.vertexAttribArray   (hud ^. hudVertexIndex) GL.$= GL.Enabled
-
-        GL.bindBuffer GL.ElementArrayBuffer GL.$= Just (hud ^. hudEBO)
-        GL.drawElements GL.TriangleStrip 4 GL.UnsignedInt offset0
-
-
-        {-let winRenderer = env ^. renderer
-        tryWithTexture
-                (state ^. gl.hudTexture)                          --maybe tex
-                (\tex -> renderCopy winRenderer tex Nothing Nothing) --function with "hole"
-                                                       --Nothing == whole source-tex, whole dest-tex
-                (return ())                                       --fail-case-}
-
 -- Main game loop
 
 run :: Pioneers ()
@@ -407,6 +252,12 @@ run = do
     modify $ io.clock .~ mt
     shouldClose' <- return $ state ^. window.shouldClose
     unless shouldClose' run
+
+draw :: Pioneers ()
+draw = do
+    state <- get
+    when (state ^. ui . uiHasChanged) prepareGUI
+    render
 
 getArrowMovement :: Pioneers (Int, Int)
 getArrowMovement = do
