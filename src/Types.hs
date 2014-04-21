@@ -10,6 +10,7 @@ import Linear.Matrix (M44)
 import Control.Monad.RWS.Strict (RWST)
 import Control.Lens
 import Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
+import Render.Types
 
 
 --Static Read-Only-State
@@ -41,7 +42,7 @@ data CameraState = CameraState
     , _yAngle              :: !Double
     , _zDist               :: !Double
     , _frustum             :: !(M44 CFloat)
-    , _camPosition         :: !Position --TODO: Get rid of cam-prefix
+    , _camObject           :: !Camera
     }
 
 data IOState = IOState

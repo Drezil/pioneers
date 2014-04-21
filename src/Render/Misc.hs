@@ -89,7 +89,7 @@ lookAt eye center up' =
                 y@(V3 yx yy yz) = normalize (cross z x)
 
 
-getCam :: (Double, Double) -- ^ Target in x/z-Plane
+{-getCam :: (Double, Double) -- ^ Target in x/z-Plane
           -> Double        -- ^ Distance from Target
           -> Double        -- ^ Angle around X-Axis (angle down/up)
           -> Double        -- ^ Angle around Y-Axis (angle left/right)
@@ -110,7 +110,7 @@ getCam (x',z') dist' xa' ya' = lookAt (cpos ^+^ at') at' up
                         z     = realToFrac z'
                         dist  = realToFrac dist'
                         xa    = realToFrac xa'
-                        ya    = realToFrac ya'
+                        ya    = realToFrac ya'-}
 
 curb :: Ord a => a -> a -> a -> a
 curb l h x

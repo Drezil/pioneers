@@ -43,11 +43,12 @@ import           Graphics.GLUtil.BufferObjects        (offset0)
 import Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
 -- Our modules
 import           Map.Graphics
-import           Render.Misc                          (checkError, createFrustum, getCam, curb,
+import           Render.Misc                          (checkError, createFrustum, curb,
                                                        genColorData)
 import           Render.Render                        (initRendering,
                                                        initMapShader,
                                                        initHud)
+import           Render.Types
 import           UI.Callbacks
 import           Types
 import           Importer.IQM.Parser
@@ -146,10 +147,7 @@ main =
                         , _yAngle              = pi/2
                         , _zDist               = 10
                         , _frustum             = frust
-                        , _camPosition         = Types.Position
-                                       { Types.__x    = 25
-                                       , Types.__y    = 25
-                                       }
+                        , _camObject           = createFlatCam 25 25
                         }
               , _io                  = IOState
                         { _clock               = now
@@ -209,8 +207,7 @@ draw = do
         numVert  = state ^. gl.glMap.mapVert
         map'     = state ^. gl.glMap.stateMap
         frust    = state ^. camera.frustum
-        camX     = state ^. camera.camPosition._x
-        camY     = state ^. camera.camPosition._y
+        camPos   = state ^. camera.camObject
         zDist'   = state ^. camera.zDist
         tessFac  = state ^. gl.glMap.stateTessellationFactor
     when (state ^. ui . uiHasChanged) prepareGUI
@@ -264,7 +261,7 @@ draw = do
         checkError "copy projection"
 
         --set up camera
-        let ! cam = getCam (camX,camY) zDist' xa ya
+        let ! cam = getCam camPos zDist' xa ya
         with (distribute cam) $ \ptr ->
               glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
         checkError "copy cam"
@@ -387,8 +384,7 @@ run = do
                      - 0.2 * kyrot * mults
         mody y' = y' + 0.2 * kxrot * mults
                      - 0.2 * kyrot * multc
-    modify $ (camera.camPosition._x %~ modx)
-           . (camera.camPosition._y %~ mody)
+    modify $ camera.camObject %~ (\c -> moveBy c (\(x,y) -> (modx x,mody y)))
 
     {-
     --modify the state with all that happened in mt time.
