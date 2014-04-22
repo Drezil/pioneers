@@ -9,7 +9,7 @@ in vec3 tcNormal[];
 out vec4 teColor;
 smooth out vec3 tePosition;
 smooth out vec3 teNormal;
-out float fogDist;
+smooth out float fogDist;
 smooth out float gmix; //mixture of gravel
 //out vec3 tePatchDistance;
 //constant projection matrix
