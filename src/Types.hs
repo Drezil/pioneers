@@ -89,6 +89,7 @@ data GLMapState = GLMapState
     , _mapVert              :: !GL.NumArrayIndices
     , _mapProgram           :: !GL.Program
     , _mapTexture           :: !TextureObject
+    , _overviewTexture      :: !TextureObject
     }
 
 data GLHud = GLHud

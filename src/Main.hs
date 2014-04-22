@@ -84,6 +84,7 @@ main =
         --generate map vertices
         (mapBuffer, vert) <- getMapBufferObject
         (mapprog, ci, ni, vi, pri, vii, mi, nmi, tli, tlo, mapTex) <- initMapShader
+        overTex <- GL.genObjectName
         print window'
         eventQueue <- newTQueueIO :: IO (TQueue Event)
         putStrLn "foo"
@@ -123,6 +124,7 @@ main =
                 , _mapVert              = vert
                 , _mapProgram           = mapprog
                 , _mapTexture           = mapTex
+                , _overviewTexture      = overTex
                 }
             env = Env
               { _eventsChan      = eventQueue
