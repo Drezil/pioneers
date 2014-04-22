@@ -42,10 +42,10 @@ void main()
     fogDist = gl_Position.z;
 
     //COLOR-BLENDING
-    vec4 c0 = sqrt(gl_TessCoord.x) * tcColor[0];
-    vec4 c1 = sqrt(gl_TessCoord.y) * tcColor[1];
-    vec4 c2 = sqrt(gl_TessCoord.z) * tcColor[2];
-    teColor = (c0 + c1 + c2)/(sqrt(gl_TessCoord.x)+sqrt(gl_TessCoord.y)+sqrt(gl_TessCoord.z));
+    vec4 c0 = (1-exp(gl_TessCoord.x)) * tcColor[0];
+    vec4 c1 = (1-exp(gl_TessCoord.y)) * tcColor[1];
+    vec4 c2 = (1-exp(gl_TessCoord.z)) * tcColor[2];
+    teColor = (c0 + c1 + c2)/((1-exp(gl_TessCoord.x))+(1-exp(gl_TessCoord.y))+(1-exp(gl_TessCoord.z)));
 
     //mix gravel based on incline (sin (normal,up))
     gmix = length(cross(tessNormal, vec3(0,1,0)));
