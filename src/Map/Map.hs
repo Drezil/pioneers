@@ -1,5 +1,4 @@
-module Map.Maps
-where
+module Map.Map where
 
 import Map.Types
 

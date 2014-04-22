@@ -12,7 +12,6 @@ getMapBufferObject
 where
 
 import Data.Array.IArray
-import Data.Text as T
 import Prelude as P
 
 --import Graphics.Rendering.OpenGL.GL
@@ -39,6 +38,19 @@ type MapEntry = (
                 TileType
                 )
 type GraphicsMap = Array (Int, Int) MapEntry
+
+-- converts from classical x/z to striped version of a map
+convertToStripeMap :: PlayMap -> PlayMap
+convertToStripeMap mp = array (stripify l, stripify u) (map (\(i,e) -> (stripify i,strp e)) (assocs mp))
+  where
+    (l,u) = bounds mp
+
+stripify :: (Int,Int) -> (Int,Int)
+stripify (x,z) = (if even z then 2*x else 2*x+1, z `div` 2)
+
+strp :: Node -> Node
+strp (Full    xz y tt bi pli p ri si) = Full    (stripify xz) y tt bi pli p ri si
+strp (Minimal xz                    ) = Minimal (stripify xz)
 
 -- extract graphics information from Playmap
 convertToGraphicsMap :: PlayMap -> GraphicsMap
@@ -76,7 +88,7 @@ fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
-        myMap'  <- return $ convertToGraphicsMap mapCenterMountain
+        myMap'  <- return $ convertToGraphicsMap $ convertToStripeMap mapCenterMountain
         ! myMap <- return $ generateTriangles myMap'
         len <- return $ fromIntegral $ P.length myMap `div` numComponents
         putStrLn $ P.unwords ["num verts in map:",show len]
