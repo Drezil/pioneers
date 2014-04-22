@@ -88,7 +88,7 @@ fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
-        myMap'  <- return $ convertToGraphicsMap $ convertToStripeMap mapCenterMountain
+        myMap'  <- return $ convertToGraphicsMap $ convertToStripeMap mapNoise
         ! myMap <- return $ generateTriangles myMap'
         len <- return $ fromIntegral $ P.length myMap `div` numComponents
         putStrLn $ P.unwords ["num verts in map:",show len]
