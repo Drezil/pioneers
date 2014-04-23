@@ -45,7 +45,8 @@ executable Pioneers
                    SDL2 >= 0.1.0,
                    time >=1.4.0,
                    GLUtil >= 0.7,
-                   attoparsec >= 0.11.2
+                   attoparsec >= 0.11.2,
+                   unordered-containers >= 0.2.1
   other-modules:   Render.Types
   Default-Language: Haskell2010
 
