@@ -32,7 +32,6 @@ mnh2D (a,b) (c,d) = abs (a-c) + abs (b-d)
 mapEmpty :: PlayMap
 mapEmpty = array ((0,0), (199,199)) [((a,b), (Minimal (a,b))) | a <- [0..199], b <- [0..199]]
 
--- TODO: Stripify
 mapCenterMountain :: PlayMap
 mapCenterMountain = array ((0,0),(199,199)) nodes
     where

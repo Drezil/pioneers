@@ -2,14 +2,21 @@ module Map.Creation
 where
 
 import Map.Types
+import Data.Array
 
 -- | Generate a new Map of given Type and Size
 --
 --   TODO:
 --   1. Should take Size -> Type -> Playmap
 --   2. plug together helper-functions for that terraintype
-newMap :: Int -> Int -> PlayMap
+newMap :: MapType -> (Int, Int) -> PlayMap
 newMap = undefined
+
+aplByPlace :: (Node -> Node) -> ((Int,Int) -> Bool) -> PlayMap -> PlayMap
+aplByPlace f g mp = array (bounds mp) (map (\(ab,c) -> if g ab then (ab, f c) else (ab,c)) (assocs mp))
+
+aplByNode :: (Node -> Node) -> (Node -> Bool) -> PlayMap -> PlayMap
+aplByNode f g mp = array (bounds mp) (map (\(ab,c) -> (if g c then (ab, f c) else (ab,c))) (assocs mp)) 
 
 
 -- | Basic Terrain-Generator. Will not implement "abnormal" Stuff for given Biome
