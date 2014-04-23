@@ -1,7 +1,7 @@
 module Map.Types
 where
 
-import PioneerTypes
+import Types
 
 import Data.Array
 
