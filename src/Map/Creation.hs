@@ -30,5 +30,5 @@ type Seed = (XCoord, ZCoord)
 -- | Add lakes on generated Map from (possible) Seeds noted before.
 --
 --   TODO: implement and erode terrain on the way down.
-addLakes :: PlayMap -> [Seeds] -> PlayMap
+addLakes :: PlayMap -> [Seed] -> PlayMap
 addLakes m s = undefined
