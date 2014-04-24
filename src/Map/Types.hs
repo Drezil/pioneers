@@ -68,5 +68,5 @@ data TileType   = Ocean
 
 -- TODO: Record Syntax
 data Node = Full    (XCoord, ZCoord) YCoord TileType BuildInfo PlayerInfo PathInfo ResInfo StorInfo
-          | Minimal (XCoord, ZCoord) -- defaults to empty green grass node on height 0
+          | Minimal (XCoord, ZCoord) -- defaults to empty green grass node on height 1
           deriving (Show)
