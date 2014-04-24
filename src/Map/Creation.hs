@@ -69,27 +69,3 @@ heightToTerrain GrassIslandMap y
                 | y < 10    = Hill
                 | otherwise = Mountain
 heightToTerrain _ _ = undefined
-
-type Seed = (XCoord, ZCoord)
-
--- | Add lakes on generated Map from (possible) Seeds noted before.
---
---   TODO: implement and erode terrain on the way down.
-addLakes :: PlayMap -> [Seed] -> PlayMap
-addLakes = undefined
-
-gaussMountain :: Int -> PlayMap -> PlayMap
-gaussMountain seed mp = aplByPlace (liftUp c) (\(_,_) -> True) mp
-  where
-    g   = mkStdGen seed
-    c   = head $ randomRs (bounds mp) g
-    fi  = fromIntegral
-    htt = heightToTerrain
-
-    -- TODO: Fix Lambda to True with sensible function, maybe rework giveNeighbourhood in Map.Map
-    liftUp :: (Int, Int) -> Node -> Node
-    liftUp (gx,gz) (Full     (x,z) y _ b pl pa r s) = let y_neu = max y e 
-                                                      in  (Full (x,z) y_neu (htt GrassIslandMap y_neu) b pl pa r s)
-      where e = gauss3Dgeneral 10.0 (fi gx) (fi gz) 5.0 5.0 (fi x) (fi z)
-    liftUp (gx, gz) (Minimal (x,z)) = Full (x,z) e (htt GrassIslandMap e) BFlag NoPlayer NoPath Plain []
-      where e = gauss3Dgeneral 10.0 (fi gx) (fi gz) 5.0 5.0 (fi x) (fi z)

@@ -31,6 +31,7 @@ import Linear
 import Map.Types
 import Map.StaticMaps
 import Map.Creation
+import Map.Combinators
 
 type Height = Float
 
@@ -58,7 +59,7 @@ convertToGraphicsMap :: PlayMap -> GraphicsMap
 convertToGraphicsMap mp = array (bounds mp) [(i, graphicsyfy (mp ! i))| i <- indices mp]
     where
       graphicsyfy :: Node -> MapEntry
-      graphicsyfy (Minimal _               ) = (0, Grass)
+      graphicsyfy (Minimal _               ) = (1.0, Grass)
       graphicsyfy (Full    _ y t _ _ _ _ _ ) = (y, t)
 
 lineHeight :: GLfloat
@@ -89,8 +90,7 @@ fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
-        let mountains = [(gaussMountain 123456), (gaussMountain 31415926), 
-                         (gaussMountain 101514119), (gaussMountain 0)]
+        mountains <- mnt
         myMap'  <- return $ convertToGraphicsMap $ convertToStripeMap $ aplAll mountains mapEmpty
         ! myMap <- return $ generateTriangles myMap'
         len <- return $ fromIntegral $ P.length myMap `div` numComponents
