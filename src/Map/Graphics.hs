@@ -30,6 +30,7 @@ import Linear
 
 import Map.Types
 import Map.StaticMaps
+import Map.Creation
 
 type Height = Float
 
@@ -88,7 +89,9 @@ fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
-        myMap'  <- return $ convertToGraphicsMap $ convertToStripeMap mapNoise
+        let mountains = [(gaussMountain 123456), (gaussMountain 31415926), 
+                         (gaussMountain 101514119), (gaussMountain 0)]
+        myMap'  <- return $ convertToGraphicsMap $ convertToStripeMap $ aplAll mountains mapEmpty
         ! myMap <- return $ generateTriangles myMap'
         len <- return $ fromIntegral $ P.length myMap `div` numComponents
         putStrLn $ P.unwords ["num verts in map:",show len]

@@ -3,30 +3,7 @@ where
 
 import Map.Types
 import Data.Array
-import Map.Creation (heightToTerrain)
-
--- general 3D-Gaussian
-gauss3Dgeneral :: Floating q =>
-                  q    -- ^ Amplitude
-                  -> q -- ^ Origin on X-Achsis
-                  -> q -- ^ Origin on Z-Achsis
-                  -> q -- ^ Sigma on X
-                  -> q -- ^ Sigma on Z
-                  -> q -- ^ Coordinate in question on X
-                  -> q -- ^ Coordinate in question on Z
-                  -> q -- ^ elevation on coordinate in question
-gauss3Dgeneral amp x0 z0 sX sZ x z = amp * exp(-(((x-x0)^(2 :: Integer)/(2 * sX^(2 :: Integer)))+((z-z0)^(2 :: Integer)/(2 * sZ^(2 :: Integer)))))
-
--- specialised 3D gaussian with an origin on 100/100, an amplitude of 15 and two sigmas of 15
-gauss3D :: Floating q =>
-           q     -- ^ X-Coordinate
-           -> q  -- ^ Z-Coordinate
-           -> q  -- ^ elevation on coordinate in quesion
-gauss3D = gauss3Dgeneral 15 100.0 100.0 15.0 15.0
-
--- 2D Manhattan distance
-mnh2D :: (Int,Int) -> (Int,Int) -> Int
-mnh2D (a,b) (c,d) = abs (a-c) + abs (b-d)
+import Map.Creation
 
 -- entirely empty map, only uses the minimal constructor
 mapEmpty :: PlayMap
