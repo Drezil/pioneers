@@ -5,12 +5,14 @@ import           Control.Concurrent.STM               (TQueue)
 import qualified Graphics.Rendering.OpenGL.GL         as GL
 import           Graphics.UI.SDL                      as SDL (Event, Window)
 import           Foreign.C                            (CFloat)
+import qualified Data.HashMap.Strict                  as Map
 import           Data.Time                            (UTCTime)
 import Linear.Matrix (M44)
 import Control.Monad.RWS.Strict (RWST)
 import Control.Lens
 import Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
 import Render.Types
+import UI.UIBaseData
 
 
 --Static Read-Only-State
@@ -112,6 +114,7 @@ data GLState = GLState
 
 data UIState = UIState
     { _uiHasChanged        :: !Bool
+    , _uiMap               :: Map.HashMap UIId (GUIAny Pioneers)
     }
 
 data State = State
@@ -125,6 +128,9 @@ data State = State
     , _ui                  :: !UIState
     }
 
+type Pioneers = RWST Env () State IO
+
+-- when using TemplateHaskell order of declaration matters
 $(makeLenses ''State)
 $(makeLenses ''GLState)
 $(makeLenses ''GLMapState)
@@ -140,5 +146,3 @@ $(makeLenses ''Position)
 $(makeLenses ''Env)
 $(makeLenses ''UIState)
 
-
-type Pioneers = RWST Env () State IO

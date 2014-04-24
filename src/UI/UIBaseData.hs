@@ -1,17 +1,15 @@
-{-# LANGUAGE InstanceSigs, MultiParamTypeClasses, FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module UI.UIBaseData where
 
 import Data.Hashable
-import Data.List
-import Foreign.C                            (CFloat)
-import Linear.Matrix (M44)
+import Data.Ix
 
 -- |Unit of screen/window
 type ScreenUnit = Int
 
 
-newtype UIId = Int deriving (Eq,Ord,Show,Read,Bounded,Ix,Hashable)
+newtype UIId = UId Int deriving (Eq,Ord,Show,Read,Bounded,Ix,Hashable)
 
 -- |The state of a clickable ui widget.
 data UIButtonState = UIButtonState
@@ -31,12 +29,12 @@ data UIButtonState = UIButtonState
 
 -- |Switches primary and secondary mouse actions.
 --  "monad type" "widget type" "original handler"
-data MouseHandlerSwitch w h = MouseHandlerSwitch h deriving (Eq, Show)
+data MouseHandlerSwitch h = MouseHandlerSwitch h deriving (Eq, Show)
 
 -- |A 'UI.UIClasses.MouseHandler' with button behaviour.
 data ButtonHandler m w = ButtonHandler 
     { _action :: (w -> ScreenUnit -> ScreenUnit -> m w) }
-instance Show (ButtonHandler w) where
+instance Show (ButtonHandler m w) where
     show _ = "ButtonHandler ***"
 
 -- |A collection data type that may hold any usable ui element. @m@ is a monad.
@@ -48,10 +46,10 @@ data GUIAny m = GUIAnyC GUIContainer
 
 -- |A 'GUIContainer' is a widget that may contain additional widgets but does not have a
 --  functionality itself.
-data GUIContainer = GUIContainer { _screenX :: ScreenUnit, _screenY :: ScreenUnit
-                                 , _width :: ScreenUnit, _height :: ScreenUnit
-                                 , _children :: [UIId]
-                                 , _priority :: Int
+data GUIContainer = GUIContainer { _uiScreenX :: ScreenUnit, _uiScreenY :: ScreenUnit
+                                 , _uiWidth :: ScreenUnit, _uiHeight :: ScreenUnit
+                                 , _uiChildren :: [UIId]
+                                 , _uiPriority :: Int
                                  } deriving (Show)
 
 -- |A 'GUIPanel' is much like a 'GUIContainer' but it resizes automatically according to its
@@ -60,16 +58,16 @@ data GUIPanel = GUIPanel { _panelContainer :: GUIContainer} deriving (Show)
     
 -- |A 'GUIButton' is a clickable 'GUIWidget'. Its functinality must be
 --  provided by an appropriate 'MouseHanlder'.
-data GUIButton = GUIButton { _screenXB :: ScreenUnit, _screenYB :: ScreenUnit
-                           , _widthB :: ScreenUnit, _heightB :: ScreenUnit
-                           , _priorityB :: Int
-                           , _buttonState :: UIButtonState
+data GUIButton = GUIButton { _uiScreenXB :: ScreenUnit, _uiScreenYB :: ScreenUnit
+                           , _uiWidthB :: ScreenUnit, _uiHeightB :: ScreenUnit
+                           , _uiPriorityB :: Int
+                           , _uiButtonState :: UIButtonState
                            } deriving ()
 instance Show GUIButton where
-    show w = "GUIButton {_screenXB = " ++ show (_screenXB w)
-                    ++ " _screenYB = " ++ show (_screenYB w)
-                    ++ " _widthB = " ++ show (_widthB w)
-                    ++ " _heightB = " ++ show (_heightB w)
-                    ++ " _priorityB = " ++ show (_screenYB w)
-                    ++ " _buttonState = " ++ show (_buttonState w)
+    show w = "GUIButton {_screenXB = " ++ show (_uiScreenXB w)
+                    ++ " _screenYB = " ++ show (_uiScreenYB w)
+                    ++ " _widthB = " ++ show (_uiWidthB w)
+                    ++ " _heightB = " ++ show (_uiHeightB w)
+                    ++ " _priorityB = " ++ show (_uiScreenYB w)
+                    ++ " _buttonState = " ++ show (_uiButtonState w)
                     ++ "}"

@@ -1,6 +1,6 @@
 module UI.UIOperations where
 
-import Data.HashMap.Strict
+import qualified Data.HashMap.Strict as Map
 
 import UI.UIBaseData
 import UI.UIClasses

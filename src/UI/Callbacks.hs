@@ -4,7 +4,9 @@ module UI.Callbacks where
 
 import Control.Monad.Trans (liftIO)
 import Types
-import UI.UITypes
+import UI.UIBaseData
+import UI.UIClasses
+import UI.UIOperations
 
 import qualified Graphics.Rendering.OpenGL.GL         as GL
 import           Control.Lens                         ((^.), (.~), (%~))

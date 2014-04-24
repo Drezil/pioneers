@@ -2,21 +2,30 @@
 
 module UI.UIClasses where
 
-import Types
+import           Control.Lens                         ((^.))
+import           Control.Monad
+--import           Control.Monad.IO.Class -- MonadIO
+import           Control.Monad.RWS.Strict             (get)
+import           Data.List
+import           Data.Maybe
+import qualified Data.HashMap.Strict as Map
 
-class GUIAnyMap w where
-    guiAnyMap :: (w -> b) -> GUIAny -> b
+import qualified Types as T
+import UI.UIBaseData
+
+class GUIAnyMap m w where
+    guiAnyMap :: (w -> b) -> GUIAny m -> b
     
-class (GUIAnyMap uiw) => GUIWidget m uiw where
+class (Monad m) => GUIWidget m uiw where
     -- |The 'getBoundary' function gives the outer extents of the 'UIWidget'.
     --  The bounding box wholly contains all children components.
-    getBoundary :: uiw -> m (ScreenUnit, ScreenUnit, ScreenUnit ,ScreenUnit) -- ^@(x, y, width, height)@ in pixels (screen coordinates)
+    getBoundary :: uiw -> m (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -- ^@(x, y, width, height)@ in pixels (screen coordinates)
 
     -- |The 'getChildren' function returns all children associated with this widget.
     --
     --  All children must be wholly inside the parent's bounding box specified by 'getBoundary'.
     getChildren :: uiw -> m [UIId]
-    getChildren _ = []
+    getChildren _ = return []
 
     -- |The function 'isInsideSelf' tests whether a point is inside the widget itself.
     --  A screen position may be inside the bounding box of a widget but not considered part of the
@@ -28,13 +37,14 @@ class (GUIAnyMap uiw) => GUIWidget m uiw where
                  -> ScreenUnit -- ^screen y coordinate
                  -> uiw       -- ^the parent widget
                  -> m Bool
-    isInsideSelf x' y' wg = let (x, y, w, h) = getBoundary wg
-        in (x' - x <= w) && (x' - x >= 0) && (y' - y <= h) && (y' - y >= 0)
+    isInsideSelf x' y' wg = do
+        (x, y, w, h) <- getBoundary wg
+        return $ (x' - x <= w) && (x' - x >= 0) && (y' - y <= h) && (y' - y >= 0)
 
     -- |The 'getPriority' function returns the priority score of a 'GUIWidget'.
     --  A widget with a high score is more in the front than a low scored widget.
     getPriority :: uiw -> m Int
-    getPriority _ = 0
+    getPriority _ = return 0
     
     -- |The 'getShorthand' function returns a descriptive 'String' mainly for debuggin prupose.
     --  The shorthand should be unique for each instance.
@@ -50,7 +60,7 @@ class GUIClickable w where
     setButtonState s = updateButtonState (\_ -> s)
     getButtonState :: w -> UIButtonState
 
-class MouseHandler a m w where
+class Monad m => MouseHandler a m w where
     -- |The function 'onMousePressed' is called when the primary button is pressed
     --  while inside a screen coordinate within the widget ('isInside').
     onMousePressed :: ScreenUnit -- ^screen x coordinate 
@@ -111,7 +121,7 @@ class MouseHandler a m w where
                  -> a -> m (w, a) -- ^widget after the event and the altered handler
     onMouseLeave _ _ wg a = return (wg, a)
 
-instance (MouseHandler h m w) => MouseHandler (MouseHandlerSwitch w h) w where
+instance (MouseHandler h m w) => MouseHandler (MouseHandlerSwitch h) m w where
     onMousePressed x y w (MouseHandlerSwitch h) = do
         (w', h') <- onMousePressedAlt x y w h
         return (w', MouseHandlerSwitch h')
@@ -134,9 +144,9 @@ instance (MouseHandler h m w) => MouseHandler (MouseHandlerSwitch w h) w where
         (w', h') <- onMouseLeave x y w h
         return (w', MouseHandlerSwitch h')
 
-instance (GUIClickable w) => MouseHandler (ButtonHandler m w) w where
+instance (Monad m, GUIClickable w) => MouseHandler (ButtonHandler m w) m w where
     -- |Change 'UIButtonState's '_buttonstateIsFiring' to @True@.
-    onMousePressed _ _ wg h = do
+    onMousePressed _ _ wg h =
         return (updateButtonState (\s -> s {_buttonstateIsFiring = True}) wg, h)
 
     -- |Change 'UIButtonState's '_buttonstateIsFiring' to @False@ and
@@ -173,10 +183,10 @@ instance (GUIClickable w) => MouseHandler (ButtonHandler m w) w where
                                     }) wg
                                     , h)
 
-instance GUIAnyMap (GUIAny m) where
+instance (Monad m) => GUIAnyMap m (GUIAny m) where
     guiAnyMap f w = f w
 
-instance GUIWidget m (GUIAny m) where
+instance GUIWidget T.Pioneers (GUIAny T.Pioneers) where
     getBoundary (GUIAnyC w) = getBoundary w
     getBoundary (GUIAnyP w) = getBoundary w
     getBoundary (GUIAnyB w _) = getBoundary w
@@ -186,36 +196,35 @@ instance GUIWidget m (GUIAny m) where
     isInsideSelf x y (GUIAnyC w) = (isInsideSelf x y) w
     isInsideSelf x y (GUIAnyP w) = (isInsideSelf x y) w
     isInsideSelf x y (GUIAnyB w _) = (isInsideSelf x y) w
-    isInside x y (GUIAnyC w) = (isInside x y) w
-    isInside x y (GUIAnyP w) = (isInside x y) w
-    isInside x y (GUIAnyB w _) = (isInside x y) w
     getPriority (GUIAnyC w) = getPriority w
     getPriority (GUIAnyP w) = getPriority w
     getPriority (GUIAnyB w _) = getPriority w
-    getShorthand (GUIAnyC w) = "A" ++ getShorthand w
-    getShorthand (GUIAnyP w) = "A" ++ getShorthand w
-    getShorthand (GUIAnyB w _) = "A" ++ getShorthand w
+    getShorthand (GUIAnyC w) = do { str <- getShorthand w; return $ "A" ++ str }
+    getShorthand (GUIAnyP w) = do { str <- getShorthand w; return $ "A" ++ str }
+    getShorthand (GUIAnyB w _) = do { str <- getShorthand w; return $ "A" ++ str }
 
-instance GUIAnyMap GUIContainer where
+instance (Monad m) => GUIAnyMap m GUIContainer where
     guiAnyMap f (GUIAnyC c) = f c
     guiAnyMap _ _ = error "invalid types in guiAnyMap"
-instance GUIWidget m GUIContainer where
+instance (Monad m) => GUIWidget m GUIContainer where
     getBoundary :: GUIContainer -> m (ScreenUnit, ScreenUnit, ScreenUnit ,ScreenUnit)
-    getBoundary cnt = return (_screenX cnt, _screenY cnt, _width cnt, _height cnt)
-    getChildren cnt = return $ _children cnt
-    getPriority cnt = return $ _priority cnt
+    getBoundary cnt = return (_uiScreenX cnt, _uiScreenY cnt, _uiWidth cnt, _uiHeight cnt)
+    getChildren cnt = return $ _uiChildren cnt
+    getPriority cnt = return $ _uiPriority cnt
     getShorthand _ = return $ "CNT"
     
--- |A 'GUIPanel' is much like a 'GUIContainer' but it resizes automatically according to its
---  children components.
-data GUIPanel = GUIPanel { _panelContainer :: GUIContainer} deriving (Show)
-instance GUIAnyMap GUIPanel where
+instance GUIAnyMap m GUIPanel where
     guiAnyMap f (GUIAnyP p) = f p
     guiAnyMap _ _ = error "invalid types in guiAnyMap"
-instance GUIWidget m GUIPanel where
-    getBoundary pnl = case getChildren $ _panelContainer pnl of
+instance GUIWidget T.Pioneers GUIPanel where
+    getBoundary pnl = do
+        state <- get
+        let hmap = state ^. T.ui . T.uiMap
+        case _uiChildren $ _panelContainer pnl of
                            [] -> getBoundary $ _panelContainer pnl
-                           cs -> foldl1' determineSize $ map getBoundary cs
+                           cs -> do
+                                 let widgets = catMaybes $ map (flip Map.lookup hmap) cs
+                                 foldl' (liftM2 determineSize) (getBoundary $ _panelContainer pnl) $ map getBoundary widgets
       where
         determineSize :: (ScreenUnit, ScreenUnit, ScreenUnit ,ScreenUnit) -> (ScreenUnit, ScreenUnit, ScreenUnit ,ScreenUnit) -> (ScreenUnit, ScreenUnit, ScreenUnit ,ScreenUnit)
         determineSize (x, y, w, h) (x', y', w', h') =
@@ -225,18 +234,18 @@ instance GUIWidget m GUIPanel where
                 h'' = if y' + h' > y + h then y' + h' - y'' else y + h - y''
             in (x'', y'', w'', h'')
             
-    getChildren pnl = return $ getChildren $ _panelContainer pnl
-    getPriority pnl = return $ getPriority $ _panelContainer pnl
+    getChildren pnl = getChildren $ _panelContainer pnl
+    getPriority pnl = getPriority $ _panelContainer pnl
     getShorthand _ = return $ "PNL"
 
-instance GUIAnyMap GUIButton where
+instance (Monad m) => GUIAnyMap m GUIButton where
     guiAnyMap f (GUIAnyB btn _) = f btn
     guiAnyMap _ _ = error "invalid types in guiAnyMap"
 instance GUIClickable GUIButton where
-    getButtonState = _buttonState
-    updateButtonState f btn = btn {_buttonState = f $ _buttonState btn}
-instance GUIWidget m GUIButton where
-    getBoundary btn = return (_screenXB btn, _screenYB btn, _widthB btn, _heightB btn)
+    getButtonState = _uiButtonState
+    updateButtonState f btn = btn {_uiButtonState = f $ _uiButtonState btn}
+instance (Monad m) => GUIWidget m GUIButton where
+    getBoundary btn = return (_uiScreenXB btn, _uiScreenYB btn, _uiWidthB btn, _uiHeightB btn)
     getChildren _ = return []
-    getPriority btn = return $ _priorityB btn
+    getPriority btn = return $ _uiPriorityB btn
     getShorthand _ = return "BTN"
