@@ -50,22 +50,11 @@ initBuffer varray =
            checkError "initBuffer"
            return bufferObject
 
-initMapShader :: IO (
-                      Program           -- the GLSL-Program
-                      , AttribLocation  -- color
-                      , AttribLocation  -- normal
-                      , AttribLocation  -- vertex
-                      , UniformLocation -- ProjectionMat
-                      , UniformLocation -- ViewMat
-                      , UniformLocation -- ModelMat
-                      , UniformLocation -- NormalMat
-                      , UniformLocation -- TessLevelInner
-                      , UniformLocation -- TessLevelOuter
-                      , TextureObject   -- Texture where to draw into
-                      ) -- ^ (the GLSL-Program, color, normal, vertex, ProjectionMat, ViewMat,
-                        --    ModelMat, NormalMat, TessLevelInner, TessLevelOuter,
-                        --    Texture where to draw into)
-initMapShader = do
+initMapShader ::
+                Int                                -- ^ initial Tessallation-Factor
+                -> (BufferObject,NumArrayIndices)  -- ^ Buffer with Data and DataDescriptor
+                -> IO GLMapState
+initMapShader tessFac (buf, vertDes) = do
    ! vertexSource <- B.readFile mapVertexShaderFile
    ! tessControlSource <- B.readFile mapTessControlShaderFile
    ! tessEvalSource <- B.readFile mapTessEvalShaderFile
@@ -120,9 +109,30 @@ initMapShader = do
    putStrLn $ unlines $ ["Indices: ", show (colorIndex, normalIndex, vertexIndex)]
 
    tex <- genObjectName
+   overTex <- genObjectName
+
+   texts <- genObjectNames 6
+   
 
    checkError "initShader"
-   return (program, colorIndex, normalIndex, vertexIndex, projectionMatrixIndex, viewMatrixIndex, modelMatrixIndex, normalMatrixIndex, tessLevelInner, tessLevelOuter, tex)
+   return GLMapState
+        { _mapProgram         = program
+        , _shdrColorIndex     = colorIndex
+        , _shdrNormalIndex    = normalIndex
+        , _shdrVertexIndex    = vertexIndex
+        , _shdrProjMatIndex   = projectionMatrixIndex
+        , _shdrViewMatIndex   = viewMatrixIndex
+        , _shdrModelMatIndex  = modelMatrixIndex
+        , _shdrNormalMatIndex = normalMatrixIndex
+        , _shdrTessInnerIndex = tessLevelInner
+        , _shdrTessOuterIndex = tessLevelOuter
+        , _renderedMapTexture = tex
+        , _stateTessellationFactor = tessFac
+        , _stateMap           = buf
+        , _mapVert            = vertDes
+        , _overviewTexture    = overTex
+        , _mapTextures        = texts
+        }
 
 initHud :: IO GLHud
 initHud = do
@@ -193,13 +203,13 @@ renderOverview = do
                 DepthAttachment
                 Renderbuffer
                 (state ^. gl.glRenderbuffer)
-        textureBinding Texture2D $= Just (state ^. gl.glMap.mapTexture)
+        textureBinding Texture2D $= Just (state ^. gl.glMap.renderedMapTexture)
 
         framebufferTexture2D
                 Framebuffer
                 (ColorAttachment 0)
                 Texture2D
-                (state ^. gl.glMap.mapTexture)
+                (state ^. gl.glMap.renderedMapTexture)
                 0
 
         -- Render to FrameBufferObject
@@ -285,13 +295,13 @@ render = do
                 DepthAttachment
                 Renderbuffer
                 (state ^. gl.glRenderbuffer)
-        textureBinding Texture2D $= Just (state ^. gl.glMap.mapTexture)
+        textureBinding Texture2D $= Just (state ^. gl.glMap.renderedMapTexture)
 
         framebufferTexture2D
                 Framebuffer
                 (ColorAttachment 0)
                 Texture2D
-                (state ^. gl.glMap.mapTexture)
+                (state ^. gl.glMap.renderedMapTexture)
                 0
 
         -- Render to FrameBufferObject
@@ -371,7 +381,7 @@ render = do
         uniform (hud ^. hudTexIndex) $= Index1 (0::GLint)
 
         activeTexture  $= TextureUnit 1
-        textureBinding Texture2D $= Just (state ^. gl.glMap.mapTexture)
+        textureBinding Texture2D $= Just (state ^. gl.glMap.renderedMapTexture)
         uniform (hud ^. hudBackIndex) $= Index1 (1::GLint)
 
         bindBuffer ArrayBuffer $= Just (hud ^. hudVBO)

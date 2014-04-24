@@ -82,9 +82,7 @@ main =
         (Size fbWidth fbHeight) <- glGetDrawableSize window'
         initRendering
         --generate map vertices
-        (mapBuffer, vert) <- getMapBufferObject
-        (mapprog, ci, ni, vi, pri, vii, mi, nmi, tli, tlo, mapTex) <- initMapShader
-        overTex <- GL.genObjectName
+        glMap' <- initMapShader 4 =<< getMapBufferObject
         print window'
         eventQueue <- newTQueueIO :: IO (TQueue Event)
         putStrLn "foo"
@@ -109,23 +107,6 @@ main =
                 , _left     = False
                 , _right    = False
             }
-            glMap' = GLMapState
-                { _shdrVertexIndex      = vi
-                , _shdrNormalIndex      = ni
-                , _shdrColorIndex       = ci
-                , _shdrProjMatIndex     = pri
-                , _shdrViewMatIndex     = vii
-                , _shdrModelMatIndex    = mi
-                , _shdrNormalMatIndex   = nmi
-                , _shdrTessInnerIndex   = tli
-                , _shdrTessOuterIndex   = tlo
-                , _stateTessellationFactor = 4
-                , _stateMap             = mapBuffer
-                , _mapVert              = vert
-                , _mapProgram           = mapprog
-                , _mapTexture           = mapTex
-                , _overviewTexture      = overTex
-                }
             env = Env
               { _eventsChan      = eventQueue
               , _windowObject    = window'
@@ -302,7 +283,7 @@ adjustWindow = do
 
 
                    let hudtexid = state ^. gl.glHud.hudTexture
-                       maptexid = state ^. gl.glMap.mapTexture
+                       maptexid = state ^. gl.glMap.renderedMapTexture
                    allocaBytes (fbWidth*fbHeight*4) $ \ptr -> do
                                                                --default to ugly pink to see if
                                                                --somethings go wrong.
