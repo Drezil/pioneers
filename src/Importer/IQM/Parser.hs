@@ -8,8 +8,11 @@ module Importer.IQM.Parser (parseIQM) where
 import Importer.IQM.Types
 import Data.Attoparsec.ByteString.Char8
 import Data.Attoparsec.ByteString
+import Data.Attoparsec.Binary
+import Data.Attoparsec (parse, takeByteString)
 import Data.ByteString.Char8 (pack)
-import Data.ByteString (split, null)
+import Data.ByteString (split, null, ByteString)
+import qualified Data.ByteString as B
 import Data.Word
 import Data.Int
 import Unsafe.Coerce
@@ -20,72 +23,80 @@ import Control.Monad
 import Prelude as P hiding (take, null)
 
 -- | helper-function for creating an integral out of [8-Bit Ints]
-w8ToInt :: Integral a => a -> a -> a
-w8ToInt i add = 256*i + add
+_w8ToInt :: Integral a => a -> a -> a
+_w8ToInt i add = 256*i + add
 
 -- | shorthand-function for parsing Word8 into Integrals
-parseNum :: (Integral a, Integral b) => [a] -> b
-parseNum = (foldl1 w8ToInt) . map fromIntegral
+_parseNum :: (Integral a, Integral b) => [a] -> b
+_parseNum = foldl1 _w8ToInt . map fromIntegral
 
 -- | read a 16-Bit Int from Parsing-Input and log 2 bytes in our Parsing-Monad
 --
 --   begins with _ to defeat ghc-warnings. Rename if used!
-_int16 :: CParser Int16
+_int16 :: CParser Word16
 _int16 = do
         ret <- lift $ do
                          a <- anyWord8 :: Parser Word8
                          b <- anyWord8 :: Parser Word8
-                         return $ parseNum [b,a]
+                         return $ _parseNum [b,a]
         modify (+2)
         return ret
 
 -- | read a 32-Bit Int from Parsing-Input and log 4 bytes in our Parsing-Monad
-int32 :: CParser Int32
-int32 = do
+_int32 :: CParser Int32
+_int32 = do
         ret <- lift $ do
                          a <- anyWord8 :: Parser Word8
                          b <- anyWord8 :: Parser Word8
                          c <- anyWord8 :: Parser Word8
                          d <- anyWord8 :: Parser Word8
-                         return $ parseNum [d,c,b,a]
+                         return $ _parseNum [d,c,b,a]
         modify (+4)
-        return $ ret
+        return ret
+
+w32leCParser :: CParser Word32
+w32leCParser = do
+	ret <- lift anyWord32le
+	modify (+4)
+	return ret
 
 -- | Parser for the header
 readHeader :: CParser IQMHeader
 readHeader = do
          _ <- lift $ string (pack "INTERQUAKEMODEL\0")
-         v <- int32
-         -- when v /= 2 then --TODO: error something
-         size' <- int32
-         flags' <- int32
-         num_text' <- int32
-         ofs_text' <- int32
-         num_meshes' <- int32
-         ofs_meshes' <- int32
-         num_vertexarrays' <- int32
-         num_vertexes' <- int32
-         ofs_vertexarrays' <- int32
-         num_triangles' <- int32
-         ofs_triangles' <- int32
-         ofs_adjacency' <- int32
-         num_joints' <- int32
-         ofs_joints' <- int32
-         num_poses' <- int32
-         ofs_poses' <- int32
-         num_anims' <- int32
-         ofs_anims' <- int32
-         num_frames' <- int32
-         num_framechannels' <- int32
-         ofs_frames' <- int32
-         ofs_bounds' <- int32
-         num_comment' <- int32
-         ofs_comment' <- int32
-         num_extensions' <- int32
-         ofs_extensions' <- int32
+         modify (+16)
+         v <- w32leCParser
+	 lift $ when (v /= 2) $ fail "Version /= 2.\nThis Parser only supports Version 2 of the InterQuake-Model IQM"
+         -- when v /= 2 then fail parsing.
+         size' <- w32leCParser
+         flags' <- w32leCParser
+         num_text' <- w32leCParser
+         ofs_text' <- w32leCParser
+         num_meshes' <- w32leCParser
+         ofs_meshes' <- w32leCParser
+         num_vertexarrays' <- w32leCParser
+         num_vertexes' <- w32leCParser
+         ofs_vertexarrays' <- w32leCParser
+         num_triangles' <- w32leCParser
+         ofs_triangles' <- w32leCParser
+         ofs_adjacency' <- w32leCParser
+         num_joints' <- w32leCParser
+         ofs_joints' <- w32leCParser
+         num_poses' <- w32leCParser
+         ofs_poses' <- w32leCParser
+         num_anims' <- w32leCParser
+         ofs_anims' <- w32leCParser
+         num_frames' <- w32leCParser
+         num_framechannels' <- w32leCParser
+         ofs_frames' <- w32leCParser
+         ofs_bounds' <- w32leCParser
+         num_comment' <- w32leCParser
+         ofs_comment' <- w32leCParser
+         num_extensions' <- w32leCParser
+         ofs_extensions' <- w32leCParser
          return IQMHeader { version = v
                 , filesize           = size'
-                , flags              = flags'
+                , flags              = fromIntegral flags'
                 , num_text           = num_text'
                 , ofs_text           = ofs_text'
                 , num_meshes         = num_meshes'
@@ -115,12 +126,12 @@ readHeader = do
 -- | Parser for Mesh-Structure
 readMesh :: CParser IQMMesh
 readMesh = do
-        name <- int32
-        mat <- int32
-        fv <- int32
-        nv <- int32
-        ft <- int32
-        nt <- int32
+        name <- w32leCParser
+        mat <- w32leCParser
+        fv <- w32leCParser
+        nv <- w32leCParser
+        ft <- w32leCParser
+        nt <- w32leCParser
         return IQMMesh
                 { meshName              = if name == 0 then Nothing else Just (Mesh name)
                 , meshMaterial          = mat
@@ -140,12 +151,32 @@ readMeshes n = do
         ms <- readMeshes (n-1)
         return $ m:ms
 
+-- | Parser for Mesh-Structure
+readVAF :: CParser IQMVertexArray
+readVAF = do
+        vat <- rawEnumToVAT =<< w32leCParser
+        flags' <- w32leCParser
+        format <- rawEnumToVAF =<< w32leCParser
+        size <- w32leCParser
+        offset <- w32leCParser
+        return $ IQMVertexArray vat (fromIntegral flags') format (fromIntegral size) offset
+
+-- | helper to read n consecutive Meshes tail-recursive
+readVAFs :: Int -> CParser [IQMVertexArray]
+readVAFs 1 = do
+        f <- readVAF
+        return [f]
+readVAFs n = do
+        f <- readVAF
+        fs <- readVAFs (n-1)
+        return $ f:fs
+
 -- | helper-Notation for subtracting 2 integral values of different kind in the precision
 --   of the target-kind
 (.-) :: forall a a1 a2.
               (Num a, Integral a2, Integral a1) =>
               a1 -> a2 -> a
-(.-) a b = (fromIntegral a) - (fromIntegral b)
+(.-) a b = fromIntegral a - fromIntegral b
 
 infix 5 .-
 
@@ -162,18 +193,35 @@ skipToCounter a = do
                         put d
 
 -- | Parses an IQM-File and handles back the Haskell-Structure
-parseIQM :: CParser IQM
-parseIQM = do
-        put 0                                                   --start at offset 0
-        h <- readHeader                                         --read header
-        skipToCounter $ ofs_text h                              --skip 0-n bytes to get to text
-        text <- lift . take . fromIntegral $ num_text h         --read texts
-        modify . (+) . fromIntegral $ num_text h                --put offset forward
-        skipToCounter $ ofs_meshes h                            --skip 0-n bytes to get to meshes
-        meshes' <- readMeshes (fromIntegral (num_meshes h))     --read meshes
-        return IQM
-                { header = h
-                , texts = filter (not.null) (split (unsafeCoerce '\0') text)
-                , meshes = meshes'
-                }
+parseIQM :: String -> IO IQM
+parseIQM a =
+	do
+	f <- B.readFile a
+	Done _ raw <- return $ parse doIQMparse f
+	
+	let ret = raw
+	return ret
 
+doIQMparse :: Parser IQM
+doIQMparse = 
+	flip evalStateT 0 $ --evaluate parser with state starting at 0
+		do
+        	h <- readHeader                                         --read header
+	        skipToCounter $ ofs_text h                              --skip 0-n bytes to get to text
+	        text <- lift . take . fromIntegral $ num_text h         --read texts
+	       	modify . (+) . fromIntegral $ num_text h                --put offset forward
+	        skipToCounter $ ofs_meshes h                            --skip 0-n bytes to get to meshes
+	        meshes' <- readMeshes $ fromIntegral $ num_meshes h     --read meshes
+		skipToCounter $ ofs_vertexarrays h
+                vaf <- readVAFs $ fromIntegral $ num_vertexarrays h     --read Vertex-Arrays
+
+		_ <- lift takeByteString
+	        return IQM
+	                { header = h
+	                , texts = filter (not.null) (split (unsafeCoerce '\0') text)
+	                , meshes = meshes'
+			, vertexArrays = vaf
+	                }
+
+skipDrop :: Int -> Int -> ByteString -> ByteString
+skipDrop a b= B.drop b . B.take a

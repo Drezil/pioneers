@@ -16,7 +16,6 @@ import           Control.Concurrent.STM               (TQueue,
                                                        newTQueueIO)
 
 import           Control.Monad.RWS.Strict             (ask, evalRWST, get, liftIO, modify)
-import           Control.Monad.Trans.State            (evalStateT)
 import           Data.Functor                         ((<$>))
 import           Data.Monoid                          (mappend)
 
@@ -46,17 +45,21 @@ import           UI.Callbacks
 import           Map.Graphics
 import           Types
 import           Importer.IQM.Parser
-import           Data.Attoparsec.Char8 (parseTest)
-import qualified Data.ByteString as B
+--import           Data.Attoparsec.Char8 (parseTest)
+--import qualified Data.ByteString as B
 
 -- import qualified Debug.Trace                          as D (trace)
 
 --------------------------------------------------------------------------------
 
-testParser :: IO ()
-testParser = do
-        f <- B.readFile "sample.iqm"
-        parseTest (evalStateT parseIQM 0) f
+testParser :: String -> IO ()
+testParser a = putStrLn . show  =<< parseIQM a
+{-do
+		f <- B.readFile a
+		putStrLn "reading in:"
+		putStrLn $ show f
+		putStrLn "parsed:"
+		parseTest parseIQM f-}
 
 --------------------------------------------------------------------------------
 
