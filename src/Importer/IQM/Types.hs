@@ -1,5 +1,6 @@
--- | Int32 or Int64 - depending on implementation. Format just specifies "uint".
---   4-Byte in the documentation indicates Int32 - but not specified!
+{-# LANGUAGE BangPatterns #-}
+-- | Word32 or Word64 - depending on implementation. Format just specifies "uint".
+--   4-Byte in the documentation indicates Word32 - but not specified!
 module Importer.IQM.Types where
 
 import Control.Monad.Trans.State.Lazy (StateT)
@@ -31,33 +32,33 @@ type IQMData = Ptr IQMVertexArrayFormat
 --
 --   ofs_* fields are aligned at 4-byte-boundaries
 data IQMHeader = IQMHeader
-                { version            :: Word32 -- ^ Must be 2
-                , filesize           :: Word32
-                , flags              :: Flags
-                , num_text           :: Word32
-                , ofs_text           :: Offset
-                , num_meshes         :: Word32
-                , ofs_meshes         :: Offset
-                , num_vertexarrays   :: Word32
-                , num_vertexes       :: Word32
-                , ofs_vertexarrays   :: Offset
-                , num_triangles      :: Word32
-                , ofs_triangles      :: Offset
-                , ofs_adjacency      :: Offset
-                , num_joints         :: Word32
-                , ofs_joints         :: Offset
-                , num_poses          :: Word32
-                , ofs_poses          :: Offset
-                , num_anims          :: Word32
-                , ofs_anims          :: Offset
-                , num_frames         :: Word32
-                , num_framechannels  :: Word32
-                , ofs_frames         :: Offset
-                , ofs_bounds         :: Offset
-                , num_comment        :: Word32
-                , ofs_comment        :: Offset
-                , num_extensions     :: Word32 -- ^ stored as linked list, not as array.
-                , ofs_extensions     :: Offset
+                { version            :: !Word32 -- ^ Must be 2
+                , filesize           :: !Word32
+                , flags              :: !Flags
+                , num_text           :: !Word32
+                , ofs_text           :: !Offset
+                , num_meshes         :: !Word32
+                , ofs_meshes         :: !Offset
+                , num_vertexarrays   :: !Word32
+                , num_vertexes       :: !Word32
+                , ofs_vertexarrays   :: !Offset
+                , num_triangles      :: !Word32
+                , ofs_triangles      :: !Offset
+                , ofs_adjacency      :: !Offset
+                , num_joints         :: !Word32
+                , ofs_joints         :: !Offset
+                , num_poses          :: !Word32
+                , ofs_poses          :: !Offset
+                , num_anims          :: !Word32
+                , ofs_anims          :: !Offset
+                , num_frames         :: !Word32
+                , num_framechannels  :: !Word32
+                , ofs_frames         :: !Offset
+                , ofs_bounds         :: !Offset
+                , num_comment        :: !Word32
+                , ofs_comment        :: !Offset
+                , num_extensions     :: !Word32 -- ^ stored as linked list, not as array.
+                , ofs_extensions     :: !Offset
                 } deriving (Show, Eq)
 
 -- | Format of an IQM-Mesh Structure.
@@ -71,6 +72,22 @@ data IQMMesh = IQMMesh
                 , meshFirstTriangle     :: Word32
                 , meshNumTriangles      :: Word32
                 } deriving (Show, Eq)
+
+-- | Format of IQM-Triangle Structure
+data IQMTriangle = IQMTriangle VertexIndex VertexIndex VertexIndex
+
+-- | Type-Alias for Word32 indicating an index on vertices in IQMMesh
+type VertexIndex = Word32
+
+-- | Type-Alias for Word32 indicating an index on IQMTriangle
+type TriangleIndex = Word32
+
+-- | From the IQM-Format-Description:
+--
+--   each value is the index of the adjacent triangle for edge 0, 1, and 2, where ~0 (= -1)
+--   indicates no adjacent triangle indexes are relative to the iqmheader.ofs_triangles array
+--   and span all meshes, where 0 is the first triangle, 1 is the second, 2 is the third, etc.
+data IQMAdjacency = IQMAdjacency TriangleIndex TriangleIndex TriangleIndex
 
 -- | Format of a whole IQM-File
 --
@@ -151,23 +168,10 @@ data IQMVertexArray = IQMVertexArray
                         Offset
                        deriving (Eq)
 instance Show IQMVertexArray where
-    show (IQMVertexArray t fl fo nc off) = "IQMVertexArray (Type: " ++ (show t) ++
-                                                        ", Flags: " ++ (show fl) ++
-                                                        ", Format: " ++ (show fo) ++
-                                                        ", NumComponents: " ++ (show nc) ++
-                                                        ", Offset: " ++ (show off) ++
+    show (IQMVertexArray t fl fo nc off) = "IQMVertexArray (Type: " ++ show t ++
+                                                        ", Flags: " ++ show fl ++
+                                                        ", Format: " ++ show fo ++
+                                                        ", NumComponents: " ++ show nc ++
+                                                        ", Offset: " ++ show off ++
                                                         ")"
-
--- | A triangle out of the Vertices at the Indexed Positions
-data IQMTriangle = IQMTriangle Index Index Index
-                       deriving (Show, Eq)
-
-
--- | From the IQM-Format-Description:
---
---   each value is the index of the adjacent triangle for edge 0, 1, and 2, where ~0 (= -1)
---   indicates no adjacent triangle indexes are relative to the iqmheader.ofs_triangles array
---   and span all meshes, where 0 is the first triangle, 1 is the second, 2 is the third, etc.
-data IQMAdjacency = IQMAdjacency Index Index Index
-                       deriving (Show, Eq)
 
