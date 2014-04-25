@@ -27,6 +27,7 @@ import Foreign.Storable      (sizeOf)
 import Foreign.Ptr           (Ptr, nullPtr, plusPtr)
 import Render.Misc           (checkError)
 import Linear
+import Control.Arrow         ((***))
 
 import Map.Types
 import Map.StaticMaps
@@ -43,7 +44,7 @@ type GraphicsMap = Array (Int, Int) MapEntry
 
 -- converts from classical x/z to striped version of a map
 convertToStripeMap :: PlayMap -> PlayMap
-convertToStripeMap mp = array (stripify l, stripify u) (map (\(i,e) -> (stripify i,strp e)) (assocs mp))
+convertToStripeMap mp = array (stripify l, stripify u) (map (stripify *** strp) (assocs mp))
   where
     (l,u) = bounds mp
 
@@ -77,7 +78,7 @@ bufferObjectPtr = plusPtr (nullPtr :: Ptr GLfloat) . fromIntegral
 
 mapVertexArrayDescriptor :: NumComponents -> NumComponents -> VertexArrayDescriptor GLfloat
 mapVertexArrayDescriptor count' offset =
-   VertexArrayDescriptor count' Float mapStride (bufferObjectPtr ((fromIntegral offset)*sizeOf (0 :: GLfloat)) ) --(fromIntegral numComponents * offset))
+   VertexArrayDescriptor count' Float mapStride (bufferObjectPtr (fromIntegral offset * sizeOf (0 :: GLfloat)) ) --(fromIntegral numComponents * offset))
 
 fgColorIndex :: (IntegerHandling, VertexArrayDescriptor GLfloat)
 fgColorIndex = (ToFloat, mapVertexArrayDescriptor 4 0)  --color first
