@@ -200,8 +200,13 @@ parseIQM :: String -> IO IQM
 parseIQM a =
 	do
 	f <- B.readFile a
-	Done _ raw <- return $ parse doIQMparse f
-		
+	putStrLn "Before Parse:"
+	putStrLn $ show f
+	putStrLn "Real Parse:"
+	r <- return $ parse doIQMparse f
+	raw <- case r of
+		Done _ x -> return x
+		y -> error $ show y	
 	let ret = raw
 	return ret
 
@@ -228,7 +233,7 @@ doIQMparse =
 	       	modify . (+) . fromIntegral $ num_text h                --put offset forward
 	        skipToCounter $ ofs_meshes h                            --skip 0-n bytes to get to meshes
 	        meshes' <- readMeshes $ fromIntegral $ num_meshes h     --read meshes
-		skipToCounter $ ofs_vertexarrays h
+		skipToCounter $ ofs_vertexarrays h			--skip 0-n bytes to get to Vertex-Arrays
                 vaf <- readVAFs $ fromIntegral $ num_vertexarrays h     --read Vertex-Arrays
 
 		_ <- lift takeByteString
