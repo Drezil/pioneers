@@ -9,9 +9,9 @@ import Importer.IQM.Types
 import Data.Attoparsec.ByteString.Char8
 import Data.Attoparsec.ByteString
 import Data.Attoparsec.Binary
-import Data.Attoparsec (parse, takeByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString (split, null, ByteString)
+import Data.ByteString.Unsafe (unsafeUseAsCString)
 import qualified Data.ByteString as B
 import Data.Word
 import Data.Int
@@ -19,6 +19,9 @@ import Unsafe.Coerce
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Class
 import Control.Monad
+import Foreign.Ptr
+import Foreign.Marshal.Alloc
+import Foreign.Marshal.Utils
 
 import Prelude as P hiding (take, null)
 
@@ -159,7 +162,7 @@ readVAF = do
         format <- rawEnumToVAF =<< w32leCParser
         size <- w32leCParser
         offset <- w32leCParser
-        return $ IQMVertexArray vat (fromIntegral flags') format (fromIntegral size) offset
+        return $ IQMVertexArray vat (fromIntegral flags') format (fromIntegral size) offset nullPtr
 
 -- | helper to read n consecutive Meshes tail-recursive
 readVAFs :: Int -> CParser [IQMVertexArray]
@@ -198,10 +201,23 @@ parseIQM a =
 	do
 	f <- B.readFile a
 	Done _ raw <- return $ parse doIQMparse f
-	
+		
 	let ret = raw
 	return ret
 
+readInVAO :: IQMVertexArray -> ByteString -> IO IQMVertexArray
+readInVAO (IQMVertexArray type' a format num offset ptr) d = 
+		do
+		let 
+			byteLen = (fromIntegral num)*(vaSize format)
+			data' = skipDrop (fromIntegral offset) byteLen d
+			
+		when (not (ptr == nullPtr)) $ error $ "Error reading Vertex-Array: Double Read of " ++ show type'
+		p <- mallocBytes byteLen
+		unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
+		p' <- unsafeCoerce p
+		return (IQMVertexArray type' a format num offset p')
+		
 doIQMparse :: Parser IQM
 doIQMparse = 
 	flip evalStateT 0 $ --evaluate parser with state starting at 0

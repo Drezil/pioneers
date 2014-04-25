@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ExistentialQuantification, RankNTypes, CPP, BangPatterns #-}
 -- | Word32 or Word64 - depending on implementation. Format just specifies "uint".
 --   4-Byte in the documentation indicates Word32 - but not specified!
 module Importer.IQM.Types where
@@ -11,6 +11,9 @@ import Data.Attoparsec.ByteString.Char8
 import Foreign.Ptr
 import Graphics.Rendering.OpenGL.Raw.Types
 import Prelude as P
+import Foreign.Storable
+import Foreign.C.Types
+import Foreign.Marshal.Array
 
 -- | Mesh-Indices to distinguish the meshes referenced
 newtype Mesh = Mesh Word32 deriving (Show, Eq)
@@ -22,7 +25,7 @@ type Flags = GLbitfield      -- ^ Alias for UInt32
 type Offset = Word32         -- ^ Alias for UInt32
 type Index = GLuint          -- ^ Alias for UInt32
 type NumComponents = GLsizei -- ^ Alias for UInt32
-type IQMData = Ptr IQMVertexArrayFormat
+type IQMData = Ptr IQMVertexArrayFormat -- ^ Pointer for Data
 
 -- | Header of IQM-Format.
 --
@@ -138,6 +141,21 @@ data IQMVertexArrayFormat = IQMbyte
 --                            | Unknown Word32
                        deriving (Show, Eq)
 
+vaSize :: IQMVertexArrayFormat -> Int
+vaSize IQMbyte 		= sizeOf (undefined :: CSChar)
+vaSize IQMubyte 	= sizeOf (undefined :: CUChar)
+vaSize IQMshort 	= sizeOf (undefined :: CShort)
+vaSize IQMushort 	= sizeOf (undefined :: CUShort)
+vaSize IQMint 		= sizeOf (undefined :: CInt)
+vaSize IQMuint 		= sizeOf (undefined :: CUInt)
+vaSize IQMhalf 		= sizeOf (undefined :: Word16) --TODO: Find 16-Bit-Float-Datatype
+vaSize IQMfloat 	= sizeOf (undefined :: CFloat)
+vaSize IQMdouble 	= sizeOf (undefined :: CDouble)
+
+--mallocVArray :: Storable a => IQMVertexArrayFormat -> Int -> IO (Ptr a)
+--mallocVArray IQMbyte n	= mallocArray n :: IO (Ptr CSChar)
+--mallocVArray IQMubyte n	= mallocArray n :: IO (Ptr CUChar)
+
 -- | Lookup-Function for internal enum to VertexArrayFormat
 
 rawEnumToVAF :: Word32 -> CParser IQMVertexArrayFormat
@@ -166,9 +184,10 @@ data IQMVertexArray = IQMVertexArray
                         IQMVertexArrayFormat
                         NumComponents
                         Offset
+			IQMData
                        deriving (Eq)
 instance Show IQMVertexArray where
-    show (IQMVertexArray t fl fo nc off) = "IQMVertexArray (Type: " ++ show t ++
+    show (IQMVertexArray t fl fo nc off _) = "IQMVertexArray (Type: " ++ show t ++
                                                         ", Flags: " ++ show fl ++
                                                         ", Format: " ++ show fo ++
                                                         ", NumComponents: " ++ show nc ++
