@@ -31,8 +31,7 @@ aplByNode :: (Node -> Node) -> (Node -> Bool) -> PlayMap -> PlayMap
 aplByNode f g mp = array (bounds mp) (map (\(ab,c) -> (if g c then (ab, f c) else (ab,c))) (assocs mp)) 
 
 aplAll :: [a -> a] -> a -> a
-aplAll []     m = m
-aplAll (f:fs) m = aplAll fs $ f m
+aplAll fs m = foldl (\ m f -> f m) m fs
 
 -- general 3D-Gaussian
 gauss3Dgeneral :: Floating q =>

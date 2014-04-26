@@ -34,7 +34,7 @@ giveNeighbourhood :: PlayMap      -- ^ map on which to find neighbourhood
                   -> [(Int, Int)] -- ^ neighbourhood
 giveNeighbourhood _  0 (a,b) = [(a,b)]
 giveNeighbourhood mp n (a,b) = let ns = giveNeighbours mp (a,b) in 
-                             remdups . concat $ ns:(map (giveNeighbourhood mp (n-1)) ns)
+                             remdups . concat $ ns : map (giveNeighbourhood mp (n-1)) ns
 
 -- removing duplicates in O(n log n), losing order and adding Ord requirement
 remdups :: Ord a => [a] -> [a]
