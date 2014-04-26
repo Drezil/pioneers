@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- data and classes are separated into several modules to avoid cyclic dependencies with the Type module
 
 module UI.UIBaseData where
 

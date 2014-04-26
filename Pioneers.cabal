@@ -36,6 +36,8 @@ executable Pioneers
                    array >=0.4,
                    random >=1.0.1,
                    transformers >=0.3.0,
+                   unordered-containers >= 0.2.1,
+                   hashable >= 1.0.1.1,
                    mtl >=2.1.2,
                    stm >=2.4.2,
                    vector >=0.10.9 && <0.11,
@@ -45,9 +47,7 @@ executable Pioneers
                    SDL2 >= 0.1.0,
                    time >=1.4.0,
                    GLUtil >= 0.7,
-                   attoparsec >= 0.11.2,
-                   unordered-containers >= 0.2.1,
-                   hashable >= 1.0.1.1
+                   attoparsec >= 0.11.2
   other-modules:   Render.Types
   Default-Language: Haskell2010
 
