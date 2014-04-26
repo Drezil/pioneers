@@ -196,33 +196,47 @@ skipToCounter a = do
                         put d
 
 -- | Parses an IQM-File and handles back the Haskell-Structure
+--
+--   Does a 2-Pass-Parsing. Reads in Structure on first pass (O(n))and
+--   fills the Structure in a 2nd Pass from Offsets (O(memcpy'd bytes)).
 parseIQM :: String -> IO IQM
 parseIQM a =
 	do
 	f <- B.readFile a
-	putStrLn "Before Parse:"
-	putStrLn $ show f
-	putStrLn "Real Parse:"
-	r <- return $ parse doIQMparse f
-	raw <- case r of
+	-- Parse Headers/Offsets
+	let result = parse doIQMparse f
+	raw <- case result of
 		Done _ x -> return x
-		y -> error $ show y	
-	let ret = raw
-	return ret
+		y -> error $ show y
+	-- Fill Vertex-Arrays with data of Offsets
+	let 	va = vertexArrays raw
+	va' <- mapM (readInVAO f) va
+	return $ raw {
+		vertexArrays = va'
+		}
 
-readInVAO :: IQMVertexArray -> ByteString -> IO IQMVertexArray
-readInVAO (IQMVertexArray type' a format num offset ptr) d = 
+-- | Allocates memory for the Vertex-data and copies it over there
+--   from the given input-String
+--
+--   Note: The String-Operations are O(1), so only O(numberOfCopiedBytes)
+--   is needed in term of computation.
+readInVAO :: ByteString -> IQMVertexArray -> IO IQMVertexArray
+readInVAO d (IQMVertexArray type' a format num offset ptr) = 
 		do
 		let 
-			byteLen = (fromIntegral num)*(vaSize format)
+			byteLen = fromIntegral num * vaSize format
 			data' = skipDrop (fromIntegral offset) byteLen d
 			
-		when (not (ptr == nullPtr)) $ error $ "Error reading Vertex-Array: Double Read of " ++ show type'
+		unless (ptr == nullPtr) $ error $ "Error reading Vertex-Array: Double Read of " ++ show type'
 		p <- mallocBytes byteLen
+		putStrLn $ concat ["Allocating ", show byteLen, " Bytes at ", show p]
 		unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
-		p' <- unsafeCoerce p
-		return (IQMVertexArray type' a format num offset p')
+		return $ IQMVertexArray type' a format num offset $ castPtr p
 		
+-- | Real internal Parser.
+--
+--   Consumes the String only once, thus in O(n). But all Data-Structures are
+--   not allocated and copied. readInVAO has to be called on each one.
 doIQMparse :: Parser IQM
 doIQMparse = 
 	flip evalStateT 0 $ --evaluate parser with state starting at 0
@@ -235,8 +249,6 @@ doIQMparse =
 	        meshes' <- readMeshes $ fromIntegral $ num_meshes h     --read meshes
 		skipToCounter $ ofs_vertexarrays h			--skip 0-n bytes to get to Vertex-Arrays
                 vaf <- readVAFs $ fromIntegral $ num_vertexarrays h     --read Vertex-Arrays
-
-		_ <- lift takeByteString
 	        return IQM
 	                { header = h
 	                , texts = filter (not.null) (split (unsafeCoerce '\0') text)
@@ -244,5 +256,9 @@ doIQMparse =
 			, vertexArrays = vaf
 	                }
 
+-- | Helper-Function for Extracting a random substring out of a Bytestring
+--   by the Offsets provided.
+--
+--   O(1).
 skipDrop :: Int -> Int -> ByteString -> ByteString
 skipDrop a b= B.drop b . B.take a
