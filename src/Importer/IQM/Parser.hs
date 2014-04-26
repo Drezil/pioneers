@@ -200,28 +200,30 @@ parseIQM :: String -> IO IQM
 parseIQM a =
 	do
 	f <- B.readFile a
-	putStrLn "Before Parse:"
-	putStrLn $ show f
-	putStrLn "Real Parse:"
-	r <- return $ parse doIQMparse f
-	raw <- case r of
+	-- Parse Headers/Offsets
+	let result = parse doIQMparse f
+	raw <- case result of
 		Done _ x -> return x
-		y -> error $ show y	
-	let ret = raw
-	return ret
+		y -> error $ show y
+	-- Fill Vertex-Arrays with data of Offsets
+	let 	va = vertexArrays raw
+	va' <- mapM (readInVAO f) va
+	return $ raw {
+		vertexArrays = va'
+		}
 
-readInVAO :: IQMVertexArray -> ByteString -> IO IQMVertexArray
-readInVAO (IQMVertexArray type' a format num offset ptr) d = 
+readInVAO :: ByteString -> IQMVertexArray -> IO IQMVertexArray
+readInVAO d (IQMVertexArray type' a format num offset ptr) = 
 		do
 		let 
-			byteLen = (fromIntegral num)*(vaSize format)
+			byteLen = fromIntegral num * vaSize format
 			data' = skipDrop (fromIntegral offset) byteLen d
 			
-		when (not (ptr == nullPtr)) $ error $ "Error reading Vertex-Array: Double Read of " ++ show type'
+		unless (ptr == nullPtr) $ error $ "Error reading Vertex-Array: Double Read of " ++ show type'
 		p <- mallocBytes byteLen
+		putStrLn $ concat ["Allocating ", show byteLen, " Bytes at ", show p]
 		unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
-		p' <- unsafeCoerce p
-		return (IQMVertexArray type' a format num offset p')
+		return $ IQMVertexArray type' a format num offset $ castPtr p
 		
 doIQMparse :: Parser IQM
 doIQMparse = 
@@ -235,8 +237,6 @@ doIQMparse =
 	        meshes' <- readMeshes $ fromIntegral $ num_meshes h     --read meshes
 		skipToCounter $ ofs_vertexarrays h			--skip 0-n bytes to get to Vertex-Arrays
                 vaf <- readVAFs $ fromIntegral $ num_vertexarrays h     --read Vertex-Arrays
-
-		_ <- lift takeByteString
 	        return IQM
 	                { header = h
 	                , texts = filter (not.null) (split (unsafeCoerce '\0') text)

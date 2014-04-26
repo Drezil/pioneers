@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, RankNTypes, CPP, BangPatterns #-}
+-- {-# LANGUAGE ExistentialQuantification, RankNTypes, CPP, BangPatterns #-}
 -- | Word32 or Word64 - depending on implementation. Format just specifies "uint".
 --   4-Byte in the documentation indicates Word32 - but not specified!
 module Importer.IQM.Types where
@@ -13,7 +13,6 @@ import Graphics.Rendering.OpenGL.Raw.Types
 import Prelude as P
 import Foreign.Storable
 import Foreign.C.Types
-import Foreign.Marshal.Array
 
 -- | Mesh-Indices to distinguish the meshes referenced
 newtype Mesh = Mesh Word32 deriving (Show, Eq)
@@ -148,7 +147,7 @@ vaSize IQMshort 	= sizeOf (undefined :: CShort)
 vaSize IQMushort 	= sizeOf (undefined :: CUShort)
 vaSize IQMint 		= sizeOf (undefined :: CInt)
 vaSize IQMuint 		= sizeOf (undefined :: CUInt)
-vaSize IQMhalf 		= sizeOf (undefined :: Word16) --TODO: Find 16-Bit-Float-Datatype
+vaSize IQMhalf 		= sizeOf (undefined :: Word16) --TODO: Find 16-Bit-Float-Datatype FIXME!
 vaSize IQMfloat 	= sizeOf (undefined :: CFloat)
 vaSize IQMdouble 	= sizeOf (undefined :: CDouble)
 
@@ -187,10 +186,11 @@ data IQMVertexArray = IQMVertexArray
 			IQMData
                        deriving (Eq)
 instance Show IQMVertexArray where
-    show (IQMVertexArray t fl fo nc off _) = "IQMVertexArray (Type: " ++ show t ++
+    show (IQMVertexArray t fl fo nc off dat) = "IQMVertexArray (Type: " ++ show t ++
                                                         ", Flags: " ++ show fl ++
                                                         ", Format: " ++ show fo ++
                                                         ", NumComponents: " ++ show nc ++
                                                         ", Offset: " ++ show off ++
+							", Data at: " ++ show dat ++ 
                                                         ")"
 
