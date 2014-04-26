@@ -196,6 +196,9 @@ skipToCounter a = do
                         put d
 
 -- | Parses an IQM-File and handles back the Haskell-Structure
+--
+--   Does a 2-Pass-Parsing. Reads in Structure on first pass (O(n))and
+--   fills the Structure in a 2nd Pass from Offsets (O(memcpy'd bytes)).
 parseIQM :: String -> IO IQM
 parseIQM a =
 	do
@@ -212,6 +215,11 @@ parseIQM a =
 		vertexArrays = va'
 		}
 
+-- | Allocates memory for the Vertex-data and copies it over there
+--   from the given input-String
+--
+--   Note: The String-Operations are O(1), so only O(numberOfCopiedBytes)
+--   is needed in term of computation.
 readInVAO :: ByteString -> IQMVertexArray -> IO IQMVertexArray
 readInVAO d (IQMVertexArray type' a format num offset ptr) = 
 		do
@@ -225,6 +233,10 @@ readInVAO d (IQMVertexArray type' a format num offset ptr) =
 		unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
 		return $ IQMVertexArray type' a format num offset $ castPtr p
 		
+-- | Real internal Parser.
+--
+--   Consumes the String only once, thus in O(n). But all Data-Structures are
+--   not allocated and copied. readInVAO has to be called on each one.
 doIQMparse :: Parser IQM
 doIQMparse = 
 	flip evalStateT 0 $ --evaluate parser with state starting at 0
@@ -244,5 +256,9 @@ doIQMparse =
 			, vertexArrays = vaf
 	                }
 
+-- | Helper-Function for Extracting a random substring out of a Bytestring
+--   by the Offsets provided.
+--
+--   O(1).
 skipDrop :: Int -> Int -> ByteString -> ByteString
 skipDrop a b= B.drop b . B.take a

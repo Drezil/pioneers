@@ -20,10 +20,19 @@ newtype Mesh = Mesh Word32 deriving (Show, Eq)
 --   Bytes read for offset-gap reasons
 type CParser a = StateT Int64 Parser a
 
+-- | Alias
 type Flags = GLbitfield      -- ^ Alias for UInt32
+
+-- | Alias
 type Offset = Word32         -- ^ Alias for UInt32
+
+-- | Alias
 type Index = GLuint          -- ^ Alias for UInt32
+
+-- | Alias
 type NumComponents = GLsizei -- ^ Alias for UInt32
+
+-- | Data-BLOB inside IQM
 type IQMData = Ptr IQMVertexArrayFormat -- ^ Pointer for Data
 
 -- | Header of IQM-Format.
@@ -104,7 +113,6 @@ data IQM = IQM
 -- | Different Vertex-Array-Types in IQM
 --
 --   Custom Types have to be > 0x10 as of specification
-
 data IQMVertexArrayType = IQMPosition
                        | IQMTexCoord
                        | IQMNormal
@@ -116,7 +124,6 @@ data IQMVertexArrayType = IQMPosition
                        deriving (Show, Eq)
 
 -- | Lookup-Function for internal enum to VertexArrayFormat
-
 rawEnumToVAT :: Word32 -> CParser IQMVertexArrayType
 rawEnumToVAT 0 = return IQMPosition
 rawEnumToVAT 1 = return IQMTexCoord
@@ -140,6 +147,7 @@ data IQMVertexArrayFormat = IQMbyte
 --                            | Unknown Word32
                        deriving (Show, Eq)
 
+-- | Get the Size (in Bytes) of the given IQMVertexArrayFormat-Struct
 vaSize :: IQMVertexArrayFormat -> Int
 vaSize IQMbyte 		= sizeOf (undefined :: CSChar)
 vaSize IQMubyte 	= sizeOf (undefined :: CUChar)
@@ -156,7 +164,6 @@ vaSize IQMdouble 	= sizeOf (undefined :: CDouble)
 --mallocVArray IQMubyte n	= mallocArray n :: IO (Ptr CUChar)
 
 -- | Lookup-Function for internal enum to VertexArrayFormat
-
 rawEnumToVAF :: Word32 -> CParser IQMVertexArrayFormat
 rawEnumToVAF 0 = return IQMbyte
 rawEnumToVAF 1 = return IQMubyte
