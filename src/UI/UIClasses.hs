@@ -27,17 +27,17 @@ class (Monad m) => GUIWidget m uiw where
     getChildren :: uiw -> m [UIId]
     getChildren _ = return []
 
-    -- |The function 'isInsideSelf' tests whether a point is inside the widget itself.
+    -- |The function 'isInside' tests whether a point is inside the widget itself.
     --  A screen position may be inside the bounding box of a widget but not considered part of the
     --  component.
     --  
     --  The default implementations tests if the point is within the rectangle specified by the 
     --  'getBoundary' function.
-    isInsideSelf :: ScreenUnit -- ^screen x coordinate
+    isInside :: ScreenUnit -- ^screen x coordinate
                  -> ScreenUnit -- ^screen y coordinate
                  -> uiw       -- ^the parent widget
                  -> m Bool
-    isInsideSelf x' y' wg = do
+    isInside x' y' wg = do
         (x, y, w, h) <- getBoundary wg
         return $ (x' - x <= w) && (x' - x >= 0) && (y' - y <= h) && (y' - y >= 0)
 
@@ -193,9 +193,9 @@ instance GUIWidget T.Pioneers (GUIAny T.Pioneers) where
     getChildren (GUIAnyC w) = getChildren w
     getChildren (GUIAnyP w) = getChildren w
     getChildren (GUIAnyB w _) = getChildren w
-    isInsideSelf x y (GUIAnyC w) = (isInsideSelf x y) w
-    isInsideSelf x y (GUIAnyP w) = (isInsideSelf x y) w
-    isInsideSelf x y (GUIAnyB w _) = (isInsideSelf x y) w
+    isInside x y (GUIAnyC w) = (isInside x y) w
+    isInside x y (GUIAnyP w) = (isInside x y) w
+    isInside x y (GUIAnyB w _) = (isInside x y) w
     getPriority (GUIAnyC w) = getPriority w
     getPriority (GUIAnyP w) = getPriority w
     getPriority (GUIAnyB w _) = getPriority w

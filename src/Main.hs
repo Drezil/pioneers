@@ -103,6 +103,7 @@ main =
             far           = 500 --far plane
             ratio         = fromIntegral fbWidth / fromIntegral fbHeight
             frust         = createFrustum fov near far ratio
+            (guiMap, guiRoots) = createGUI
             aks = ArrowKeyState {
                   _up       = False
                 , _down     = False
@@ -174,6 +175,8 @@ main =
                         }
               , _ui                  = UIState
                         { _uiHasChanged        = True
+                        , _uiMap = guiMap
+                        , _uiRoots = guiRoots
                         }
               }
 

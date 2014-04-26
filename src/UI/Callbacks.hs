@@ -2,53 +2,85 @@
 
 module UI.Callbacks where
 
-import Control.Monad.Trans (liftIO)
+
+import qualified Graphics.Rendering.OpenGL.GL         as GL
+import           Control.Lens                         ((^.), (.~))
+import           Control.Monad                        (liftM)
+import           Control.Monad.RWS.Strict             (get, modify)
+import           Control.Monad.Trans                  (liftIO)
+import qualified Data.HashMap.Strict                  as Map
+import           Data.List                            (foldl')
+import           Data.Maybe
+import           Foreign.Marshal.Array (pokeArray)
+import           Foreign.Marshal.Alloc (allocaBytes)
+import           Render.Misc                          (genColorData)
+
 import Types
 import UI.UIBaseData
 import UI.UIClasses
 import UI.UIOperations
 
-import qualified Graphics.Rendering.OpenGL.GL         as GL
-import           Control.Lens                         ((^.), (.~), (%~))
-import           Render.Misc                          (genColorData)
-import           Foreign.Marshal.Array (pokeArray)
-import           Foreign.Marshal.Alloc (allocaBytes)
-import           Control.Monad.RWS.Strict             (get, liftIO, modify)
-
 
 data Pixel = Pixel Int Int
 
-getGUI :: [GUIAny]
-getGUI = [ toGUIAny $ GUIContainer 0 0 120 80 [] 1
-         , toGUIAny $ GUIPanel $ GUIContainer 0 0 0 0
-             [toGUIAny $ GUIContainer  0 80 100 200 [] 4
-             ,toGUIAny $GUIButton 50 400 200 175 2 defaultUIState testMessage
-             ] 3
-         ]
+createGUI :: (Map.HashMap UIId (GUIAny Pioneers), [UIId])
+createGUI = (Map.fromList [ (UIId 0, GUIAnyP $ GUIPanel $ GUIContainer 0 0 0 0 [UIId 1, UIId 2] 0)
+                          , (UIId 1, GUIAnyC $ GUIContainer 20 50 120 80 [] 1)
+                          , (UIId 2, GUIAnyP $ GUIPanel $ GUIContainer 100 140 0 0 [UIId 3, UIId 4] 3)
+                          , (UIId 3, GUIAnyC $ GUIContainer  100 140 130 200 [] 4 )
+                          , (UIId 4, GUIAnyB (GUIButton 30 200 60 175 2 defaultUIState ) (ButtonHandler testMessage))
+                          ], [UIId 0])
+         
+getGUI :: Map.HashMap UIId (GUIAny Pioneers) -> [GUIAny Pioneers]
+getGUI hmap = Map.elems hmap
 
-testMessage :: (Show w) => w -> ScreenUnit -> ScreenUnit -> IO w
+getRootIds :: Pioneers [UIId]
+getRootIds = do
+  state <- get
+  return $ state ^. ui.uiRoots
+
+getRoots :: Pioneers [GUIAny Pioneers]
+getRoots = do
+  state <- get
+  rootIds <- getRootIds
+  let hMap = state ^. ui.uiMap
+  return $ toGUIAnys hMap rootIds
+
+testMessage :: w -> ScreenUnit -> ScreenUnit -> Pioneers w
 testMessage w x y = do
-    putStrLn ("\tclick on " ++ show x ++ "," ++ show y)
-    return w
+  liftIO $ putStrLn ("\tclick on " ++ show x ++ "," ++ show y)
+  return w
 
 -- | Handler for UI-Inputs.
 --   Indicates a primary click on something (e.g. left-click, touch on Touchpad, fire on Gamepad, ...
 clickHandler :: Pixel -> Pioneers ()
-clickHandler (Pixel x y) = case concatMap (isInside x y) getGUI of
-    [] -> liftIO $ putStrLn $ unwords ["button press on (",show x,",",show y,")"]
-    hit -> liftIO $ do
-        _ <- sequence $ map (\w ->
-            case w of
-                 (GUIAnyB b h) -> do
-                      putStrLn $ "hitting " ++ getShorthand w ++ ": " ++ show (getBoundary w) ++ " " ++ show (getPriority w)
-                          ++ " at ["++show x++","++show y++"]"
-                      (b', h') <- onMousePressed x y b h
-                      _ <- onMouseReleased x y b' h'
-                      return ()
-                 _ -> putStrLn $ "hitting " ++ getShorthand w ++ ": " ++ show (getBoundary w) ++ " " ++ show (getPriority w)
-                          ++ " at ["++show x++","++show y++"]"
-            ) hit
-        return ()
+clickHandler (Pixel x y) = do
+  state <- get
+  let hMap = state ^. ui.uiMap
+  roots <- getRootIds
+  hits <- liftM concat $ mapM (getInsideId hMap x y) roots
+  case hits of
+       [] -> liftIO $ putStrLn $ unwords ["button press on (",show x,",",show y,")"]
+       _  -> do
+         changes <- sequence $ map (\uid -> do
+           let w = toGUIAny hMap uid
+           short <- getShorthand w
+           bound <- getBoundary w
+           prio <- getPriority w
+           liftIO $ putStrLn $ "hitting " ++ short ++ ": " ++ show bound ++ " " ++ show prio
+                            ++ " at [" ++ show x ++ "," ++ show y ++ "]"
+           case w of
+                (GUIAnyB b h) -> do
+                    (b', h') <- onMousePressed x y b h
+                    (b'', h'') <- onMouseReleased x y b' h'
+                    return $ Just (uid, GUIAnyB b'' h'')
+                _ -> return Nothing
+           ) $ hits
+         let newMap :: Map.HashMap UIId (GUIAny Pioneers)
+             newMap = foldl' (\hm (uid, w') -> Map.insert uid w' hm) hMap $ catMaybes changes
+         modify $ ui.uiMap .~ newMap
+         return ()
+         
 
 
 -- | Handler for UI-Inputs.
@@ -69,36 +101,40 @@ alternateClickHandler (Pixel x y) = liftIO $ putStrLn $ unwords ["alternate pres
 prepareGUI :: Pioneers ()
 prepareGUI = do
                 state <- get
+                roots <- getRoots
                 let tex = (state ^. gl.glHud.hudTexture)
                 liftIO $ do
                     -- bind texture - all later calls work on this one.
                     GL.textureBinding GL.Texture2D GL.$= Just tex
-                    mapM_ (copyGUI tex) getGUI
+                mapM_ (copyGUI tex) roots
                 modify $ ui.uiHasChanged .~ False
 
 --TODO: Perform border-checking ... is xoff + width and yoff+height inside the screen-coordinates..
-copyGUI :: GL.TextureObject -> GUIAny -> IO ()
+copyGUI :: GL.TextureObject -> GUIAny Pioneers -> Pioneers ()
 copyGUI tex widget = do
-                        let (xoff, yoff, width, height) = getBoundary widget
+                        (xoff, yoff, wWidth, wHeight) <- getBoundary widget
+                        state <- get
+                        let 
+                            hMap = state ^. ui.uiMap
                             int = fromInteger.toInteger --conversion between Int8, GLInt, Int, ...
                             --temporary color here. lateron better some getData-function to
                             --get a list of pixel-data or a texture.
                             color = case widget of
                                 (GUIAnyC _)   -> [255,0,0,128]
                                 (GUIAnyB _ _) -> [255,255,0,255]
-                                (GUIAnyP _)   -> [128,128,128,255]
+                                (GUIAnyP _)   -> [128,128,128,128]
                                 _             -> [255,0,255,255]
-                        allocaBytes (width*height*4) $ \ptr -> do
+                        liftIO $ allocaBytes (wWidth*wHeight*4) $ \ptr -> do
                                 --copy data into C-Array
-                                pokeArray ptr (genColorData (width*height) color)
+                                pokeArray ptr (genColorData (wWidth*wHeight) color)
                                 GL.texSubImage2D
                                         GL.Texture2D
                                         0
                                         (GL.TexturePosition2D (int xoff) (int yoff))
-                                        (GL.TextureSize2D (int width) (int height))
+                                        (GL.TextureSize2D (int wWidth) (int wHeight))
                                         (GL.PixelData GL.RGBA GL.UnsignedByte ptr)
-                        mapM_ (copyGUI tex) (getChildren widget)
-copyGUI _ _ = return ()
+                        nextChildrenIds <- getChildren widget
+                        mapM_ (copyGUI tex) $ toGUIAnys hMap $ nextChildrenIds
 
 --TODO: Add scroll-Handler, return (Pioneers Bool) to indicate event-bubbling etc.
 --TODO: Maybe queues are better?

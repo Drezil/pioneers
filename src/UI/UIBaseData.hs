@@ -9,7 +9,7 @@ import Data.Ix
 type ScreenUnit = Int
 
 
-newtype UIId = UId Int deriving (Eq,Ord,Show,Read,Bounded,Ix,Hashable)
+newtype UIId = UIId Int deriving (Eq,Ord,Show,Read,Bounded,Ix,Hashable)
 
 -- |The state of a clickable ui widget.
 data UIButtonState = UIButtonState
@@ -35,7 +35,7 @@ data MouseHandlerSwitch h = MouseHandlerSwitch h deriving (Eq, Show)
 data ButtonHandler m w = ButtonHandler 
     { _action :: (w -> ScreenUnit -> ScreenUnit -> m w) }
 instance Show (ButtonHandler m w) where
-    show _ = "ButtonHandler ***"
+  show _ = "ButtonHandler ***"
 
 -- |A collection data type that may hold any usable ui element. @m@ is a monad.
 data GUIAny m = GUIAnyC GUIContainer
@@ -64,10 +64,10 @@ data GUIButton = GUIButton { _uiScreenXB :: ScreenUnit, _uiScreenYB :: ScreenUni
                            , _uiButtonState :: UIButtonState
                            } deriving ()
 instance Show GUIButton where
-    show w = "GUIButton {_screenXB = " ++ show (_uiScreenXB w)
-                    ++ " _screenYB = " ++ show (_uiScreenYB w)
-                    ++ " _widthB = " ++ show (_uiWidthB w)
-                    ++ " _heightB = " ++ show (_uiHeightB w)
-                    ++ " _priorityB = " ++ show (_uiScreenYB w)
-                    ++ " _buttonState = " ++ show (_uiButtonState w)
-                    ++ "}"
+  show w = "GUIButton {_screenXB = " ++ show (_uiScreenXB w)
+        ++ " _screenYB = " ++ show (_uiScreenYB w)
+        ++ " _widthB = " ++ show (_uiWidthB w)
+        ++ " _heightB = " ++ show (_uiHeightB w)
+        ++ " _priorityB = " ++ show (_uiScreenYB w)
+        ++ " _buttonState = " ++ show (_uiButtonState w)
+        ++ "}"

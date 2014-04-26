@@ -115,6 +115,7 @@ data GLState = GLState
 data UIState = UIState
     { _uiHasChanged        :: !Bool
     , _uiMap               :: Map.HashMap UIId (GUIAny Pioneers)
+    , _uiRoots             :: [UIId]
     }
 
 data State = State
