@@ -76,6 +76,26 @@ data KeyboardState = KeyboardState
     { _arrowsPressed        :: !ArrowKeyState
     }
 
+-- | State in which all map-related Data is stored
+--
+--   The map itself is rendered with mapProgram and the shaders given here directly
+--   This does not include any objects on the map - only the map itself
+--
+--   _mapTextures must contain the following Textures (in this ordering) after initialisation:
+--
+--     1. Grass
+--
+--     2. Sand
+--
+--     3. Water
+--
+--     4. Stone
+--
+--     5. Snow
+--
+--     6. Dirt (blended on grass)
+
+
 data GLMapState = GLMapState
     { _shdrVertexIndex      :: !GL.AttribLocation
     , _shdrColorIndex       :: !GL.AttribLocation
@@ -90,8 +110,9 @@ data GLMapState = GLMapState
     , _stateMap             :: !GL.BufferObject
     , _mapVert              :: !GL.NumArrayIndices
     , _mapProgram           :: !GL.Program
-    , _mapTexture           :: !TextureObject
+    , _renderedMapTexture   :: !TextureObject --TODO: Probably move to UI?
     , _overviewTexture      :: !TextureObject
+    , _mapTextures          :: ![TextureObject] --TODO: Fix size on list?
     }
 
 data GLHud = GLHud
@@ -146,4 +167,64 @@ $(makeLenses ''WindowState)
 $(makeLenses ''Position)
 $(makeLenses ''Env)
 $(makeLenses ''UIState)
+
+data Structure = Flag           -- Flag
+               | Woodcutter     -- Huts
+               | Forester
+               | Stonemason
+               | Fisher
+               | Hunter
+               | Barracks
+               | Guardhouse
+               | LookoutTower
+               | Well
+               | Sawmill        -- Houses
+               | Slaughterhouse
+               | Mill
+               | Bakery
+               | IronSmelter
+               | Metalworks
+               | Armory
+               | Mint
+               | Shipyard
+               | Brewery
+               | Storehouse
+               | Watchtower
+               | Catapult
+               | GoldMine       -- Mines
+               | IronMine
+               | GraniteMine
+               | CoalMine
+               | Farm           -- Castles
+               | PigFarm
+               | DonkeyBreeder
+               | Harbor
+               | Fortress
+               deriving (Show, Eq)
+
+data Amount    = Infinite   -- Neverending supply
+               | Finite Int -- Finite supply
+
+-- Extremely preliminary, expand when needed
+data Commodity = WoodPlank
+               | Sword
+               | Fish
+               deriving Eq
+
+data Resource  = Coal
+               | Iron
+               | Gold
+               | Granite
+               | Water
+               | Fishes
+               deriving (Show, Eq)
+
+instance Show Amount where
+    show (Infinite) = "inexhaustable supply"
+    show (Finite n) = show n ++ " left"
+
+instance Show Commodity where
+    show WoodPlank = "wooden plank"
+    show Sword     = "sword"
+    show Fish      = "fish"
 

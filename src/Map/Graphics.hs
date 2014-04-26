@@ -27,9 +27,12 @@ import Foreign.Storable      (sizeOf)
 import Foreign.Ptr           (Ptr, nullPtr, plusPtr)
 import Render.Misc           (checkError)
 import Linear
+import Control.Arrow         ((***))
 
 import Map.Types
 import Map.StaticMaps
+import Map.Creation
+import Map.Combinators
 
 type Height = Float
 
@@ -41,7 +44,7 @@ type GraphicsMap = Array (Int, Int) MapEntry
 
 -- converts from classical x/z to striped version of a map
 convertToStripeMap :: PlayMap -> PlayMap
-convertToStripeMap mp = array (stripify l, stripify u) (map (\(i,e) -> (stripify i,strp e)) (assocs mp))
+convertToStripeMap mp = array (stripify l, stripify u) (map (stripify *** strp) (assocs mp))
   where
     (l,u) = bounds mp
 
@@ -57,7 +60,7 @@ convertToGraphicsMap :: PlayMap -> GraphicsMap
 convertToGraphicsMap mp = array (bounds mp) [(i, graphicsyfy (mp ! i))| i <- indices mp]
     where
       graphicsyfy :: Node -> MapEntry
-      graphicsyfy (Minimal _               ) = (0, Grass)
+      graphicsyfy (Minimal _               ) = (1.0, Grass)
       graphicsyfy (Full    _ y t _ _ _ _ _ ) = (y, t)
 
 lineHeight :: GLfloat
@@ -75,7 +78,7 @@ bufferObjectPtr = plusPtr (nullPtr :: Ptr GLfloat) . fromIntegral
 
 mapVertexArrayDescriptor :: NumComponents -> NumComponents -> VertexArrayDescriptor GLfloat
 mapVertexArrayDescriptor count' offset =
-   VertexArrayDescriptor count' Float mapStride (bufferObjectPtr ((fromIntegral offset)*sizeOf (0 :: GLfloat)) ) --(fromIntegral numComponents * offset))
+   VertexArrayDescriptor count' Float mapStride (bufferObjectPtr (fromIntegral offset * sizeOf (0 :: GLfloat)) ) --(fromIntegral numComponents * offset))
 
 fgColorIndex :: (IntegerHandling, VertexArrayDescriptor GLfloat)
 fgColorIndex = (ToFloat, mapVertexArrayDescriptor 4 0)  --color first
@@ -88,7 +91,8 @@ fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
-        myMap'  <- return $ convertToGraphicsMap $ convertToStripeMap mapNoise
+        mountains <- mnt
+        myMap'  <- return $ convertToGraphicsMap $ convertToStripeMap $ aplAll mountains mapEmpty
         ! myMap <- return $ generateTriangles myMap'
         len <- return $ fromIntegral $ P.length myMap `div` numComponents
         putStrLn $ P.unwords ["num verts in map:",show len]

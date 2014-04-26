@@ -16,14 +16,15 @@ executable Pioneers
                    Map.Graphics,
                    Map.Creation,
                    Map.StaticMaps,
-                   IQM.Types,
-                   IQM.TestMain,
-                   IQM.Parser,
+                   Importer.IQM.Types,
+                   Importer.IQM.TestMain,
+                   Importer.IQM.Parser,
                    Render.Misc,
                    Render.Render,
                    Render.RenderObject,
+                   Render.Types,
                    UI.Callbacks,
-                   Types,
+                   UI.Types,
                    UI.SurfaceOverlay
                    Types
   main-is:         Main.hs
@@ -47,7 +48,7 @@ executable Pioneers
                    SDL2 >= 0.1.0,
                    time >=1.4.0,
                    GLUtil >= 0.7,
-                   attoparsec >= 0.11.2
-  other-modules:   Render.Types
+                   attoparsec >= 0.11.2,
+                   attoparsec-binary >= 0.1
   Default-Language: Haskell2010
 

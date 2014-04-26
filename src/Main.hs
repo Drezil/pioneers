@@ -16,7 +16,6 @@ import           Control.Concurrent.STM               (TQueue,
                                                        newTQueueIO)
 
 import           Control.Monad.RWS.Strict             (ask, evalRWST, get, liftIO, modify)
-import           Control.Monad.Trans.State            (evalStateT)
 import           Data.Functor                         ((<$>))
 import           Data.Monoid                          (mappend)
 
@@ -46,17 +45,21 @@ import           UI.Callbacks
 import           Map.Graphics
 import           Types
 import           Importer.IQM.Parser
-import           Data.Attoparsec.Char8 (parseTest)
-import qualified Data.ByteString as B
+--import           Data.Attoparsec.Char8 (parseTest)
+--import qualified Data.ByteString as B
 
 -- import qualified Debug.Trace                          as D (trace)
 
 --------------------------------------------------------------------------------
 
-testParser :: IO ()
-testParser = do
-        f <- B.readFile "sample.iqm"
-        parseTest (evalStateT parseIQM 0) f
+testParser :: String -> IO ()
+testParser a = putStrLn . show  =<< parseIQM a
+{-do
+		f <- B.readFile a
+		putStrLn "reading in:"
+		putStrLn $ show f
+		putStrLn "parsed:"
+		parseTest parseIQM f-}
 
 --------------------------------------------------------------------------------
 
@@ -82,9 +85,7 @@ main =
         (Size fbWidth fbHeight) <- glGetDrawableSize window'
         initRendering
         --generate map vertices
-        (mapBuffer, vert) <- getMapBufferObject
-        (mapprog, ci, ni, vi, pri, vii, mi, nmi, tli, tlo, mapTex) <- initMapShader
-        overTex <- GL.genObjectName
+        glMap' <- initMapShader 4 =<< getMapBufferObject
         print window'
         eventQueue <- newTQueueIO :: IO (TQueue Event)
         putStrLn "foo"
@@ -110,23 +111,6 @@ main =
                 , _left     = False
                 , _right    = False
             }
-            glMap' = GLMapState
-                { _shdrVertexIndex      = vi
-                , _shdrNormalIndex      = ni
-                , _shdrColorIndex       = ci
-                , _shdrProjMatIndex     = pri
-                , _shdrViewMatIndex     = vii
-                , _shdrModelMatIndex    = mi
-                , _shdrNormalMatIndex   = nmi
-                , _shdrTessInnerIndex   = tli
-                , _shdrTessOuterIndex   = tlo
-                , _stateTessellationFactor = 4
-                , _stateMap             = mapBuffer
-                , _mapVert              = vert
-                , _mapProgram           = mapprog
-                , _mapTexture           = mapTex
-                , _overviewTexture      = overTex
-                }
             env = Env
               { _eventsChan      = eventQueue
               , _windowObject    = window'
@@ -305,7 +289,7 @@ adjustWindow = do
 
 
                    let hudtexid = state ^. gl.glHud.hudTexture
-                       maptexid = state ^. gl.glMap.mapTexture
+                       maptexid = state ^. gl.glMap.renderedMapTexture
                    allocaBytes (fbWidth*fbHeight*4) $ \ptr -> do
                                                                --default to ugly pink to see if
                                                                --somethings go wrong.
