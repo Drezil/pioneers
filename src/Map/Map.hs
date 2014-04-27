@@ -40,5 +40,5 @@ giveNeighbourhood mp n (a,b) = let ns = giveNeighbours mp (a,b) in
 remdups :: Ord a => [a] -> [a]
 remdups = map head . group . sort
 
-prop_rd_idempot :: Ord a => [a] -> Bool
+prop_rd_idempot :: [Int] -> Bool
 prop_rd_idempot xs = remdups xs == (remdups . remdups) xs
