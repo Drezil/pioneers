@@ -31,7 +31,7 @@ gaussMountain :: Int -> PlayMap -> PlayMap
 gaussMountain seed mp = aplByPlace (liftUp c) (\(_,_) -> True) mp
   where
     g   = mkStdGen seed
-    c   = head $ randomRs (bounds mp) g
+    c   = let ((a,b), (x,y)) = bounds mp in (head (randomRs (a,x) g), (head (randomRs (b,y) g)))
     amp = head $ randomRs (5.0, 20.0) g
     sig = head $ randomRs (5.0, 25.0) g
     fi  = fromIntegral

@@ -2,19 +2,9 @@ module Map.Creation
 where
 
 import Map.Types
-import Map.Map
+-- import Map.Map unused (for now)
 
 import Data.Array
-import System.Random
-
--- Orphan instance since this isn't where either Random nor Tuples are defined
-instance (Random x, Random y) => Random (x, y) where
-  randomR ((x1, y1), (x2, y2)) gen1 = let (a, gen2) = randomR (x1, x2) gen1
-                                          (b, gen3) = randomR (y1, y2) gen2
-                                      in ((a, b), gen3)
-
-  random                       gen1 = let (a, gen2) = random gen1
-                                          (b, gen3) = random gen2 in ((a,b), gen3)
 
 -- | Generate a new Map of given Type and Size
 --
