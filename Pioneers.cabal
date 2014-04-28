@@ -53,8 +53,8 @@ executable Pioneers
 
 test-suite QuickCheckTests
   type:              exitcode-stdio-1.0
-  hs-source-dirs:    tests, src
-  main-is:           MainTestSuite.hs
+  hs-source-dirs:    tests/Map, src
+  main-is:           MapTestSuite.hs
   build-depends:     base,
                      OpenGL >=2.9,
                      bytestring >=0.10,
@@ -78,5 +78,6 @@ test-suite QuickCheckTests
                      attoparsec-binary >= 0.1,
                      QuickCheck,
                      test-framework,
+                     test-framework-th,
                      test-framework-quickcheck2
   Default-Language: Haskell2010

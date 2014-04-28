@@ -39,6 +39,3 @@ giveNeighbourhood mp n (a,b) = let ns = giveNeighbours mp (a,b) in
 -- removing duplicates in O(n log n), losing order and adding Ord requirement
 remdups :: Ord a => [a] -> [a]
 remdups = map head . group . sort
-
-prop_rd_idempot :: [Int] -> Bool
-prop_rd_idempot xs = remdups xs == (remdups . remdups) xs
