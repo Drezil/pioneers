@@ -5,12 +5,14 @@ import           Control.Concurrent.STM               (TQueue)
 import qualified Graphics.Rendering.OpenGL.GL         as GL
 import           Graphics.UI.SDL                      as SDL (Event, Window)
 import           Foreign.C                            (CFloat)
+import qualified Data.HashMap.Strict                  as Map
 import           Data.Time                            (UTCTime)
 import Linear.Matrix (M44)
 import Control.Monad.RWS.Strict (RWST)
 import Control.Lens
 import Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
 import Render.Types
+import UI.UIBaseData
 
 
 --Static Read-Only-State
@@ -74,6 +76,26 @@ data KeyboardState = KeyboardState
     { _arrowsPressed        :: !ArrowKeyState
     }
 
+-- | State in which all map-related Data is stored
+--
+--   The map itself is rendered with mapProgram and the shaders given here directly
+--   This does not include any objects on the map - only the map itself
+--
+--   _mapTextures must contain the following Textures (in this ordering) after initialisation:
+--
+--     1. Grass
+--
+--     2. Sand
+--
+--     3. Water
+--
+--     4. Stone
+--
+--     5. Snow
+--
+--     6. Dirt (blended on grass)
+
+
 data GLMapState = GLMapState
     { _shdrVertexIndex      :: !GL.AttribLocation
     , _shdrColorIndex       :: !GL.AttribLocation
@@ -88,8 +110,9 @@ data GLMapState = GLMapState
     , _stateMap             :: !GL.BufferObject
     , _mapVert              :: !GL.NumArrayIndices
     , _mapProgram           :: !GL.Program
-    , _mapTexture           :: !TextureObject
+    , _renderedMapTexture   :: !TextureObject --TODO: Probably move to UI?
     , _overviewTexture      :: !TextureObject
+    , _mapTextures          :: ![TextureObject] --TODO: Fix size on list?
     }
 
 data GLHud = GLHud
@@ -112,6 +135,8 @@ data GLState = GLState
 
 data UIState = UIState
     { _uiHasChanged        :: !Bool
+    , _uiMap               :: Map.HashMap UIId (GUIAny Pioneers)
+    , _uiRoots             :: [UIId]
     }
 
 data State = State
@@ -125,6 +150,9 @@ data State = State
     , _ui                  :: !UIState
     }
 
+type Pioneers = RWST Env () State IO
+
+-- when using TemplateHaskell order of declaration matters
 $(makeLenses ''State)
 $(makeLenses ''GLState)
 $(makeLenses ''GLMapState)
@@ -139,8 +167,6 @@ $(makeLenses ''WindowState)
 $(makeLenses ''Position)
 $(makeLenses ''Env)
 $(makeLenses ''UIState)
-
-type Pioneers = RWST Env () State IO
 
 data Structure = Flag           -- Flag
                | Woodcutter     -- Huts
