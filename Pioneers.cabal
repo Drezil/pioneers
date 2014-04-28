@@ -13,7 +13,6 @@ executable Pioneers
   }
   other-modules:
                    Map.Map,
-                   Map.Combinators,
                    Map.Types,
                    Map.Graphics,
                    Map.Creation,
