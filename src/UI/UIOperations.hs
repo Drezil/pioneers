@@ -10,15 +10,14 @@ import UI.UIClasses
 
 defaultUIState :: UIButtonState
 defaultUIState = UIButtonState False False False False False False
+{-# INLINE defaultUIState #-}
 
 toGUIAny :: Map.HashMap UIId (GUIAny m) -> UIId -> GUIAny m
-toGUIAny m uid = case Map.lookup uid m of
-                     Just w  -> w
-                     Nothing -> error "map does not contain requested key" --TODO: better error handling
+toGUIAny m uid = fromMaybe (error "map does not contain requested key") (Map.lookup uid m)
 {-# INLINE toGUIAny #-}
 
 toGUIAnys :: Map.HashMap UIId (GUIAny m) -> [UIId] -> [GUIAny m]
-toGUIAnys m ids = mapMaybe (flip Map.lookup m) ids
+toGUIAnys m = mapMaybe (flip Map.lookup m)
 {-# INLINE toGUIAnys #-}
 -- TODO: check for missing components?
 

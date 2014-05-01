@@ -30,7 +30,8 @@ createGUI = (Map.fromList [ (UIId 0, GUIAnyP $ GUIPanel $ GUIContainer 0 0 0 0 [
                           ], [UIId 0])
          
 getGUI :: Map.HashMap UIId (GUIAny Pioneers) -> [GUIAny Pioneers]
-getGUI hmap = Map.elems hmap
+getGUI = Map.elems
+{-# INLINE getGUI #-}
 
 getRootIds :: Pioneers [UIId]
 getRootIds = do
@@ -60,7 +61,7 @@ clickHandler (Pixel x y) = do
   case hits of
        [] -> liftIO $ putStrLn $ unwords ["button press on (",show x,",",show y,")"]
        _  -> do
-         changes <- sequence $ map (\uid -> do
+         changes <- mapM (\uid -> do
            let w = toGUIAny hMap uid
            short <- getShorthand w
            bound <- getBoundary w
@@ -121,7 +122,6 @@ copyGUI tex widget = do
                                 (GUIAnyC _)   -> [255,0,0,128]
                                 (GUIAnyB _ _) -> [255,255,0,255]
                                 (GUIAnyP _)   -> [128,128,128,128]
-                                _             -> [255,0,255,255]
                         liftIO $ allocaBytes (wWidth*wHeight*4) $ \ptr -> do
                                 --copy data into C-Array
                                 pokeArray ptr (genColorData (wWidth*wHeight) color)
