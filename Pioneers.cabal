@@ -11,21 +11,18 @@ executable Pioneers
   } else {
     ghc-options:     -Wall -Odph -rtsopts -threaded -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -optlo-O3 -fllvm
   }
-  other-module
+  other-modules:
                    Map.Types,
                    Map.Graphics,
                    Map.Creation,
                    Map.StaticMaps,
                    Importer.IQM.Types,
-                   Importer.IQM.TestMain,
                    Importer.IQM.Parser,
                    Render.Misc,
                    Render.Render,
                    Render.RenderObject,
                    Render.Types,
                    UI.Callbacks,
-                   UI.Types,
-                   UI.SurfaceOverlay
                    Types
   main-is:         Main.hs
   build-depends:   
