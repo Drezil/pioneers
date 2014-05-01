@@ -33,11 +33,10 @@ class (Monad m) => GUIWidget m uiw where
     --  
     --  The default implementations tests if the point is within the rectangle specified by the 
     --  'getBoundary' function.
-    isInside :: ScreenUnit -- ^screen x coordinate
-                 -> ScreenUnit -- ^screen y coordinate
-                 -> uiw       -- ^the parent widget
-                 -> m Bool
-    isInside x' y' wg = do
+    isInside :: Pixel  -- ^screen position
+             -> uiw    -- ^the parent widget
+             -> m Bool
+    isInside (x',y') wg = do
         (x, y, w, h) <- getBoundary wg
         return $ (x' - x <= w) && (x' - x >= 0) && (y' - y <= h) && (y' - y >= 0)
 
@@ -63,109 +62,102 @@ class GUIClickable w where
 class Monad m => MouseHandler a m w where
     -- |The function 'onMousePressed' is called when the primary button is pressed
     --  while inside a screen coordinate within the widget ('isInside').
-    onMousePressed :: ScreenUnit -- ^screen x coordinate 
-                   -> ScreenUnit -- ^screen y coordinate
+    onMousePressed :: Pixel -- ^screen position
                    -> w -- ^widget the event is invoked on
                    -> a -> m (w, a) -- ^widget after the event and the altered handler
-    onMousePressed _ _ wg a = return (wg, a)
+    onMousePressed _ wg a = return (wg, a)
 
     -- |The function 'onMouseReleased' is called when the primary button is released
     --  while the pressing event occured within the widget ('isInside').
     --  
     --  Thus, the mouse is either within the widget or outside while still dragging.
-    onMouseReleased :: ScreenUnit -- ^screen x coordinate
-                    -> ScreenUnit  -- ^screen x coordinate
+    onMouseReleased :: Pixel  -- ^screen position
                     -> w -- ^wdiget the event is invoked on
                     -> a -> m (w, a) -- ^widget after the event and the altered handler
-    onMouseReleased _ _ wg a = return (wg, a)
+    onMouseReleased _ wg a = return (wg, a)
 
     -- |The function 'onMousePressed' is called when the secondary button is pressed
     --  while inside a screen coordinate within the widget ('isInside').
-    onMousePressedAlt :: ScreenUnit -- ^screen x coordinate 
-                   -> ScreenUnit -- ^screen y coordinate
-                   -> w -- ^widget the event is invoked on
-                   -> a -> m (w, a) -- ^widget after the event and the altered handler
-    onMousePressedAlt _ _ wg a = return (wg, a)
+    onMousePressedAlt :: Pixel  -- ^screen position
+                      -> w -- ^widget the event is invoked on
+                      -> a -> m (w, a) -- ^widget after the event and the altered handler
+    onMousePressedAlt _ wg a = return (wg, a)
 
     -- |The function 'onMouseReleased' is called when the secondary button is released
     --  while the pressing event occured within the widget ('isInside').
     --  
     --  Thus, the mouse is either within the widget or outside while still dragging.
-    onMouseReleasedAlt :: ScreenUnit -- ^screen x coordinate
-                       -> ScreenUnit  -- ^screen x coordinate
+    onMouseReleasedAlt :: Pixel  -- ^screen position
                        -> w -- ^wdiget the event is invoked on
                        -> a -> m (w, a) -- ^widget after the event and the altered handler
-    onMouseReleasedAlt _ _ wg a = return (wg, a)
+    onMouseReleasedAlt _ wg a = return (wg, a)
                         
     -- |The function 'onMouseMove' is invoked when the mouse is moved inside the
     --  widget's space ('isInside').
-    onMouseMove :: ScreenUnit -- ^screen x coordinate
-                -> ScreenUnit -- ^screen y coordinate
+    onMouseMove :: Pixel  -- ^screen position
                 -> w -- ^widget the event is invoked on
                 -> a -> m (w, a) -- ^widget after the event and the altered handler
-    onMouseMove _ _ wg a = return (wg, a)
+    onMouseMove _ wg a = return (wg, a)
     
     -- |The function 'onMouseMove' is invoked when the mouse enters the
     --  widget's space ('isInside').
-    onMouseEnter :: ScreenUnit -- ^screen x coordinate
-                 -> ScreenUnit -- ^screen y coordinate
+    onMouseEnter :: Pixel  -- ^screen position
                  -> w -- ^widget the event is invoked on
                  -> a -> m (w, a) -- ^widget after the event and the altered handler
-    onMouseEnter _ _ wg a = return (wg, a)
+    onMouseEnter _ wg a = return (wg, a)
     
     -- |The function 'onMouseMove' is invoked when the mouse leaves the
     --  widget's space ('isInside').
-    onMouseLeave :: ScreenUnit -- ^screen x coordinate
-                 -> ScreenUnit -- ^screen y coordinate
+    onMouseLeave :: Pixel  -- ^screen position
                  -> w -- ^widget the event is invoked on
                  -> a -> m (w, a) -- ^widget after the event and the altered handler
-    onMouseLeave _ _ wg a = return (wg, a)
+    onMouseLeave _ wg a = return (wg, a)
 
 instance (MouseHandler h m w) => MouseHandler (MouseHandlerSwitch h) m w where
-    onMousePressed x y w (MouseHandlerSwitch h) = do
-        (w', h') <- onMousePressedAlt x y w h
+    onMousePressed p w (MouseHandlerSwitch h) = do
+        (w', h') <- onMousePressedAlt p w h
         return (w', MouseHandlerSwitch h')
-    onMouseReleased x y w (MouseHandlerSwitch h) = do
-        (w', h') <- onMouseReleasedAlt x y w h
+    onMouseReleased p w (MouseHandlerSwitch h) = do
+        (w', h') <- onMouseReleasedAlt p w h
         return (w', MouseHandlerSwitch h')
-    onMousePressedAlt x y w (MouseHandlerSwitch h) = do
-        (w', h') <- onMousePressed x y w h
+    onMousePressedAlt p w (MouseHandlerSwitch h) = do
+        (w', h') <- onMousePressed p w h
         return (w', MouseHandlerSwitch h')
-    onMouseReleasedAlt x y w (MouseHandlerSwitch h) = do
-        (w', h') <- onMouseReleased x y w h
+    onMouseReleasedAlt p w (MouseHandlerSwitch h) = do
+        (w', h') <- onMouseReleased p w h
         return (w', MouseHandlerSwitch h')
-    onMouseMove x y w (MouseHandlerSwitch h) = do
-        (w', h') <- onMouseMove x y w h
+    onMouseMove p w (MouseHandlerSwitch h) = do
+        (w', h') <- onMouseMove p w h
         return (w', MouseHandlerSwitch h')
-    onMouseEnter x y w (MouseHandlerSwitch h) = do
-        (w', h') <- onMouseEnter x y w h
+    onMouseEnter p w (MouseHandlerSwitch h) = do
+        (w', h') <- onMouseEnter p w h
         return (w', MouseHandlerSwitch h')
-    onMouseLeave x y w (MouseHandlerSwitch h) = do
-        (w', h') <- onMouseLeave x y w h
+    onMouseLeave p w (MouseHandlerSwitch h) = do
+        (w', h') <- onMouseLeave p w h
         return (w', MouseHandlerSwitch h')
 
 instance (Monad m, GUIClickable w) => MouseHandler (ButtonHandler m w) m w where
     -- |Change 'UIButtonState's '_buttonstateIsFiring' to @True@.
-    onMousePressed _ _ wg h =
+    onMousePressed _ wg h =
         return (updateButtonState (\s -> s {_buttonstateIsFiring = True}) wg, h)
 
     -- |Change 'UIButtonState's '_buttonstateIsFiring' to @False@ and
     --  call 'action' if inside the widget or
     --  set '_buttonstateIsDeferred' to false otherwise.
-    onMouseReleased x y wg h@(ButtonHandler action) = if _buttonstateIsFiring $ getButtonState wg 
+    onMouseReleased p wg h@(ButtonHandler action) = if _buttonstateIsFiring $ getButtonState wg 
         then do
-            wg' <- action wg x y
+            wg' <- action wg p
             return (updateButtonState (\s -> s {_buttonstateIsFiring = False}) wg', h)
         else return (updateButtonState (\s -> s {_buttonstateIsDeferred = False}) wg, h)
     
     -- |Do nothing.
-    onMouseMove _ _ wg h = return (wg, h)
+    onMouseMove _ wg h = return (wg, h)
     
     -- |Set 'UIButtonState's '_buttonstateIsReady' to @True@ and
     --  update dragging state (only drag if inside widget).
     --  In detail, change 'UIButtonState's '_buttonstateIsDeferred' to '_buttonstateIsFiring's current value
     --   and set '_buttonstateIsFiring' to @False@. 
-    onMouseEnter _ _ wg h = return
+    onMouseEnter _ wg h = return
         (updateButtonState (\s -> s { _buttonstateIsFiring = _buttonstateIsDeferred s
                                     , _buttonstateIsDeferred = False
                                     , _buttonstateIsReady = True
@@ -176,7 +168,7 @@ instance (Monad m, GUIClickable w) => MouseHandler (ButtonHandler m w) m w where
     --  update dragging state (only drag if inside widget).
     --  In detail, change 'UIButtonState's '_buttonstateIsFiring' to '_buttonstateIsDeferred's current value
     --  and set '_buttonstateIsDeferred's' to @False@.
-    onMouseLeave _ _ wg h = return
+    onMouseLeave _ wg h = return
         (updateButtonState (\s -> s { _buttonstateIsFiring = False
                                     , _buttonstateIsDeferred = _buttonstateIsFiring s
                                     , _buttonstateIsReady = False
@@ -193,9 +185,9 @@ instance GUIWidget T.Pioneers (GUIAny T.Pioneers) where
     getChildren (GUIAnyC w) = getChildren w
     getChildren (GUIAnyP w) = getChildren w
     getChildren (GUIAnyB w _) = getChildren w
-    isInside x y (GUIAnyC w) = (isInside x y) w
-    isInside x y (GUIAnyP w) = (isInside x y) w
-    isInside x y (GUIAnyB w _) = (isInside x y) w
+    isInside p (GUIAnyC w) = (isInside p) w
+    isInside p (GUIAnyP w) = (isInside p) w
+    isInside p (GUIAnyB w _) = (isInside p) w
     getPriority (GUIAnyC w) = getPriority w
     getPriority (GUIAnyP w) = getPriority w
     getPriority (GUIAnyB w _) = getPriority w

@@ -9,6 +9,8 @@ import Data.Ix
 -- |Unit of screen/window
 type ScreenUnit = Int
 
+-- | @x@ and @y@ position on screen. 
+type Pixel = (ScreenUnit, ScreenUnit)
 
 newtype UIId = UIId Int deriving (Eq,Ord,Show,Read,Bounded,Ix,Hashable)
 
@@ -34,7 +36,7 @@ data MouseHandlerSwitch h = MouseHandlerSwitch h deriving (Eq, Show)
 
 -- |A 'UI.UIClasses.MouseHandler' with button behaviour.
 data ButtonHandler m w = ButtonHandler 
-    { _action :: (w -> ScreenUnit -> ScreenUnit -> m w) }
+    { _action :: (w -> Pixel -> m w) }
 instance Show (ButtonHandler m w) where
   show _ = "ButtonHandler ***"
 

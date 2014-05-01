@@ -32,16 +32,15 @@ toGUIAnys m = mapMaybe (flip Map.lookup m)
 --  
 --  This function returns the widgets themselves unlike 'getInsideId'.
 getInside :: Map.HashMap UIId (GUIAny Pioneers) -- ^map containing ui widgets
-             -> ScreenUnit -- ^screen x coordinate
-             -> ScreenUnit -- ^screen y coordinate
+             -> Pixel  -- ^screen position
              -> GUIAny Pioneers  -- ^the parent widget
              -> Pioneers [GUIAny Pioneers]
-getInside hMap x' y' wg = do
-  inside <- isInside x' y' wg
+getInside hMap (x',y') wg = do
+  inside <- isInside (x',y') wg
   if inside -- test inside parent's bounding box
   then do
        childrenIds <- getChildren wg
-       hitChildren <- liftM concat $ mapM (getInside hMap x' y') (toGUIAnys hMap childrenIds)
+       hitChildren <- liftM concat $ mapM (getInside hMap (x',y')) (toGUIAnys hMap childrenIds)
        case hitChildren of
             [] -> return [wg]
             _ -> return hitChildren
@@ -58,17 +57,16 @@ getInside hMap x' y' wg = do
 --  
 --  This function returns the 'UIId's of the widgets unlike 'getInside'.
 getInsideId :: Map.HashMap UIId (GUIAny Pioneers) -- ^map containing ui widgets
-            -> ScreenUnit -- ^screen x coordinate
-            -> ScreenUnit -- ^screen y coordinate
+            -> Pixel  -- ^screen position
             -> UIId  -- ^the parent widget
             -> Pioneers [UIId]
-getInsideId hMap x' y' uid = do
+getInsideId hMap (x',y') uid = do
   let wg = toGUIAny hMap uid
-  inside <- isInside x' y' wg
+  inside <- isInside (x',y') wg
   if inside -- test inside parent's bounding box
     then do
       childrenIds <- getChildren wg
-      hitChildren <- liftM concat $ mapM (getInsideId hMap x' y') childrenIds
+      hitChildren <- liftM concat $ mapM (getInsideId hMap (x',y')) childrenIds
       case hitChildren of
            [] -> return [uid]
            _  -> return hitChildren

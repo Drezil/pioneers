@@ -2,24 +2,24 @@ module UI.Callbacks where
 
 
 import qualified Graphics.Rendering.OpenGL.GL         as GL
-import           Control.Lens                         ((^.), (.~))
-import           Control.Monad                        (liftM)
-import           Control.Monad.RWS.Strict             (get, modify)
+import           Control.Lens                         ((^.), (.~), (%~))
+import           Control.Monad                        (liftM, when, unless)
+import           Control.Monad.RWS.Strict             (ask, get, modify)
 import           Control.Monad.Trans                  (liftIO)
 import qualified Data.HashMap.Strict                  as Map
 import           Data.List                            (foldl')
 import           Data.Maybe
 import           Foreign.Marshal.Array (pokeArray)
 import           Foreign.Marshal.Alloc (allocaBytes)
+import qualified Graphics.UI.SDL                      as SDL
 import           Render.Misc                          (genColorData)
 
 import Types
+import Render.Misc                                    (curb)
 import UI.UIBaseData
 import UI.UIClasses
 import UI.UIOperations
 
-
-data Pixel = Pixel Int Int
 
 createGUI :: (Map.HashMap UIId (GUIAny Pioneers), [UIId])
 createGUI = (Map.fromList [ (UIId 0, GUIAnyP $ GUIPanel $ GUIContainer 0 0 0 0 [UIId 1, UIId 2] 0)
@@ -45,19 +45,93 @@ getRoots = do
   let hMap = state ^. ui.uiMap
   return $ toGUIAnys hMap rootIds
 
-testMessage :: w -> ScreenUnit -> ScreenUnit -> Pioneers w
-testMessage w x y = do
+testMessage :: w -> Pixel -> Pioneers w
+testMessage w (x, y) = do
   liftIO $ putStrLn ("\tclick on " ++ show x ++ "," ++ show y)
   return w
+
+eventCallback :: SDL.Event -> Pioneers ()
+eventCallback e = do
+        env <- ask
+        case SDL.eventData e of
+            SDL.Window _ winEvent -> -- windowID event
+                -- TODO: resize GUI
+                return ()
+            SDL.Keyboard movement _ _ key -> -- keyMovement windowID keyRepeat keySym
+                     -- need modifiers? use "keyModifiers key" to get them
+                let aks = keyboard.arrowsPressed in
+                case SDL.keyScancode key of
+                    SDL.R    ->
+                        liftIO $ do
+                                r <- SDL.getRenderer $ env ^. windowObject
+                                putStrLn $ unwords ["Renderer: ",show r]
+                    SDL.Escape   ->
+                        modify $ window.shouldClose .~ True
+                    SDL.Left  ->
+                        modify $ aks.left  .~ (movement == SDL.KeyDown)
+                    SDL.Right ->
+                        modify $ aks.right .~ (movement == SDL.KeyDown)
+                    SDL.Up    ->
+                        modify $ aks.up    .~ (movement == SDL.KeyDown)
+                    SDL.Down  ->
+                        modify $ aks.down  .~ (movement == SDL.KeyDown)
+                    SDL.KeypadPlus ->
+                        when (movement == SDL.KeyDown) $ do
+                            modify $ (gl.glMap.stateTessellationFactor) %~ ((min 5) . (+1))
+                            state <- get
+                            liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ state ^. gl.glMap.stateTessellationFactor]
+                    SDL.KeypadMinus ->
+                        when (movement == SDL.KeyDown) $ do
+                            modify $ (gl.glMap.stateTessellationFactor) %~ ((max 1) . (+(-1)))
+                            state <- get
+                            liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ state ^. gl.glMap.stateTessellationFactor]
+                    _ ->
+                        return ()
+            SDL.MouseMotion _ _ _ (SDL.Position x y) _ _ -> -- windowID mouseID motionState motionPosition xrel yrel
+                do
+                state <- get
+                when (state ^. mouse.isDown && not (state ^. mouse.isDragging)) $
+                    modify $ (mouse.isDragging .~ True)
+                           . (mouse.dragStartX .~ (fromIntegral x))
+                           . (mouse.dragStartY .~ (fromIntegral y))
+                           . (mouse.dragStartXAngle .~ (state ^. camera.xAngle))
+                           . (mouse.dragStartYAngle .~ (state ^. camera.yAngle))
+
+                modify $ (mouse.mousePosition. Types._x .~ (fromIntegral x))
+                       . (mouse.mousePosition. Types._y .~ (fromIntegral y))
+            SDL.MouseButton _ _ button state (SDL.Position x y) -> -- windowID mouseID button buttonState buttonAt
+                case button of
+                    SDL.LeftButton -> do
+                        let pressed = state == SDL.Pressed
+                        modify $ mouse.isDown .~ pressed
+                        unless pressed $ do
+                            st <- get
+                            if st ^. mouse.isDragging then
+                                modify $ mouse.isDragging .~ False
+                            else
+                                clickHandler (x, y)
+                    SDL.RightButton -> do
+                        when (state == SDL.Released) $ alternateClickHandler (x, y)
+                    _ ->
+                        return ()
+            SDL.MouseWheel _ _ _ vscroll -> -- windowID mouseID hScroll vScroll
+                do
+                state <- get
+                let zDist' = (state ^. camera.zDist) + realToFrac (negate vscroll) in
+                  modify $ camera.zDist .~ (curb (env ^. zDistClosest) (env ^. zDistFarthest) zDist')
+            -- there is more (joystic, touchInterface, ...), but currently ignored
+            SDL.Quit -> modify $ window.shouldClose .~ True
+            _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:", show e]
+          
 
 -- | Handler for UI-Inputs.
 --   Indicates a primary click on something (e.g. left-click, touch on Touchpad, fire on Gamepad, ...
 clickHandler :: Pixel -> Pioneers ()
-clickHandler (Pixel x y) = do
+clickHandler pos@(x,y) = do
   state <- get
   let hMap = state ^. ui.uiMap
   roots <- getRootIds
-  hits <- liftM concat $ mapM (getInsideId hMap x y) roots
+  hits <- liftM concat $ mapM (getInsideId hMap pos) roots
   case hits of
        [] -> liftIO $ putStrLn $ unwords ["button press on (",show x,",",show y,")"]
        _  -> do
@@ -70,8 +144,8 @@ clickHandler (Pixel x y) = do
                             ++ " at [" ++ show x ++ "," ++ show y ++ "]"
            case w of
                 (GUIAnyB b h) -> do
-                    (b', h') <- onMousePressed x y b h
-                    (b'', h'') <- onMouseReleased x y b' h'
+                    (b', h') <- onMousePressed pos b h
+                    (b'', h'') <- onMouseReleased pos b' h'
                     return $ Just (uid, GUIAnyB b'' h'')
                 _ -> return Nothing
            ) $ hits
@@ -85,7 +159,7 @@ clickHandler (Pixel x y) = do
 -- | Handler for UI-Inputs.
 --   Indicates an alternate click on something (e.g. right-click, touch&hold on Touchpad, ...
 alternateClickHandler :: Pixel -> Pioneers ()
-alternateClickHandler (Pixel x y) = liftIO $ putStrLn $ unwords ["alternate press on (",show x,",",show y,")"]
+alternateClickHandler (x,y) = liftIO $ putStrLn $ unwords ["alternate press on (",show x,",",show y,")"]
 
 
 -- | informs the GUI to prepare a blitting of state ^. gl.glHud.hudTexture

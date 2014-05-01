@@ -55,11 +55,11 @@ import           Importer.IQM.Parser
 testParser :: String -> IO ()
 testParser a = putStrLn . show  =<< parseIQM a
 {-do
-		f <- B.readFile a
-		putStrLn "reading in:"
-		putStrLn $ show f
-		putStrLn "parsed:"
-		parseTest parseIQM f-}
+        f <- B.readFile a
+        putStrLn "reading in:"
+        putStrLn $ show f
+        putStrLn "parsed:"
+        parseTest parseIQM f-}
 
 --------------------------------------------------------------------------------
 
@@ -322,81 +322,18 @@ processEvents = do
 
 processEvent :: Event -> Pioneers ()
 processEvent e = do
-        env <- ask
-        case eventData e of
-            Window _ winEvent ->
-                case winEvent of
-                    Closing ->
-                            modify $ window.shouldClose .~ True
-                    Resized {windowResizedTo=size} -> do
-                            modify $ (window . width .~ sizeWidth size)
-                                   . (window . height .~ sizeHeight size)
-                            adjustWindow
-                    SizeChanged ->
-                            adjustWindow
-                    _ ->
-                        return ()
-                        --liftIO $ putStrLn $ unwords ["Unhandled Window-Event:",show e]
-            Keyboard movement _ _{-isRepeated-} key -> --up/down window(ignored) true/false actualKey
-                     -- need modifiers? use "keyModifiers key" to get them
-                let aks = keyboard.arrowsPressed in
-                case keyScancode key of
-                    SDL.R    ->
-                        liftIO $ do
-                                r <- getRenderer $ env ^. windowObject
-                                putStrLn $ unwords ["Renderer: ",show r]
-                    Escape   ->
+    eventCallback e
+    -- env <- ask
+    case SDL.eventData e of
+         SDL.Window _ winEvent -> -- windowID event
+            case winEvent of
+                SDL.Closing ->
                         modify $ window.shouldClose .~ True
-                    SDL.Left  ->
-                        modify $ aks.left  .~ (movement == KeyDown)
-                    SDL.Right ->
-                        modify $ aks.right .~ (movement == KeyDown)
-                    SDL.Up    ->
-                        modify $ aks.up    .~ (movement == KeyDown)
-                    SDL.Down  ->
-                        modify $ aks.down  .~ (movement == KeyDown)
-                    SDL.KeypadPlus ->
-                        when (movement == KeyDown) $ do
-                            modify $ (gl.glMap.stateTessellationFactor) %~ ((min 5) . (+1))
-                            state <- get
-                            liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ state ^. gl.glMap.stateTessellationFactor]
-                    SDL.KeypadMinus ->
-                        when (movement == KeyDown) $ do
-                            modify $ (gl.glMap.stateTessellationFactor) %~ ((max 1) . (+(-1)))
-                            state <- get
-                            liftIO $ putStrLn $ unwords ["Tessellation at: ", show $ state ^. gl.glMap.stateTessellationFactor]
-                    _ ->
-                        return ()
-            MouseMotion _ _{-mouseId-} _{-st-} (SDL.Position x y) _{-xrel-} _{-yrel-} -> do
-                state <- get
-                when (state ^. mouse.isDown && not (state ^. mouse.isDragging)) $
-                    modify $ (mouse.isDragging .~ True)
-                           . (mouse.dragStartX .~ (fromIntegral x))
-                           . (mouse.dragStartY .~ (fromIntegral y))
-                           . (mouse.dragStartXAngle .~ (state ^. camera.xAngle))
-                           . (mouse.dragStartYAngle .~ (state ^. camera.yAngle))
-
-                modify $ (mouse.mousePosition. Types._x .~ (fromIntegral x))
-                       . (mouse.mousePosition. Types._y .~ (fromIntegral y))
-            MouseButton _ _{-mouseId-} button state (SDL.Position x y) ->
-                case button of
-                    LeftButton -> do
-                        let pressed = state == Pressed
-                        modify $ mouse.isDown .~ pressed
-                        unless pressed $ do
-                            st <- get
-                            if st ^. mouse.isDragging then
-                                modify $ mouse.isDragging .~ False
-                            else
-                                clickHandler (UI.Callbacks.Pixel x y)
-                    RightButton -> do
-                        when (state == Released) $ alternateClickHandler (UI.Callbacks.Pixel x y)
-                    _ ->
-                        return ()
-            MouseWheel _ _{-mouseId-} _{-hscroll-} vscroll -> do
-                state <- get
-                let zDist' = (state ^. camera.zDist) + realToFrac (negate vscroll) in
-                  modify $ camera.zDist .~ (curb (env ^. zDistClosest) (env ^. zDistFarthest) zDist')
-            Quit -> modify $ window.shouldClose .~ True
-            -- there is more (joystic, touchInterface, ...), but currently ignored
-            _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:", show e]
+                SDL.Resized {windowResizedTo=size} -> do
+                        modify $ (window . width .~ SDL.sizeWidth size)
+                               . (window . height .~ SDL.sizeHeight size)
+                        adjustWindow
+                SDL.SizeChanged ->
+                        adjustWindow
+                _ -> return ()
+         _ -> return ()
