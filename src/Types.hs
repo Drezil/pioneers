@@ -13,7 +13,9 @@ import Control.Lens
 import Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
 import Render.Types
 import UI.UIBaseData
+import Importer.IQM.Types
 
+data Coord3D a = Coord3D a a a
 
 --Static Read-Only-State
 data Env = Env
@@ -113,7 +115,11 @@ data GLMapState = GLMapState
     , _renderedMapTexture   :: !TextureObject --TODO: Probably move to UI?
     , _overviewTexture      :: !TextureObject
     , _mapTextures          :: ![TextureObject] --TODO: Fix size on list?
+    , _objectProgram        :: !GL.Program
+    , _mapObjects           :: ![GLObject]
     }
+
+data GLObject = GLObject IQM (Coord3D Double)
 
 data GLHud = GLHud
     { _hudTexture               :: !TextureObject       -- ^ HUD-Texture itself

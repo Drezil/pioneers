@@ -22,6 +22,7 @@ import           Types
 import           Render.Misc
 import           Render.Types
 import           Graphics.GLUtil.BufferObjects              (makeBuffer)
+import		 Importer.IQM.Parser
 
 mapVertexShaderFile :: String
 mapVertexShaderFile = "shaders/map/vertex.shader"
@@ -31,6 +32,11 @@ mapTessEvalShaderFile :: String
 mapTessEvalShaderFile = "shaders/map/tessEval.shader"
 mapFragmentShaderFile :: String
 mapFragmentShaderFile = "shaders/map/fragment.shader"
+
+objectVertexShaderFile :: String
+objectVertexShaderFile = "shaders/objects/vertex.shader"
+objectFragmentShaderFile :: String
+objectFragmentShaderFile = "shaders/objects/fragment.shader"
 
 uiVertexShaderFile :: String
 uiVertexShaderFile = "shaders/ui/vertex.shader"
@@ -113,6 +119,21 @@ initMapShader tessFac (buf, vertDes) = do
 
    texts <- genObjectNames 6
    
+   testobj <- parseIQM "sample.iqm"
+
+   let
+	objs = [GLObject testobj (Coord3D 0 10 0)]
+
+   ! vertexSource' <- B.readFile objectVertexShaderFile
+   ! fragmentSource' <- B.readFile objectFragmentShaderFile
+   vertexShader' <- compileShaderSource VertexShader vertexSource'
+   checkError "compile Object-Vertex"
+   fragmentShader' <- compileShaderSource FragmentShader fragmentSource'
+   checkError "compile Object-Fragment"
+   objProgram <- createProgramUsing [vertexShader', fragmentShader']
+   checkError "compile Object-Program"
+   
+   currentProgram $= Just objProgram
 
    checkError "initShader"
    return GLMapState
@@ -132,6 +153,8 @@ initMapShader tessFac (buf, vertDes) = do
         , _mapVert            = vertDes
         , _overviewTexture    = overTex
         , _mapTextures        = texts
+	, _mapObjects         = objs
+	, _objectProgram      = objProgram
         }
 
 initHud :: IO GLHud
@@ -354,6 +377,11 @@ render = do
         cullFace $= Just Front
 
         glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
+
+
+	currentProgram $= Just (state ^. gl.glMap.objectProgram)
+	
+
         checkError "draw map"
 
         -- set sample 1 as target in renderbuffer
