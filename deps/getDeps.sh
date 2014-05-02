@@ -45,6 +45,7 @@ cabal install haddock
 echo "building hsSDL2.."
 
 cd hsSDL2
+cabal sandbox delete
 cabal sandbox init
 cabal install --only-dependencies
 cabal build
@@ -54,6 +55,8 @@ for t in "hsSDL2-ttf"
 do
 	echo "building ${t}.."
 	cd "${t}"
+	cabal sandbox delete
+	cabal sandbox init
 	cabal sandbox add-source ../hsSDL2
 	cabal install --only-dependencies
 	cabal build
