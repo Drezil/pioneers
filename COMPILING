@@ -11,6 +11,9 @@ NOTE: ubuntu saucy currently only has libsdl2-dev.2.0.0 in the repositories, but
 make sure the compiled files are in your PATH (e.g. include $HOME/.cabal/bin in your $PATH)
 
 install dependencies & configure app
+> cabal sandbox init
+> cabal sandbox --add-source deps/hsSDL2
+> cabal sandbox --add-source deps/hsSDL2-ttf
 > cabal install --only-dependencies
 > cabal configure
 
