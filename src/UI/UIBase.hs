@@ -17,6 +17,31 @@ type ScreenUnit = Int
 -- | @x@ and @y@ position on screen. 
 type Pixel = (ScreenUnit, ScreenUnit)
 
+-- |Combines two tuples element-wise. Designed for use with 'Pixel'.
+merge :: (a -> b -> c) -> (a, a) -> (b, b) -> (c, c)
+merge f (x, y) (x', y') = (f x x', f y y')
+{-# INLINABLE merge #-}
+
+-- |Maps the over the elements of a tuple. Designed for use with 'Pixel'.
+(>:) :: (a -> b) -> (a, a) -> (b, b)
+f >: (x, y) = (f x, f y)
+{-# INLINABLE (>:) #-}
+
+-- |Adds two numeric tuples component-wise.
+(+:) :: (Num a) => (a, a) -> (a, a) -> (a, a)
+(+:) = merge (+)
+{-# INLINABLE (+:) #-}
+
+-- |Calculates the component-wise difference between two tuples.
+(-:) :: (Num a) => (a, a) -> (a, a) -> (a, a)
+(-:) = merge (-)
+{-# INLINABLE (-:) #-}
+
+-- |Multiplies two numeric tuples component-wise.
+(*:) :: (Num a) => (a, a) -> (a, a) -> (a, a)
+(*:) = merge (*)
+{-# INLINABLE (*:) #-}
+
 newtype UIId = UIId Int deriving (Eq, Ord, Bounded, Ix, Hashable, Show, Read)
 
 data MouseButton = LeftButton | RightButton | MiddleButton | MouseX1 | MouseX2
@@ -229,4 +254,3 @@ debugShowWidget' (Widget base mouse _) = do
     let short = base ^. shorthand
     return $ concat [short,"| boundary:", show bnd, ", children:", show chld,
                     ",priority:",show prio, maybe "" (const ", with mouse handler") mouse]
-    
