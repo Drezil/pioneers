@@ -12,12 +12,11 @@ import           Data.Maybe
 import           Foreign.Marshal.Array                (pokeArray)
 import           Foreign.Marshal.Alloc                (allocaBytes)
 import qualified Graphics.UI.SDL                      as SDL
-import           Render.Misc                          (genColorData)
 
+
+import Render.Misc                                    (curb,genColorData)
 import Types
-import Render.Misc                                    (curb) -- TODO: necessary import ?
-import UI.UIBaseData
-import UI.UIClasses
+import UI.UIWidgets
 import UI.UIOperations
 
 

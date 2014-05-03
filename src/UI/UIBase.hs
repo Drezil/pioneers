@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell, DeriveGeneric #-}
--- data and classes are separated into several modules to avoid cyclic dependencies with the Type module
--- TODO: exclude UIMouseState constructor
-module UI.UIBaseData where
+-- widget data is separated into several modules to avoid cyclic dependencies with the Type module
+-- TODO: exclude UIMouseState constructor from export?
+module UI.UIBase where
 
 import           Control.Lens             ((^.), (.~), (%~), (&), ix, to, mapped, traverse, makeLenses)
 import           Control.Monad            (liftM)

@@ -1,6 +1,6 @@
 {-# LANGUAGE InstanceSigs, MultiParamTypeClasses, FlexibleInstances #-}
 
-module UI.UIClasses (module UI.UIClasses, module UI.UIBaseData) where
+module UI.UIWidgets (module UI.UIWidgets, module UI.UIBase) where
 
 import           Control.Lens                         ((^.), (.~), (&))
 import           Control.Monad
@@ -11,7 +11,7 @@ import           Data.Maybe
 import qualified Data.HashMap.Strict as Map
 
 import           Types
-import UI.UIBaseData
+import UI.UIBase
 
 
 createContainer :: (Monad m) => (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> [UIId] -> Int -> GUIWidget m

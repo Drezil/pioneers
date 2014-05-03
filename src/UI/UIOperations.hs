@@ -6,7 +6,7 @@ import qualified Data.HashMap.Strict             as Map
 import           Data.Maybe
 
 import Types
-import UI.UIBaseData
+import UI.UIBase
 
 toGUIAny :: Map.HashMap UIId (GUIWidget m) -> UIId -> GUIWidget m
 toGUIAny m uid = fromMaybe (error "map does not contain requested key") (Map.lookup uid m)
