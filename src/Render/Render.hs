@@ -132,6 +132,8 @@ initMapShader tessFac (buf, vertDes) = do
         , _mapVert            = vertDes
         , _overviewTexture    = overTex
         , _mapTextures        = texts
+	, _objectsProgram     = program
+	, _mapObjects         = []
         }
 
 initHud :: IO GLHud
@@ -265,6 +267,10 @@ renderOverview = do
         checkError "draw map"
 -}
 
+renderObject :: MapObject -> IO ()
+renderObject (MapObject model (L.V3 x y z) _{-state-}) = 
+	undefined
+		
 
 render :: Pioneers ()
 render = do
@@ -355,6 +361,12 @@ render = do
 
         glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
         checkError "draw map"
+
+	---- RENDER MAPOBJECTS --------------------------------------------
+	
+	currentProgram $= Just (state ^. gl.glMap.objectsProgram)
+
+	mapM_ renderObject (state ^. gl.glMap.mapObjects)
 
         -- set sample 1 as target in renderbuffer
         {-framebufferRenderbuffer
