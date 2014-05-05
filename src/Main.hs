@@ -228,17 +228,29 @@ run = do
       }
     -}
 
-    mt <- liftIO $ do
-        let double = fromRational.toRational :: (Real a) => a -> Double
+    (mt,tc,sleepAmount) <- liftIO $ do
+        let 	double = fromRational.toRational :: (Real a) => a -> Double
+		targetFramerate = 40.0
+		targetFrametime = 1.0/targetFramerate
+		targetFrametimeμs = targetFrametime * 1000000.0
         now <- getCurrentTime
         diff <- return $ diffUTCTime now (state ^. io.clock) -- get time-diffs
         title <- return $ unwords ["Pioneers @ ",show ((round . double $ 1.0/diff)::Int),"fps"]
         setWindowTitle (env ^. windowObject) title
-        sleepAmount <- return $ floor (max 0 (0.04 - diff))*1000000 -- get time until next frame in microseconds
-        threadDelay sleepAmount
-        return now
+        let 	sleepAmount = floor ((targetFrametime - double diff)*1000000) :: Int -- get time until next frame in microseconds
+		tessChange
+			| (sleepAmount > (floor $0.1*targetFrametimeμs)) && (state ^. gl.glMap.stateTessellationFactor < 5) = ((+)1 :: Int -> Int) 
+									-- > factor < 5 & 10% of frame idle -> increase graphics
+			| sleepAmount < 0 && (state ^. gl.glMap.stateTessellationFactor > 1) = (flip (-) 1 :: Int -> Int)
+									-- frame used up completely -> decrease
+			| otherwise = ((+)0 :: Int -> Int)              -- 0ms > x > 10% -> keep settings
+        when (sleepAmount > 0) $ threadDelay sleepAmount
+	print targetFrametimeμs
+        return (now,tessChange,sleepAmount)
     -- set state with new clock-time
-    modify $ io.clock .~ mt
+    modify $ (io.clock .~ mt)
+           . (gl.glMap.stateTessellationFactor %~ tc)
+    liftIO $ putStrLn $ concat $ ["TessFactor at: ",show (state ^. gl.glMap.stateTessellationFactor), " - slept for ",show sleepAmount, "μs."]
     shouldClose' <- return $ state ^. window.shouldClose
     unless shouldClose' run
 
