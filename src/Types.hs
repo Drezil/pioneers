@@ -12,7 +12,7 @@ import Control.Monad.RWS.Strict (RWST)
 import Control.Lens
 import Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
 import Render.Types
-import UI.UIBaseData
+import UI.UIBase
 
 
 --Static Read-Only-State
@@ -135,7 +135,7 @@ data GLState = GLState
 
 data UIState = UIState
     { _uiHasChanged        :: !Bool
-    , _uiMap               :: Map.HashMap UIId (GUIAny Pioneers)
+    , _uiMap               :: Map.HashMap UIId (GUIWidget Pioneers)
     , _uiRoots             :: [UIId]
     }
 
