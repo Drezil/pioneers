@@ -51,6 +51,7 @@ data CameraState = CameraState
 
 data IOState = IOState
     { _clock               :: !UTCTime
+    , _tessClockFactor     :: !Double
     }
 
 data GameState = GameState
