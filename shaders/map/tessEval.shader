@@ -133,7 +133,8 @@ void main()
     float i2 = (1-gl_TessCoord.z)*gl_TessCoord.z * length(cross(tcNormal[2],tessNormal));
     float standout = i0+i1+i2;
     tePosition = tePosition+tessNormal*standout;
-    tePosition = tePosition+0.05*snoise(tePosition);
+    vec3 tmp = tePosition+1*snoise(tePosition/20);
+    tePosition = vec3(tePosition.x, tmp.y, tePosition.z);
     gl_Position = ProjectionMatrix * ViewMatrix * vec4(tePosition, 1);
     fogDist = gl_Position.z;
 

@@ -118,11 +118,6 @@ data GLMapState = GLMapState
     , _overviewTexture      :: !TextureObject
     , _mapTextures          :: ![TextureObject] --TODO: Fix size on list?
     , _objectProgram        :: !GL.Program
-    , _mapObjects           :: ![GLObject]
-    }
-
-data GLObject = GLObject IQM (Coord3D Double)
-    , _objectsProgram       :: !GL.Program
     , _mapObjects           :: ![MapObject]
     }
 

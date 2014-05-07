@@ -23,6 +23,7 @@ import           Render.Misc
 import           Render.Types
 import           Graphics.GLUtil.BufferObjects              (makeBuffer)
 import		 Importer.IQM.Parser
+import           Importer.IQM.Types
 
 mapVertexShaderFile :: String
 mapVertexShaderFile = "shaders/map/vertex.shader"
@@ -34,9 +35,9 @@ mapFragmentShaderFile :: String
 mapFragmentShaderFile = "shaders/map/fragment.shader"
 
 objectVertexShaderFile :: String
-objectVertexShaderFile = "shaders/objects/vertex.shader"
+objectVertexShaderFile = "shaders/mapobjects/vertex.shader"
 objectFragmentShaderFile :: String
-objectFragmentShaderFile = "shaders/objects/fragment.shader"
+objectFragmentShaderFile = "shaders/mapobjects/fragment.shader"
 
 uiVertexShaderFile :: String
 uiVertexShaderFile = "shaders/ui/vertex.shader"
@@ -122,7 +123,7 @@ initMapShader tessFac (buf, vertDes) = do
    testobj <- parseIQM "sample.iqm"
 
    let
-	objs = [GLObject testobj (Coord3D 0 10 0)]
+	objs = [MapObject testobj (L.V3 0 10 0) (MapObjectState ())]
 
    ! vertexSource' <- B.readFile objectVertexShaderFile
    ! fragmentSource' <- B.readFile objectFragmentShaderFile
@@ -288,9 +289,15 @@ renderOverview = do
         checkError "draw map"
 -}
 
+
+-- | renders an IQM-Model at Position with scaling
+renderIQM :: IQM -> L.V3 CFloat -> L.V3 CFloat -> IO ()
+renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
+	return ()
+
 renderObject :: MapObject -> IO ()
-renderObject (MapObject model (L.V3 x y z) _{-state-}) = 
-	undefined
+renderObject (MapObject model pos@(L.V3 x y z) _{-state-}) = 
+	renderIQM model pos (L.V3 1 1 1)
 		
 
 render :: Pioneers ()
@@ -390,7 +397,7 @@ render = do
 
 	---- RENDER MAPOBJECTS --------------------------------------------
 	
-	currentProgram $= Just (state ^. gl.glMap.objectsProgram)
+	currentProgram $= Just (state ^. gl.glMap.objectProgram)
 
 	mapM_ renderObject (state ^. gl.glMap.mapObjects)
 
