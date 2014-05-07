@@ -1,24 +1,19 @@
 module UI.UIOperations where
 
-import           Control.Monad       (liftM)
-import qualified Data.HashMap.Strict as Map
+import           Control.Lens                    ((^.))
+import           Control.Monad                   (liftM)
+import qualified Data.HashMap.Strict             as Map
 import           Data.Maybe
 
 import Types
-import UI.UIBaseData
-import UI.UIClasses
+import UI.UIBase
 
-defaultUIState :: UIButtonState
-defaultUIState = UIButtonState False False False False False False
-
-toGUIAny :: Map.HashMap UIId (GUIAny m) -> UIId -> GUIAny m
-toGUIAny m uid = case Map.lookup uid m of
-                     Just w  -> w
-                     Nothing -> error "map does not contain requested key" --TODO: better error handling
+toGUIAny :: Map.HashMap UIId (GUIWidget m) -> UIId -> GUIWidget m
+toGUIAny m uid = fromMaybe (error "map does not contain requested key") (Map.lookup uid m)
 {-# INLINE toGUIAny #-}
 
-toGUIAnys :: Map.HashMap UIId (GUIAny m) -> [UIId] -> [GUIAny m]
-toGUIAnys m ids = mapMaybe (flip Map.lookup m) ids
+toGUIAnys :: Map.HashMap UIId (GUIWidget m) -> [UIId] -> [GUIWidget m]
+toGUIAnys m = mapMaybe (`Map.lookup` m)
 {-# INLINE toGUIAnys #-}
 -- TODO: check for missing components?
 
@@ -32,20 +27,19 @@ toGUIAnys m ids = mapMaybe (flip Map.lookup m) ids
 --  or @[]@ if the point does not hit the widget.
 --  
 --  This function returns the widgets themselves unlike 'getInsideId'.
-getInside :: Map.HashMap UIId (GUIAny Pioneers) -- ^map containing ui widgets
-             -> ScreenUnit -- ^screen x coordinate
-             -> ScreenUnit -- ^screen y coordinate
-             -> GUIAny Pioneers  -- ^the parent widget
-             -> Pioneers [GUIAny Pioneers]
-getInside hMap x' y' wg = do
-  inside <- isInside x' y' wg
+getInside :: Map.HashMap UIId (GUIWidget Pioneers) -- ^map containing ui widgets
+          -> Pixel  -- ^screen position
+          -> GUIWidget Pioneers  -- ^the parent widget
+          -> Pioneers [GUIWidget Pioneers]
+getInside hMap px wg = do
+  inside <- (wg ^. baseProperties.isInside) wg px
   if inside -- test inside parent's bounding box
   then do
-       childrenIds <- getChildren wg
-       hitChildren <- liftM concat $ mapM (getInside hMap x' y') (toGUIAnys hMap childrenIds)
+       childrenIds <- wg ^. baseProperties.children
+       hitChildren <- liftM concat $ mapM (getInside hMap px) (toGUIAnys hMap childrenIds)
        case hitChildren of
             [] -> return [wg]
-            _ -> return hitChildren
+            _  -> return hitChildren
   else return []
 --TODO: Priority queue?
 
@@ -58,18 +52,17 @@ getInside hMap x' y' wg = do
 --  or @[]@ if the point does not hit the widget.
 --  
 --  This function returns the 'UIId's of the widgets unlike 'getInside'.
-getInsideId :: Map.HashMap UIId (GUIAny Pioneers) -- ^map containing ui widgets
-            -> ScreenUnit -- ^screen x coordinate
-            -> ScreenUnit -- ^screen y coordinate
+getInsideId :: Map.HashMap UIId (GUIWidget Pioneers) -- ^map containing ui widgets
+            -> Pixel  -- ^screen position
             -> UIId  -- ^the parent widget
             -> Pioneers [UIId]
-getInsideId hMap x' y' uid = do
+getInsideId hMap px uid = do
   let wg = toGUIAny hMap uid
-  inside <- isInside x' y' wg
+  inside <- (wg ^. baseProperties.isInside) wg px
   if inside -- test inside parent's bounding box
     then do
-      childrenIds <- getChildren wg
-      hitChildren <- liftM concat $ mapM (getInsideId hMap x' y') childrenIds
+      childrenIds <- wg ^. baseProperties.children
+      hitChildren <- liftM concat $ mapM (getInsideId hMap px) childrenIds
       case hitChildren of
            [] -> return [uid]
            _  -> return hitChildren
