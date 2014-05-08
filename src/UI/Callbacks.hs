@@ -2,7 +2,7 @@ module UI.Callbacks where
 
 
 import qualified Graphics.Rendering.OpenGL.GL         as GL
-import           Control.Lens                         ((^.), (.~), (%~))
+import           Control.Lens                         ((^.), (.~), (%~), (^?), at)
 import           Control.Monad                        (liftM, when, unless)
 import           Control.Monad.RWS.Strict             (ask, get, modify)
 import           Control.Monad.Trans                  (liftIO)
@@ -150,11 +150,11 @@ clickHandler btn pos@(x,y) = do
                short = w ^. baseProperties.shorthand
            bound <- w ^. baseProperties.boundary
            prio <- w ^. baseProperties.priority
-           liftIO $ putStrLn $ "hitting " ++ short ++ ": " ++ show bound ++ " " ++ show prio
-                            ++ " at [" ++ show x ++ "," ++ show y ++ "]"
-           case w ^. mouseActions of
-                Just ma -> do w'  <- (ma ^. onMousePress) btn pos w
-                              w'' <- (ma ^. onMouseRelease) btn pos w'
+           liftIO $ putStrLn $ "hitting(" ++ show btn ++ ") " ++ short ++ ": " ++ show bound ++ " "
+                             ++ show prio ++ " at [" ++ show x ++ "," ++ show y ++ "]"
+           case w ^. eventHandlers.(at MouseEvent) of
+                Just ma -> do w'  <- fromJust (ma ^? onMousePress) btn pos w -- TODO unsafe fromJust
+                              w'' <- fromJust (ma ^? onMouseRelease) btn pos True w' -- TODO unsafe fromJust
                               return $ Just (uid, w'')
                 Nothing  -> return Nothing
            ) $ hits

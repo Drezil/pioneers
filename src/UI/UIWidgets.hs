@@ -16,14 +16,16 @@ import UI.UIBase
 
 createContainer :: (Monad m) => (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> [UIId] -> Int -> GUIWidget m
 createContainer bnd chld prio = Widget (rectangularBase bnd chld prio "CNT")
-                                          Nothing
-                                          emptyGraphics
+                                       emptyGraphics
+                                       Map.empty -- widget states
+                                       Map.empty -- event handlers
 
 
 createPanel :: (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> [UIId] -> Int -> GUIWidget Pioneers
 createPanel bnd chld prio = Widget (rectangularBase bnd chld prio "PNL" & boundary .~ autosize')
-                                      Nothing
-                                      emptyGraphics
+                                   emptyGraphics
+                                   Map.empty -- widget states
+                                   Map.empty -- event handlers
   where
     autosize' :: Pioneers (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit)
     autosize' = do
@@ -38,5 +40,6 @@ createPanel bnd chld prio = Widget (rectangularBase bnd chld prio "PNL" & bounda
 
 createButton :: (Monad m) => (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> Int -> (MouseButton -> GUIWidget m -> Pixel -> m (GUIWidget m)) -> GUIWidget m
 createButton bnd prio action = Widget (rectangularBase bnd [] prio "BTN")
-                                         (Just $ buttonMouseActions action)
-                                         emptyGraphics
+                                      emptyGraphics
+                                      (Map.fromList [(MouseStateKey, initialMouseState)]) -- widget states
+                                      (Map.fromList [(MouseEvent, buttonMouseActions action)]) -- event handlers
