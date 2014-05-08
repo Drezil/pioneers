@@ -128,7 +128,7 @@ eventCallback e = do
                 do
                 state <- get
                 let zDist' = (state ^. camera.zDist) + realToFrac (negate vscroll) in
-                  modify $ camera.zDist .~ (curb (env ^. zDistClosest) (env ^. zDistFarthest) zDist')
+                  modify $ camera.zDist .~ curb (env ^. zDistClosest) (env ^. zDistFarthest) zDist'
             -- there is more (joystic, touchInterface, ...), but currently ignored
             SDL.Quit -> modify $ window.shouldClose .~ True
             _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:", show e]
@@ -157,7 +157,7 @@ clickHandler btn pos@(x,y) = do
                               w'' <- fromJust (ma ^? onMouseRelease) btn pos True w' -- TODO unsafe fromJust
                               return $ Just (uid, w'')
                 Nothing  -> return Nothing
-           ) $ hits
+           ) hits
          let newMap :: Map.HashMap UIId (GUIWidget Pioneers)
              newMap = foldl' (\hm (uid, w') -> Map.insert uid w' hm) hMap $ catMaybes changes
          modify $ ui.uiMap .~ newMap
@@ -177,7 +177,7 @@ prepareGUI :: Pioneers ()
 prepareGUI = do
                 state <- get
                 roots <- getRoots
-                let tex = (state ^. gl.glHud.hudTexture)
+                let tex = state ^. gl.glHud.hudTexture
                 liftIO $ do
                     -- bind texture - all later calls work on this one.
                     GL.textureBinding GL.Texture2D GL.$= Just tex
