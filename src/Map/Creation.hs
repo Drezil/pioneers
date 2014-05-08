@@ -2,19 +2,25 @@ module Map.Creation
 where
 
 import Map.Types
-import Map.Map
+import Map.StaticMaps
+-- import Map.Map unused (for now)
 
 import Data.Array
 import System.Random
 
--- Orphan instance since this isn't where either Random nor Tuples are defined
-instance (Random x, Random y) => Random (x, y) where
-  randomR ((x1, y1), (x2, y2)) gen1 = let (a, gen2) = randomR (x1, x2) gen1
-                                          (b, gen3) = randomR (y1, y2) gen2
-                                      in ((a, b), gen3)
+-- preliminary
+infix 5 ->-
+(->-) :: (PlayMap -> PlayMap) -> (PlayMap -> PlayMap) -> PlayMap -> PlayMap
+f ->- g = g . f
 
-  random                       gen1 = let (a, gen2) = random gen1
-                                          (b, gen3) = random gen2 in ((a,b), gen3)
+-- also preliminary
+infix 5 -<-
+(-<-) :: (PlayMap -> PlayMap) -> (PlayMap -> PlayMap) -> PlayMap -> PlayMap
+f -<- g = f . g
+
+exportedMap :: IO PlayMap
+exportedMap = do mounts <- mnt
+                 return $ aplAll mounts mapEmpty
 
 -- | Generate a new Map of given Type and Size
 --
@@ -31,7 +37,10 @@ aplByNode :: (Node -> Node) -> (Node -> Bool) -> PlayMap -> PlayMap
 aplByNode f g mp = array (bounds mp) (map (\(ab,c) -> (if g c then (ab, f c) else (ab,c))) (assocs mp)) 
 
 aplAll :: [a -> a] -> a -> a
-aplAll fs m = foldl (\ m f -> f m) m fs
+aplAll fs m = foldl (\ n f -> f n) m fs
+
+aplAllM :: Monad m => [m a -> m a] -> m a -> m a
+aplAllM fs x = foldl (\ n f -> f n) x fs
 
 -- general 3D-Gaussian
 gauss3Dgeneral :: Floating q =>
@@ -68,3 +77,37 @@ heightToTerrain GrassIslandMap y
                 | y < 10    = Hill
                 | otherwise = Mountain
 heightToTerrain _ _ = undefined
+
+
+lake :: Int -> PlayMap -> PlayMap
+lake = undefined
+
+river :: Int -> PlayMap -> PlayMap
+river = undefined
+
+mnt :: IO [PlayMap -> PlayMap]
+mnt = do g <- newStdGen
+         let seeds = take 10 $ randoms g
+         return $ map (gaussMountain) seeds
+
+gaussMountain :: Int -> PlayMap -> PlayMap
+gaussMountain seed mp = aplByPlace (liftUp c) (\(_,_) -> True) mp
+  where
+    g   = mkStdGen seed
+    c   = let ((a,b), (x,y)) = bounds mp in (head (randomRs (a,x) g), (head (randomRs (b,y) g)))
+    amp = head $ randomRs (5.0, 20.0) g
+    sig = head $ randomRs (5.0, 25.0) g
+    fi  = fromIntegral
+    htt = heightToTerrain
+
+    -- TODO: Fix Lambda to True with sensible function, maybe rework giveNeighbourhood in Map.Map
+    liftUp :: (Int, Int) -> Node -> Node
+    liftUp (gx,gz) (Full     (x,z) y _ b pl pa r s) = let y_neu = max y e
+                                                      in  Full (x,z) y_neu (htt GrassIslandMap y_neu) b pl pa r s
+      where e = gauss3Dgeneral amp (fi gx) (fi gz) sig sig (fi x) (fi z)
+    liftUp (gx, gz) (Minimal (x,z)) = Full (x,z) e (htt GrassIslandMap e) BFlag NoPlayer NoPath Plain []
+      where e = gauss3Dgeneral amp (fi gx) (fi gz) sig sig (fi x) (fi z)
+
+-- | Makes sure the edges of the Map are mountain-free
+makeIsland :: PlayMap -> PlayMap
+makeIsland = undefined -- tomorrow....
