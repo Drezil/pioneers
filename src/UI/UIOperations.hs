@@ -21,7 +21,7 @@ toGUIAnys m = mapMaybe (`Map.lookup` m)
 
 
 -- |The function 'getInsideId' returns child widgets that overlap with a 
---  specific screen position.
+--  specific screen position and the pixel's local coordinates.
 --  
 --  A screen position may be inside the bounding box of a widget but not
 --  considered part of the component. The function returns all hit widgets that 
@@ -30,17 +30,18 @@ toGUIAnys m = mapMaybe (`Map.lookup` m)
 getInsideId :: Map.HashMap UIId (GUIWidget Pioneers) -- ^map containing ui widgets
             -> Pixel  -- ^screen position
             -> UIId  -- ^the parent widget
-            -> Pioneers [UIId]
+            -> Pioneers [(UIId, Pixel)]
 getInsideId hMap px uid = do
-  let wg = toGUIAny hMap uid
+  let wg  = toGUIAny hMap uid
   bnd@(bX, bY, _, _) <- wg ^. baseProperties.boundary
-  inside <- liftM (isInsideRect bnd px &&) $ (wg ^. baseProperties.isInside) wg px
+  let px' = px -: (bX, bY)
+  inside <- liftM (isInsideRect bnd px &&) $ (wg ^. baseProperties.isInside) wg px'
   if inside -- test inside parent's bounding box
     then do
       childrenIds <- wg ^. baseProperties.children
-      hitChildren <- liftM concat $ mapM (getInsideId hMap (px -: (bX, bY))) childrenIds
+      hitChildren <- liftM concat $ mapM (getInsideId hMap px') childrenIds
       case hitChildren of
-           [] -> return [uid]
+           [] -> return [(uid, px')]
            _  -> return hitChildren
     else return []
 --TODO: Priority queue?

@@ -44,6 +44,10 @@ f >: (x, y) = (f x, f y)
 (*:) = merge (*)
 {-# INLINABLE (*:) #-}
 
+infixl 7 *:
+infixl 6 +:, -:
+infixl 5 >:
+
 -- |Id to reference a specific widget, must be unique.
 newtype UIId = UIId Int deriving (Eq, Ord, Bounded, Ix, Hashable, Show, Read)
 
@@ -275,13 +279,25 @@ buttonMouseActions a = MouseHandler press' release'
 emptyGraphics :: (Monad m) => GUIGraphics m
 emptyGraphics = Graphics (return 3)
 
-isInsideRect :: (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> Pixel -> Bool
-isInsideRect (x,y,w,h) (x',y') = (x' - x <= w) && (x' - x >= 0) && (y' - y <= h) && (y' - y >= 0)
+-- |Extracts width and height from a '_boundary' property of a 'GUIBaseProperties'.
+extractExtent :: (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> (ScreenUnit, ScreenUnit)
+extractExtent (_,_,w,h) = (w,h)
+{-# INLINABLE extractExtent #-}
 
+-- |Calculates whether a point's value exceed the given width and height.
+isInsideExtent :: (ScreenUnit, ScreenUnit) -> Pixel -> Bool
+isInsideExtent (w,h) (x',y') = (x' <= w) && (x' >= 0) && (y' <= h) && (y' >= 0)
+
+-- |Calculates whether a point is within a given rectangle.
+isInsideRect :: (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> Pixel -> Bool
+isInsideRect (x,y,w,h) px = isInsideExtent (w, h) $ px -: (x, y)
+
+
+-- |@GUIBaseProperties@ with a rectangular base that fills the bounds.
 rectangularBase :: (Monad m) => (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> [UIId] -> Int -> String -> GUIBaseProperties m
 rectangularBase bnd chld prio short =
     BaseProperties (return bnd) (return chld)
-                   (\w p -> liftM (`isInsideRect` p) (w ^. baseProperties.boundary)) -- isInside
+                   (\w p -> liftM (flip isInsideExtent p . extractExtent) (w ^. baseProperties.boundary)) -- isInside
                    (return prio) short
 
 debugShowWidget' :: (Monad m) => GUIWidget m -> m String

@@ -145,7 +145,7 @@ clickHandler btn pos@(x,y) = do
   case hits of
        [] -> liftIO $ putStrLn $ unwords [show btn ++ ":press on (",show x,",",show y,")"]
        _  -> do
-         changes <- mapM (\uid -> do
+         changes <- mapM (\(uid, pos') -> do
            let w = toGUIAny hMap uid
                short = w ^. baseProperties.shorthand
            bound <- w ^. baseProperties.boundary
@@ -153,8 +153,8 @@ clickHandler btn pos@(x,y) = do
            liftIO $ putStrLn $ "hitting(" ++ show btn ++ ") " ++ short ++ ": " ++ show bound ++ " "
                              ++ show prio ++ " at [" ++ show x ++ "," ++ show y ++ "]"
            case w ^. eventHandlers.(at MouseEvent) of
-                Just ma -> do w'  <- fromJust (ma ^? onMousePress) btn pos w -- TODO unsafe fromJust
-                              w'' <- fromJust (ma ^? onMouseRelease) btn pos True w' -- TODO unsafe fromJust
+                Just ma -> do w'  <- fromJust (ma ^? onMousePress) btn pos' w -- TODO unsafe fromJust
+                              w'' <- fromJust (ma ^? onMouseRelease) btn pos' True w' -- TODO unsafe fromJust
                               return $ Just (uid, w'')
                 Nothing  -> return Nothing
            ) hits
