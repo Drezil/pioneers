@@ -8,12 +8,15 @@ import           Foreign.C                            (CFloat)
 import qualified Data.HashMap.Strict                  as Map
 import           Data.Time                            (UTCTime)
 import Linear.Matrix (M44)
+import Linear (V3)
 import Control.Monad.RWS.Strict (RWST)
 import Control.Lens
 import Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
 import Render.Types
+import Importer.IQM.Types
 import UI.UIBase
 
+data Coord3D a = Coord3D a a a
 
 --Static Read-Only-State
 data Env = Env
@@ -49,6 +52,7 @@ data CameraState = CameraState
 
 data IOState = IOState
     { _clock               :: !UTCTime
+    , _tessClockFactor     :: !Double
     }
 
 data GameState = GameState
@@ -113,7 +117,15 @@ data GLMapState = GLMapState
     , _renderedMapTexture   :: !TextureObject --TODO: Probably move to UI?
     , _overviewTexture      :: !TextureObject
     , _mapTextures          :: ![TextureObject] --TODO: Fix size on list?
+    , _objectProgram        :: !GL.Program
+    , _mapObjects           :: ![MapObject]
     }
+
+data MapObject = MapObject !IQM !MapCoordinates !MapObjectState
+
+data MapObjectState = MapObjectState ()
+
+type MapCoordinates = V3 CFloat
 
 data GLHud = GLHud
     { _hudTexture               :: !TextureObject       -- ^ HUD-Texture itself

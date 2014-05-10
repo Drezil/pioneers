@@ -22,6 +22,8 @@ import           Types
 import           Render.Misc
 import           Render.Types
 import           Graphics.GLUtil.BufferObjects              (makeBuffer)
+import		 Importer.IQM.Parser
+import           Importer.IQM.Types
 
 mapVertexShaderFile :: String
 mapVertexShaderFile = "shaders/map/vertex.shader"
@@ -31,6 +33,11 @@ mapTessEvalShaderFile :: String
 mapTessEvalShaderFile = "shaders/map/tessEval.shader"
 mapFragmentShaderFile :: String
 mapFragmentShaderFile = "shaders/map/fragment.shader"
+
+objectVertexShaderFile :: String
+objectVertexShaderFile = "shaders/mapobjects/vertex.shader"
+objectFragmentShaderFile :: String
+objectFragmentShaderFile = "shaders/mapobjects/fragment.shader"
 
 uiVertexShaderFile :: String
 uiVertexShaderFile = "shaders/ui/vertex.shader"
@@ -113,6 +120,21 @@ initMapShader tessFac (buf, vertDes) = do
 
    texts <- genObjectNames 6
    
+   testobj <- parseIQM "sample.iqm"
+
+   let
+	objs = [MapObject testobj (L.V3 0 10 0) (MapObjectState ())]
+
+   ! vertexSource' <- B.readFile objectVertexShaderFile
+   ! fragmentSource' <- B.readFile objectFragmentShaderFile
+   vertexShader' <- compileShaderSource VertexShader vertexSource'
+   checkError "compile Object-Vertex"
+   fragmentShader' <- compileShaderSource FragmentShader fragmentSource'
+   checkError "compile Object-Fragment"
+   objProgram <- createProgramUsing [vertexShader', fragmentShader']
+   checkError "compile Object-Program"
+   
+   currentProgram $= Just objProgram
 
    checkError "initShader"
    return GLMapState
@@ -132,6 +154,8 @@ initMapShader tessFac (buf, vertDes) = do
         , _mapVert            = vertDes
         , _overviewTexture    = overTex
         , _mapTextures        = texts
+	, _mapObjects         = objs
+	, _objectProgram      = objProgram
         }
 
 initHud :: IO GLHud
@@ -266,6 +290,16 @@ renderOverview = do
 -}
 
 
+-- | renders an IQM-Model at Position with scaling
+renderIQM :: IQM -> L.V3 CFloat -> L.V3 CFloat -> IO ()
+renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
+	return ()
+
+renderObject :: MapObject -> IO ()
+renderObject (MapObject model pos@(L.V3 x y z) _{-state-}) = 
+	renderIQM model pos (L.V3 1 1 1)
+		
+
 render :: Pioneers ()
 render = do
     state <- RWS.get
@@ -354,7 +388,18 @@ render = do
         cullFace $= Just Front
 
         glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
+
+
+	currentProgram $= Just (state ^. gl.glMap.objectProgram)
+	
+
         checkError "draw map"
+
+	---- RENDER MAPOBJECTS --------------------------------------------
+	
+	currentProgram $= Just (state ^. gl.glMap.objectProgram)
+
+	mapM_ renderObject (state ^. gl.glMap.mapObjects)
 
         -- set sample 1 as target in renderbuffer
         {-framebufferRenderbuffer
