@@ -16,33 +16,30 @@ import UI.UIBase
 
 createContainer :: (Monad m) => (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> [UIId] -> Int -> GUIWidget m
 createContainer bnd chld prio = Widget (rectangularBase bnd chld prio "CNT")
-                                          Nothing
-                                          emptyGraphics
+                                       emptyGraphics
+                                       Map.empty -- widget states
+                                       Map.empty -- event handlers
 
 
 createPanel :: (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> [UIId] -> Int -> GUIWidget Pioneers
 createPanel bnd chld prio = Widget (rectangularBase bnd chld prio "PNL" & boundary .~ autosize')
-                                      Nothing
-                                      emptyGraphics
+                                   emptyGraphics
+                                   Map.empty -- widget states
+                                   Map.empty -- event handlers
   where
     autosize' :: Pioneers (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit)
     autosize' = do
         state <- get
         let hmap = state ^. ui . uiMap
-            -- TODO: local coordinates
             determineSize' :: (ScreenUnit, ScreenUnit, ScreenUnit ,ScreenUnit) -> (ScreenUnit, ScreenUnit, ScreenUnit ,ScreenUnit) -> (ScreenUnit, ScreenUnit, ScreenUnit ,ScreenUnit)
-            determineSize' (x, y, w, h) (x', y', w', h') =
-               let x'' = if x' < x then x' else x
-                   y'' = if y' < y then y' else y
-                   w'' = if x' + w' > x + w then x' + w' - x'' else x + w - x''
-                   h'' = if y' + h' > y + h then y' + h' - y'' else y + h - y''
-                in (x'', y'', w'', h'')
+            determineSize' (x, y, w, h) (x', y', w', h') = (x, y, max w (x' + w'), max h (y' + h'))
         case chld of
              [] -> return bnd
-             cs -> do let widgets = mapMaybe (`Map.lookup` hmap) cs
+             cs -> do let widgets = mapMaybe (`Map.lookup` hmap) cs 
                       foldl' (liftM2 determineSize') (return bnd) $ map (\w -> w ^. baseProperties.boundary) widgets
 
 createButton :: (Monad m) => (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> Int -> (MouseButton -> GUIWidget m -> Pixel -> m (GUIWidget m)) -> GUIWidget m
 createButton bnd prio action = Widget (rectangularBase bnd [] prio "BTN")
-                                         (Just $ buttonMouseActions action)
-                                         emptyGraphics
+                                      emptyGraphics
+                                      (Map.fromList [(MouseStateKey, initialMouseState)]) -- widget states
+                                      (Map.fromList [(MouseEvent, buttonMouseActions action)]) -- event handlers
