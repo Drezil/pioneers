@@ -389,10 +389,6 @@ render = do
 
         glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
 
-
-	currentProgram $= Just (state ^. gl.glMap.objectProgram)
-	
-
         checkError "draw map"
 
 	---- RENDER MAPOBJECTS --------------------------------------------
