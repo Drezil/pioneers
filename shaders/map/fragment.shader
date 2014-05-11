@@ -106,6 +106,7 @@ smooth in vec3 tePosition;
 smooth in float fogDist;
 smooth in float gmix;
 in vec4 teColor;
+in vec3 tePatchDistance;
 
 out vec4 fgColor;
 
@@ -116,6 +117,10 @@ void main(void)
 {
     //fog color
     vec4 fogColor = vec4(0.6,0.7,0.8,1.0);
+    //grid color
+    vec4 grid = vec4(0.0,0.0,0.0,1.0);
+    //point color
+    vec4 point = vec4(1.0,0.9,0.1,1.0);
 
     //heliospheric lighting
     vec4 light = vec4(1.0,1.0,1.0,1.0);
@@ -154,4 +159,11 @@ void main(void)
 
     fgColor = Color * mix(dark, light, a);
     fgColor = mix(fgColor,fogColor,fog(fogDist));
+
+    //mix onto tri-borders
+    float mixer = clamp(exp(1.0-50.0*min(tePatchDistance.x,min(tePatchDistance.y,tePatchDistance.z))),0,1);
+    fgColor = mix(fgColor, grid, mixer);
+    
+    mixer = clamp(exp(1.0-50.0*min(tePatchDistance.x+tePatchDistance.y,min(tePatchDistance.x+tePatchDistance.z,tePatchDistance.y+tePatchDistance.z))),0,1);
+    fgColor = mix(fgColor, point, mixer);
 }
