@@ -86,11 +86,8 @@ main =
         initRendering
         --generate map vertices
         glMap' <- initMapShader 4 =<< getMapBufferObject
-        print window'
         eventQueue <- newTQueueIO :: IO (TQueue SDL.Event)
-        putStrLn "foo"
         now <- getCurrentTime
-        putStrLn "foo"
         --font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
         --TTF.setFontStyle font TTFNormal
         --TTF.setFontHinting font TTFHNormal
