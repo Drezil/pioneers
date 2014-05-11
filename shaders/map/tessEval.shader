@@ -106,6 +106,7 @@ smooth out vec3 tePosition;
 smooth out vec3 teNormal;
 smooth out float fogDist;
 smooth out float gmix; //mixture of gravel
+out vec3 tePatchDistance;
 //out vec3 tePatchDistance;
 //constant projection matrix
 uniform mat4 ProjectionMatrix;
@@ -126,6 +127,7 @@ void main()
     vec3 p1 = gl_TessCoord.y * tcPosition[1];
     vec3 p2 = gl_TessCoord.z * tcPosition[2];
     tePosition = p0 + p1 + p2;
+    tePatchDistance = gl_TessCoord;
 
     //sin(a,b) = length(cross(a,b))
     float i0 = (1-gl_TessCoord.x)*gl_TessCoord.x * length(cross(tcNormal[0],tessNormal));
