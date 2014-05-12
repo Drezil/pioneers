@@ -248,7 +248,7 @@ run = do
 	now' <- getCurrentTime
         return (now',tessChange,sleepAmount,ddiff)
     -- set state with new clock-time
-    liftIO $ putStrLn $ unwords ["clockFactor:",show (state ^. io.tessClockFactor),"\ttc:", show (tc (state ^. gl.glMap.stateTessellationFactor)),"\tsleep ",show frameTime,"ms"]
+    --liftIO $ putStrLn $ unwords ["clockFactor:",show (state ^. io.tessClockFactor),"\ttc:", show (tc (state ^. gl.glMap.stateTessellationFactor)),"\tsleep ",show frameTime,"ms"]
     modify $ (io.clock .~ mt)
            . (gl.glMap.stateTessellationFactor %~ tc)
            . (io.tessClockFactor %~ (((+) frameTime).((*) 0.99)))
