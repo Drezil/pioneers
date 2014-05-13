@@ -139,3 +139,7 @@ genColorData ::      Int  -- ^ Amount
                 -> [Int8]
 genColorData n c = take (length c*n) (cycle c)
 
+-- from GLUtil
+-- |Allocate and fill a 'BufferObject' from a list of 'Storable's.
+makeBuffer :: Storable a => BufferTarget -> [a] -> IO BufferObject
+makeBuffer target elems = makeBufferLen target (length elems) elems

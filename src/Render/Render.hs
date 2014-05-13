@@ -7,7 +7,7 @@ import           Foreign.Storable
 import           Graphics.Rendering.OpenGL.GL
 import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
-import           Graphics.GLUtil.BufferObjects        (offset0)
+import           Graphics.GLUtil.BufferObjects        
 import qualified Linear as L
 import           Control.Lens                               ((^.))
 import           Control.Monad.RWS.Strict             (liftIO)
