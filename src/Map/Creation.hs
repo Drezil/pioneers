@@ -72,9 +72,9 @@ mnh2D (a,b) (c,d) = abs (a-c) + abs (b-d)
 heightToTerrain :: MapType -> YCoord -> TileType
 heightToTerrain GrassIslandMap y
                 | y < 0.1   = Ocean
-                | y < 1     = Beach
-                | y < 5     = Grass
-                | y < 10    = Hill
+                | y < 0.2     = Beach
+                | y < 1     = Grass
+                | y < 3    = Hill
                 | otherwise = Mountain
 heightToTerrain _ _ = undefined
 
@@ -87,16 +87,16 @@ river = undefined
 
 mnt :: IO [PlayMap -> PlayMap]
 mnt = do g <- newStdGen
-         let seeds = take 10 $ randoms g
-         return $ map (gaussMountain) seeds
+         let seeds = take 50 $ randoms g
+         return $ map gaussMountain seeds
 
 gaussMountain :: Int -> PlayMap -> PlayMap
 gaussMountain seed mp = aplByPlace (liftUp c) (\(_,_) -> True) mp
   where
     g   = mkStdGen seed
     c   = let ((a,b), (x,y)) = bounds mp in (head (randomRs (a,x) g), (head (randomRs (b,y) g)))
-    amp = head $ randomRs (5.0, 20.0) g
-    sig = head $ randomRs (5.0, 25.0) g
+    amp = head $ randomRs (2.0, 5.0) g
+    sig = head $ randomRs (1.0, 5.0) g
     fi  = fromIntegral
     htt = heightToTerrain
 
