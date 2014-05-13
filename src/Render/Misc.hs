@@ -1,4 +1,3 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
 module Render.Misc where
 
 import           Control.Monad
@@ -75,6 +74,16 @@ createFrustum fov n' f' rat =
                        (V4    0         0    (-((f+n)/(f-n)))  (-((2*f*n)/(f-n))))
                        (V4    0         0          (-1)                  0)
 
+-- | Creates an orthogonal frustum with given width, height, near and far-plane
+createFrustumOrtho :: Float -> Float -> Float -> Float -> M44 CFloat
+createFrustumOrtho w' h' n' f' = 
+                 let [w,h,n,f] = map realToFrac [w',h',n',f']
+                 in
+                    V4 (V4 (0.5/w)    0        0        0)
+                       (V4    0    (0.5/h)     0        0)
+                       (V4    0       0    (-2/(f-n))   ((-f+n)/(f-n)))
+                       (V4    0       0        0        1)
+
 -- from vmath.h
 lookAt :: V3 CFloat -> V3 CFloat -> V3 CFloat -> M44 CFloat
 lookAt eye center up' =
@@ -128,5 +137,9 @@ tryWithTexture t f fail' =
 genColorData ::      Int  -- ^ Amount
                 -> [Int8] -- ^ [r,g,b,a], [r,g,b] - whatever should be repeatet.
                 -> [Int8]
-genColorData n c = take ((length c)*n) (cycle c)
+genColorData n c = take (length c*n) (cycle c)
 
+-- from GLUtil
+-- |Allocate and fill a 'BufferObject' from a list of 'Storable's.
+makeBuffer :: Storable a => BufferTarget -> [a] -> IO BufferObject
+makeBuffer target elems = makeBufferLen target (length elems) elems
