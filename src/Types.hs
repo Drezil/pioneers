@@ -101,15 +101,7 @@ data KeyboardState = KeyboardState
 
 
 data GLMapState = GLMapState
-    { _shdrVertexIndex      :: !GL.AttribLocation
-    , _shdrColorIndex       :: !GL.AttribLocation
-    , _shdrNormalIndex      :: !GL.AttribLocation
-    , _shdrProjMatIndex     :: !GL.UniformLocation
-    , _shdrViewMatIndex     :: !GL.UniformLocation
-    , _shdrModelMatIndex    :: !GL.UniformLocation
-    , _shdrNormalMatIndex   :: !GL.UniformLocation
-    , _shdrTessInnerIndex   :: !GL.UniformLocation
-    , _shdrTessOuterIndex   :: !GL.UniformLocation
+    { _mapShaderData        :: !MapShaderData
     , _stateTessellationFactor :: !Int
     , _stateMap             :: !GL.BufferObject
     , _mapVert              :: !GL.NumArrayIndices
@@ -120,6 +112,19 @@ data GLMapState = GLMapState
     , _mapTextures          :: ![TextureObject] --TODO: Fix size on list?
     , _objectProgram        :: !GL.Program
     , _mapObjects           :: ![MapObject]
+    , _shadowMapProgram     :: !GL.Program
+    }
+
+data MapShaderData = MapShaderData
+    { shdrVertexIndex      :: !GL.AttribLocation
+    , shdrColorIndex       :: !GL.AttribLocation
+    , shdrNormalIndex      :: !GL.AttribLocation
+    , shdrProjMatIndex     :: !GL.UniformLocation
+    , shdrViewMatIndex     :: !GL.UniformLocation
+    , shdrModelMatIndex    :: !GL.UniformLocation
+    , shdrNormalMatIndex   :: !GL.UniformLocation
+    , shdrTessInnerIndex   :: !GL.UniformLocation
+    , shdrTessOuterIndex   :: !GL.UniformLocation
     }
 
 data MapObject = MapObject !IQM !MapCoordinates !MapObjectState

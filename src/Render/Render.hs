@@ -33,6 +33,8 @@ mapTessEvalShaderFile :: String
 mapTessEvalShaderFile = "shaders/map/tessEval.shader"
 mapFragmentShaderFile :: String
 mapFragmentShaderFile = "shaders/map/fragment.shader"
+mapFragmentShaderShadowMapFile :: String
+mapFragmentShaderShadowMapFile = "shaders/map/fragmentShadow.shader"
 
 objectVertexShaderFile :: String
 objectVertexShaderFile = "shaders/mapobjects/vertex.shader"
@@ -66,6 +68,7 @@ initMapShader tessFac (buf, vertDes) = do
    ! tessControlSource <- B.readFile mapTessControlShaderFile
    ! tessEvalSource <- B.readFile mapTessEvalShaderFile
    ! fragmentSource <- B.readFile mapFragmentShaderFile
+   ! fragmentShadowSource <- B.readFile mapFragmentShaderShadowMapFile
    vertexShader <- compileShaderSource VertexShader vertexSource
    checkError "compile Vertex"
    tessControlShader <- compileShaderSource TessControlShader tessControlSource
@@ -74,7 +77,10 @@ initMapShader tessFac (buf, vertDes) = do
    checkError "compile TessEval"
    fragmentShader <- compileShaderSource FragmentShader fragmentSource
    checkError "compile Frag"
+   fragmentShadowShader <- compileShaderSource FragmentShader fragmentShadowSource
+   checkError "compile Frag"
    program <- createProgramUsing [vertexShader, tessControlShader, tessEvalShader, fragmentShader]
+   shadowProgram <- createProgramUsing [vertexShader, tessControlShader, tessEvalShader, fragmentShadowShader]
    checkError "compile Program"
 
    currentProgram $= Just program
@@ -139,17 +145,21 @@ initMapShader tessFac (buf, vertDes) = do
    currentProgram $= Just objProgram
 
    checkError "initShader"
+   let sdata = MapShaderData
+           { shdrVertexIndex      = vertexIndex
+           , shdrColorIndex       = colorIndex
+           , shdrNormalIndex      = normalIndex
+           , shdrProjMatIndex     = projectionMatrixIndex
+           , shdrViewMatIndex     = viewMatrixIndex
+           , shdrModelMatIndex    = modelMatrixIndex
+           , shdrNormalMatIndex   = normalMatrixIndex
+           , shdrTessInnerIndex   = tessLevelInner
+           , shdrTessOuterIndex   = tessLevelOuter
+           }
+
    return GLMapState
         { _mapProgram         = program
-        , _shdrColorIndex     = colorIndex
-        , _shdrNormalIndex    = normalIndex
-        , _shdrVertexIndex    = vertexIndex
-        , _shdrProjMatIndex   = projectionMatrixIndex
-        , _shdrViewMatIndex   = viewMatrixIndex
-        , _shdrModelMatIndex  = modelMatrixIndex
-        , _shdrNormalMatIndex = normalMatrixIndex
-        , _shdrTessInnerIndex = tessLevelInner
-        , _shdrTessOuterIndex = tessLevelOuter
+        , _mapShaderData      = sdata
         , _renderedMapTexture = tex
         , _stateTessellationFactor = tessFac
         , _stateMap           = buf
@@ -159,6 +169,7 @@ initMapShader tessFac (buf, vertDes) = do
         , _shadowMapTexture   = smap
 	, _mapObjects         = objs
 	, _objectProgram      = objProgram
+        , _shadowMapProgram   = shadowProgram
         }
 
 initHud :: IO GLHud
@@ -306,14 +317,15 @@ drawMap :: Pioneers ()
 drawMap = do
     state <- RWS.get
     let 
-        vi       = state ^. gl.glMap.shdrVertexIndex
-        ni       = state ^. gl.glMap.shdrNormalIndex
-        ci       = state ^. gl.glMap.shdrColorIndex
+        d        = state ^. gl.glMap.mapShaderData
+        vi       = shdrVertexIndex d
+        ni       = shdrNormalIndex d
+        ci       = shdrColorIndex d
         numVert  = state ^. gl.glMap.mapVert
         map'     = state ^. gl.glMap.stateMap
         tessFac  = state ^. gl.glMap.stateTessellationFactor
-        (UniformLocation tli)   = state ^. gl.glMap.shdrTessInnerIndex
-        (UniformLocation tlo)   = state ^. gl.glMap.shdrTessOuterIndex
+        (UniformLocation tli)   = shdrTessInnerIndex d
+        (UniformLocation tlo)   = shdrTessOuterIndex d
     liftIO $ do
         glUniform1f tli (fromIntegral tessFac)
         glUniform1f tlo (fromIntegral tessFac)
@@ -356,9 +368,10 @@ render = do
         frust    = state ^. camera.Types.frustum
         camPos   = state ^. camera.camObject
         zDist'   = state ^. camera.zDist
-        (UniformLocation proj)  = state ^. gl.glMap.shdrProjMatIndex
-        (UniformLocation nmat)  = state ^. gl.glMap.shdrNormalMatIndex
-        (UniformLocation vmat)  = state ^. gl.glMap.shdrViewMatIndex
+        d        = state ^. gl.glMap.mapShaderData
+        (UniformLocation proj)  = shdrProjMatIndex d
+        (UniformLocation nmat)  = shdrNormalMatIndex d
+        (UniformLocation vmat)  = shdrViewMatIndex d
     liftIO $ do
         ---- RENDER MAP IN TEXTURE ------------------------------------------
 
@@ -391,7 +404,7 @@ render = do
 
         --set up projection (= copy from state)
         --TODO: Fix
-        with (distribute frust) $ \ptr ->
+        with (distribute (createFrustumOrtho 20 20 0 100)) $ \ptr ->
               glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
         checkError "copy shadowmap-projection"
 
