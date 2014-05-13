@@ -403,14 +403,14 @@ render = do
         checkError "setting up shadowmap-program"
 
         --set up projection (= copy from state)
-        --TODO: Fix
+        --TODO: Fix width/depth
         with (distribute (createFrustumOrtho 20 20 0 100)) $ \ptr ->
               glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
         checkError "copy shadowmap-projection"
 
         --set up camera
-        --TODO: Fix
-        let ! cam = getCam camPos zDist' xa ya
+        --TODO: Fix magic constants... and camPos
+        let ! cam = getCam camPos 1 0.7 0
         with (distribute cam) $ \ptr ->
               glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
         checkError "copy shadowmap-cam"
