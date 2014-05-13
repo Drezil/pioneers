@@ -13,6 +13,7 @@ import Graphics.Rendering.OpenGL.Raw.Types
 import Prelude as P
 import Foreign.Storable
 import Foreign.C.Types
+import Graphics.Rendering.OpenGL.GL.BufferObjects hiding (Offset)
 
 -- | Mesh-Indices to distinguish the meshes referenced
 newtype Mesh = Mesh Word32 deriving (Show, Eq)
@@ -108,6 +109,7 @@ data IQM = IQM
         , texts                 :: [ByteString]
         , meshes                :: [IQMMesh]
         , vertexArrays          :: [IQMVertexArray]
+        , vertexArrayObjects    :: [BufferObject]
         } deriving (Show, Eq)
 
 -- | Different Vertex-Array-Types in IQM
