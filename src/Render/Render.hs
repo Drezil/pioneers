@@ -119,6 +119,8 @@ initMapShader tessFac (buf, vertDes) = do
    overTex <- genObjectName
 
    texts <- genObjectNames 6
+
+   smap <- genObjectName
    
    testobj <- parseIQM "sample.iqm"
 
@@ -154,6 +156,7 @@ initMapShader tessFac (buf, vertDes) = do
         , _mapVert            = vertDes
         , _overviewTexture    = overTex
         , _mapTextures        = texts
+        , _shadowMapTexture   = smap
 	, _mapObjects         = objs
 	, _objectProgram      = objProgram
         }
@@ -190,7 +193,7 @@ initHud = do
    att <- get (activeAttribs program)
 
    putStrLn $ unlines $ "Attributes: ":map show att
-   putStrLn $ unlines $ ["Indices: ", show (texIndex)]
+   putStrLn $ unlines $ ["Indices: ", show texIndex]
 
    checkError "initHud"
    return GLHud
@@ -299,38 +302,123 @@ renderObject :: MapObject -> IO ()
 renderObject (MapObject model pos@(L.V3 x y z) _{-state-}) = 
 	renderIQM model pos (L.V3 1 1 1)
 		
+drawMap :: Pioneers ()
+drawMap = do
+    state <- RWS.get
+    let 
+        vi       = state ^. gl.glMap.shdrVertexIndex
+        ni       = state ^. gl.glMap.shdrNormalIndex
+        ci       = state ^. gl.glMap.shdrColorIndex
+        numVert  = state ^. gl.glMap.mapVert
+        map'     = state ^. gl.glMap.stateMap
+        tessFac  = state ^. gl.glMap.stateTessellationFactor
+        (UniformLocation tli)   = state ^. gl.glMap.shdrTessInnerIndex
+        (UniformLocation tlo)   = state ^. gl.glMap.shdrTessOuterIndex
+    liftIO $ do
+        glUniform1f tli (fromIntegral tessFac)
+        glUniform1f tlo (fromIntegral tessFac)
+
+        bindBuffer ArrayBuffer $= Just map'
+        vertexAttribPointer ci $= fgColorIndex
+        vertexAttribArray ci   $= Enabled
+        vertexAttribPointer ni $= fgNormalIndex
+        vertexAttribArray ni   $= Enabled
+        vertexAttribPointer vi $= fgVertexIndex
+        vertexAttribArray vi   $= Enabled
+        checkError "beforeDraw"
+
+        glPatchParameteri gl_PATCH_VERTICES 3
+
+        cullFace $= Just Front
+
+        glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
+
+        checkError "draw map"
+
+	---- RENDER MAPOBJECTS --------------------------------------------
+	
+	currentProgram $= Just (state ^. gl.glMap.objectProgram)
+
+	mapM_ renderObject (state ^. gl.glMap.mapObjects)
+
+        -- set sample 1 as target in renderbuffer
+        {-framebufferRenderbuffer
+                DrawFramebuffer              --write-only
+                (ColorAttachment 1)          --sample 1
+                Renderbuffer                 --const
+                rb                              --buffer-}
 
 render :: Pioneers ()
 render = do
     state <- RWS.get
     let xa       = state ^. camera.xAngle
         ya       = state ^. camera.yAngle
-        (UniformLocation proj)  = state ^. gl.glMap.shdrProjMatIndex
-        (UniformLocation nmat)  = state ^. gl.glMap.shdrNormalMatIndex
-        (UniformLocation vmat)  = state ^. gl.glMap.shdrViewMatIndex
-        (UniformLocation tli)   = state ^. gl.glMap.shdrTessInnerIndex
-        (UniformLocation tlo)   = state ^. gl.glMap.shdrTessOuterIndex
-        vi       = state ^. gl.glMap.shdrVertexIndex
-        ni       = state ^. gl.glMap.shdrNormalIndex
-        ci       = state ^. gl.glMap.shdrColorIndex
-        numVert  = state ^. gl.glMap.mapVert
-        map'     = state ^. gl.glMap.stateMap
         frust    = state ^. camera.Types.frustum
         camPos   = state ^. camera.camObject
         zDist'   = state ^. camera.zDist
-        tessFac  = state ^. gl.glMap.stateTessellationFactor
+        (UniformLocation proj)  = state ^. gl.glMap.shdrProjMatIndex
+        (UniformLocation nmat)  = state ^. gl.glMap.shdrNormalMatIndex
+        (UniformLocation vmat)  = state ^. gl.glMap.shdrViewMatIndex
     liftIO $ do
         ---- RENDER MAP IN TEXTURE ------------------------------------------
 
         bindFramebuffer Framebuffer $= (state ^. gl.glFramebuffer)
-        bindRenderbuffer Renderbuffer $= (state ^. gl.glRenderbuffer)
+        {-bindRenderbuffer Renderbuffer $= (state ^. gl.glRenderbuffer)
         framebufferRenderbuffer
                 Framebuffer
                 DepthAttachment
                 Renderbuffer
-                (state ^. gl.glRenderbuffer)
-        textureBinding Texture2D $= Just (state ^. gl.glMap.renderedMapTexture)
+                (state ^. gl.glRenderbuffer)-}
+        
+        -- SHADOWMAP
+        textureBinding Texture2D $= Just (state ^. gl.glMap.shadowMapTexture)
+        framebufferTexture2D 
+                Framebuffer
+                DepthAttachment
+                Texture2D
+                (state ^. gl.glMap.shadowMapTexture)
+                0
 
+        drawBuffer $= NoBuffers --color-buffer is not needed but must(?) be set up
+        checkError "setup Render-Target"
+
+        clear [DepthBuffer]
+        checkError "clearing shadowmap-buffer"
+        
+        --TODO: simplified program for shadows?
+        currentProgram $= Just (state ^. gl.glMap.mapProgram)
+        checkError "setting up shadowmap-program"
+
+        --set up projection (= copy from state)
+        --TODO: Fix
+        with (distribute frust) $ \ptr ->
+              glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
+        checkError "copy shadowmap-projection"
+
+        --set up camera
+        --TODO: Fix
+        let ! cam = getCam camPos zDist' xa ya
+        with (distribute cam) $ \ptr ->
+              glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
+        checkError "copy shadowmap-cam"
+
+        --set up normal--Mat transpose((model*camera)^-1)
+        --needed?
+        let normal' = (case L.inv33 (fmap (^. L._xyz) cam ^. L._xyz) of
+                                             (Just a) -> a
+                                             Nothing  -> L.eye3) :: L.M33 CFloat
+            nmap = collect id normal' :: L.M33 CFloat --transpose...
+
+        with (distribute nmap) $ \ptr ->
+              glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (L.M33 CFloat)))
+
+        checkError "nmat"
+    drawMap
+    liftIO $ do
+        checkError "draw ShadowMap"
+
+        -- COLORMAP
+        textureBinding Texture2D $= Just (state ^. gl.glMap.renderedMapTexture)
         framebufferTexture2D
                 Framebuffer
                 (ColorAttachment 0)
@@ -371,38 +459,8 @@ render = do
 
         checkError "nmat"
 
-        glUniform1f tli (fromIntegral tessFac)
-        glUniform1f tlo (fromIntegral tessFac)
-
-        bindBuffer ArrayBuffer $= Just map'
-        vertexAttribPointer ci $= fgColorIndex
-        vertexAttribArray ci   $= Enabled
-        vertexAttribPointer ni $= fgNormalIndex
-        vertexAttribArray ni   $= Enabled
-        vertexAttribPointer vi $= fgVertexIndex
-        vertexAttribArray vi   $= Enabled
-        checkError "beforeDraw"
-
-        glPatchParameteri gl_PATCH_VERTICES 3
-
-        cullFace $= Just Front
-
-        glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
-
-        checkError "draw map"
-
-	---- RENDER MAPOBJECTS --------------------------------------------
-	
-	currentProgram $= Just (state ^. gl.glMap.objectProgram)
-
-	mapM_ renderObject (state ^. gl.glMap.mapObjects)
-
-        -- set sample 1 as target in renderbuffer
-        {-framebufferRenderbuffer
-                DrawFramebuffer              --write-only
-                (ColorAttachment 1)          --sample 1
-                Renderbuffer                 --const
-                rb                              --buffer-}
+    drawMap --draw map -> put to another function for readability
+    liftIO $ do
 
         ---- COMPOSE RENDERING --------------------------------------------
         -- Render to BackBuffer (=Screen)

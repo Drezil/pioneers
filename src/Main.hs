@@ -304,6 +304,7 @@ adjustWindow = do
 
                    let hudtexid = state ^. gl.glHud.hudTexture
                        maptexid = state ^. gl.glMap.renderedMapTexture
+                       smaptexid = state ^. gl.glMap.shadowMapTexture
                    allocaBytes (fbWidth*fbHeight*4) $ \ptr -> do
                                                                --default to ugly pink to see if
                                                                --somethings go wrong.
@@ -320,6 +321,13 @@ adjustWindow = do
                         textureFilter  Texture2D GL.$= ((Linear', Nothing), Linear')
                         texImage2D Texture2D GL.NoProxy 0 RGBA8 (GL.TextureSize2D fbCWidth fbCHeight) 0
                                                 (GL.PixelData GL.RGBA GL.UnsignedByte ptr)
+                   allocaBytes (2048*2048) $ \ptr -> do
+                        let smapdata = genColorData (2048*2048) [0]
+                        pokeArray ptr smapdata
+                        textureBinding Texture2D GL.$= Just smaptexid
+                        textureFilter  Texture2D GL.$= ((Nearest,Nothing), Nearest)
+                        texImage2D Texture2D GL.NoProxy 0 GL.DepthComponent16 (GL.TextureSize2D 2048 2048) 0
+                                                (GL.PixelData GL.DepthComponent GL.UnsignedByte ptr)
                    checkError "setting up HUD-Tex"
                    return renderBuffer
     modify $ gl.glRenderbuffer .~ rb

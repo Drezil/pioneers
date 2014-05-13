@@ -116,6 +116,7 @@ data GLMapState = GLMapState
     , _mapProgram           :: !GL.Program
     , _renderedMapTexture   :: !TextureObject --TODO: Probably move to UI?
     , _overviewTexture      :: !TextureObject
+    , _shadowMapTexture     :: !TextureObject
     , _mapTextures          :: ![TextureObject] --TODO: Fix size on list?
     , _objectProgram        :: !GL.Program
     , _mapObjects           :: ![MapObject]
