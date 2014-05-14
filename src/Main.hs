@@ -44,6 +44,7 @@ import           Render.Types
 import           UI.Callbacks
 import           Map.Graphics
 import           Types
+import qualified UI.UIBase as UI
 import           Importer.IQM.Parser
 --import           Data.Attoparsec.Char8 (parseTest)
 --import qualified Data.ByteString as B
@@ -161,6 +162,7 @@ main =
                         { _uiHasChanged        = True
                         , _uiMap = guiMap
                         , _uiRoots = guiRoots
+                        , _uiButtonState = UI.UIButtonState 0 Nothing
                         }
               }
 

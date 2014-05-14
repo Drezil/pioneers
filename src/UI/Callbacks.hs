@@ -134,6 +134,37 @@ eventCallback e = do
             _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:", show e]
 
 
+mouseButtonHandler :: (EventHandler Pioneers -> MouseButton -> Pixel -> GUIWidget Pioneers -> Pioneers (GUIWidget Pioneers))
+                   -> MouseButton -> Pixel -> Pioneers ()
+mouseButtonHandler transFunc btn px = do
+    modify $ ui.uiButtonState %~ (mousePressed %~ (+1)) -- TODO: what happens if released outside window? not reset properly?
+    state <- get
+    let hMap = state ^. ui.uiMap
+        currentWidget = state ^. ui.uiButtonState.mouseCurrentWidget
+    case currentWidget of
+         Just (wui, px') -> do
+             let target = toGUIAny hMap wui
+             target' <- case target ^. eventHandlers.(at MouseEvent) of
+                             Just ma -> transFunc ma btn (px -: px') target -- TODO unsafe fromJust
+                             Nothing  -> return target
+             modify $ ui.uiMap %~ Map.insert wui target'
+             return ()
+         Nothing -> return ()
+         
+mousePressHandler :: MouseButton -> Pixel -> Pioneers ()
+mousePressHandler btn px = do
+    modify $ ui.uiButtonState %~ (mousePressed %~ (+1)) -- TODO: what happens if released outside window? not reset properly?
+    mouseButtonHandler (\ma -> fromJust (ma ^? onMousePress)) btn px
+
+mouseReleaseHandler :: MouseButton -> Pixel -> Pioneers ()
+mouseReleaseHandler btn px = do
+    modify $ ui.uiButtonState %~ (mousePressed %~ flip (-) 1) -- TODO: what happens if pressed outside window? not set properly?
+    mouseButtonHandler (\ma -> fromJust (ma ^? onMouseRelease)) btn px
+    -- TODO: trigger move/enter/leave
+
+mouseMoveHandler :: Pixel -> Pioneers ()
+mouseMoveHandler px = undefined
+
 -- | Handler for UI-Inputs.
 --   Indicates a primary click on something (e.g. left-click, touch on Touchpad, fire on Gamepad, ...
 clickHandler :: MouseButton -> Pixel -> Pioneers ()
@@ -154,7 +185,7 @@ clickHandler btn pos@(x,y) = do
                              ++ show prio ++ " at [" ++ show x ++ "," ++ show y ++ "]"
            case w ^. eventHandlers.(at MouseEvent) of
                 Just ma -> do w'  <- fromJust (ma ^? onMousePress) btn pos' w -- TODO unsafe fromJust
-                              w'' <- fromJust (ma ^? onMouseRelease) btn pos' True w' -- TODO unsafe fromJust
+                              w'' <- fromJust (ma ^? onMouseRelease) btn pos' w' -- TODO unsafe fromJust
                               return $ Just (uid, w'')
                 Nothing  -> return Nothing
            ) hits

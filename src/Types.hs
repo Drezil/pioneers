@@ -137,6 +137,7 @@ data UIState = UIState
     { _uiHasChanged        :: !Bool
     , _uiMap               :: Map.HashMap UIId (GUIWidget Pioneers)
     , _uiRoots             :: [UIId]
+    , _uiButtonState       :: UIButtonState
     }
 
 data State = State
