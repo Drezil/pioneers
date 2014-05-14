@@ -93,8 +93,8 @@ main =
         --TTF.setFontHinting font TTFHNormal
 
         glHud' <- initHud
-        let zDistClosest'  = 1
-            zDistFarthest' = zDistClosest' + 50
+        let zDistClosest'  = 2
+            zDistFarthest' = zDistClosest' + 10
             --TODO: Move near/far/fov to state for runtime-changability & central storage
             fov           = 90  --field of view
             near          = 1   --near plane
