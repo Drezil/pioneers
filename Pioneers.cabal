@@ -16,7 +16,6 @@ executable Pioneers
                    Map.Types,
                    Map.Graphics,
                    Map.Creation,
-                   Map.StaticMaps,
                    Importer.IQM.Types,
                    Importer.IQM.Parser,
                    Render.Misc,
