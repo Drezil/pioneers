@@ -50,16 +50,14 @@ stripify :: (Int,Int) -> (Int,Int)
 stripify (x,z) = (if even z then 2*x else 2*x+1, z `div` 2)
 
 strp :: Node -> Node
-strp (Full    xz y tt bi pli p ri si) = Full    (stripify xz) y tt bi pli p ri si
-strp (Minimal xz                    ) = Minimal (stripify xz)
+strp (Node i (x,z,y) tt bi pli p ri si) = Node (stripify i) (x,z,y) tt bi pli p ri si
 
 -- extract graphics information from Playmap
 convertToGraphicsMap :: PlayMap -> GraphicsMap
 convertToGraphicsMap mp = array (bounds mp) [(i, graphicsyfy (mp ! i))| i <- indices mp]
     where
       graphicsyfy :: Node -> MapEntry
-      graphicsyfy (Minimal _               ) = (1.0, Grass)
-      graphicsyfy (Full    _ y t _ _ _ _ _ ) = (y, t)
+      graphicsyfy (Node _ (_,_,y) t _ _ _ _ _ ) = (y, t)
 
 lineHeight :: GLfloat
 lineHeight = 0.8660254
@@ -203,8 +201,8 @@ colorLookup hs t = if inRange (bounds hs) t then c else (0.0, 0.0, 0.0)
                                 Beach           -> (0.90, 0.85, 0.70)
                                 Desert          -> (1.00, 0.87, 0.39)
                                 Grass           -> (0.30, 0.90, 0.10)
-                                Hill            -> (0.80, 0.80, 0.80)
-                                Mountain        -> (0.50, 0.50, 0.50)
+                                Mountain        -> (0.80, 0.80, 0.80)
+                                Hill            -> (0.50, 0.50, 0.50)
 
 coordLookup :: (Int,Int) -> GLfloat -> V3 GLfloat
 coordLookup (x,z) y =
