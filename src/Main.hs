@@ -43,7 +43,9 @@ import           Render.Render                        (initRendering,
 import           Render.Types
 import           UI.Callbacks
 import           Map.Graphics
+import           Map.Creation                          (exportedMap)
 import           Types
+import qualified UI.UIBase as UI
 import           Importer.IQM.Parser
 --import           Data.Attoparsec.Char8 (parseTest)
 --import qualified Data.ByteString as B
@@ -53,7 +55,7 @@ import           Importer.IQM.Parser
 --------------------------------------------------------------------------------
 
 testParser :: String -> IO ()
-testParser a = putStrLn . show  =<< parseIQM a
+testParser a = print  =<< parseIQM a
 {-do
         f <- B.readFile a
         putStrLn "reading in:"
@@ -85,7 +87,8 @@ main =
         (SDL.Size fbWidth fbHeight) <- SDL.glGetDrawableSize window'
         initRendering
         --generate map vertices
-        glMap' <- initMapShader 4 =<< getMapBufferObject
+        curMap <- exportedMap
+        glMap' <- initMapShader 4 =<< getMapBufferObject curMap
         eventQueue <- newTQueueIO :: IO (TQueue SDL.Event)
         now <- getCurrentTime
         --font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
@@ -125,7 +128,7 @@ main =
                         , _yAngle              = pi/2
                         , _zDist               = 10
                         , _frustum             = frust
-                        , _camObject           = createFlatCam 25 25
+                        , _camObject           = createFlatCam 25 25 curMap
                         }
               , _io                  = IOState
                         { _clock               = now
@@ -153,12 +156,13 @@ main =
                         , _glFramebuffer       = frameBuffer
                         }
               , _game                = GameState
-                        {
+                        { _currentMap          = curMap
                         }
               , _ui                  = UIState
                         { _uiHasChanged        = True
                         , _uiMap = guiMap
                         , _uiRoots = guiRoots
+                        , _uiButtonState = UI.UIButtonState 0 Nothing
                         }
               }
 
@@ -216,7 +220,7 @@ run = do
                      - 0.2 * kyrot * mults
         mody y' = y' + 0.2 * kxrot * mults
                      - 0.2 * kyrot * multc
-    modify $ camera.camObject %~ (\c -> moveBy c (\(x,y) -> (modx x,mody y)))
+    modify $ camera.camObject %~ (\c -> moveBy c (\(x,y) -> (modx x,mody y)) (state ^. game.currentMap))
 
     {-
     --modify the state with all that happened in mt time.

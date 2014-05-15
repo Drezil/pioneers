@@ -10,7 +10,7 @@ import UI.UIBase
 
 -- TODO: test GUI function to scan for overlapping widgets
 
-toGUIAny :: Map.HashMap UIId (GUIWidget m) -> UIId -> GUIWidget m
+toGUIAny :: Map.HashMap UIId (GUIWidget m) -> UIId -> GUIWidget m -- TODO: what to do if widget not inside map -> inconsistent state
 toGUIAny m uid = fromMaybe (error "map does not contain requested key") (Map.lookup uid m)
 {-# INLINABLE toGUIAny #-}
 
@@ -46,4 +46,8 @@ getInsideId hMap px uid = do
     else return []
 --TODO: Priority queue?
 
-
+getLeadingWidget :: [(UIId, Pixel)]  -- ^widgets and their screen positions
+                 -> Pioneers (Maybe (UIId, Pixel))    -- ^the leading widget
+getLeadingWidget [] = return Nothing
+getLeadingWidget (x:_) = return $ Just x
+              
