@@ -50,16 +50,14 @@ stripify :: (Int,Int) -> (Int,Int)
 stripify (x,z) = (if even z then 2*x else 2*x+1, z `div` 2)
 
 strp :: Node -> Node
-strp (Full    xz y tt bi pli p ri si) = Full    (stripify xz) y tt bi pli p ri si
-strp (Minimal xz                    ) = Minimal (stripify xz)
+strp (Node i (x,z,y) tt bi pli p ri si) = Node (stripify i) (x,z,y) tt bi pli p ri si
 
 -- extract graphics information from Playmap
 convertToGraphicsMap :: PlayMap -> GraphicsMap
 convertToGraphicsMap mp = array (bounds mp) [(i, graphicsyfy (mp ! i))| i <- indices mp]
     where
       graphicsyfy :: Node -> MapEntry
-      graphicsyfy (Minimal _               ) = (1.0, Grass)
-      graphicsyfy (Full    _ y t _ _ _ _ _ ) = (y, t)
+      graphicsyfy (Node _ (_,_,y) t _ _ _ _ _ ) = (y, t)
 
 lineHeight :: GLfloat
 lineHeight = 0.8660254

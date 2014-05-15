@@ -5,10 +5,12 @@ import Types
 
 import Data.Array
 
-type PlayMap = Array (XCoord, ZCoord) Node 
+type PlayMap = Array (Xindex, Zindex) Node 
 
-type XCoord  = Int
-type ZCoord  = Int
+type Xindex  = Int
+type Zindex  = Int
+type XCoord  = Float
+type ZCoord  = Float
 type YCoord  = Float
 
 data MapType    = GrassIslandMap
@@ -66,7 +68,6 @@ data TileType   = Ocean
                 | Mountain -- ^ Not accessible
                 deriving (Show, Eq)
 
--- TODO: Record Syntax
-data Node = Full    (XCoord, ZCoord) YCoord TileType BuildInfo PlayerInfo PathInfo ResInfo StorInfo
-          | Minimal (XCoord, ZCoord) -- defaults to empty green grass node on height 1
+-- TODO: Record Syntax?
+data Node = Node (Xindex, Zindex) (XCoord, ZCoord, YCoord) TileType BuildInfo PlayerInfo PathInfo ResInfo StorInfo
           deriving (Show)

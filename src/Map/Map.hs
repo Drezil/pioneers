@@ -61,10 +61,7 @@ giveMapHeight mp (x,z) = let [a,b,c] = getTrianglePoints [tff,tfc,tcf,tcc]
 
     -- Height LookUp
     hlu :: (Int, Int) -> Float
-    hlu (k,j) = let node = mp ! (k,j)
-                in  case node of
-                    (Full    _ y _ _ _ _ _ _) -> y
-                    (Minimal _              ) -> 1.0
+    hlu (k,j) = let (Node _ (_,_,y) _ _ _ _ _ _) = mp ! (k,j) in y
 
     ff  = (floor   x, floor   z) :: (Int, Int)
     fc  = (floor   x, ceiling z) :: (Int, Int)
