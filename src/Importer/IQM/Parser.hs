@@ -216,7 +216,7 @@ parseIQM a =
         vbo <- sequence $ map toVBOfromVAO va
 	return $ raw
 		{ vertexArrays = va'
-                , vertexArrayObjects = vbo
+                , vertexBufferObjects = vbo
 		}
 
 -- | Creates a BufferObject on the Graphicscard for each BufferObject

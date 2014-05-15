@@ -109,7 +109,8 @@ data IQM = IQM
         , texts                 :: [ByteString]
         , meshes                :: [IQMMesh]
         , vertexArrays          :: [IQMVertexArray]
-        , vertexArrayObjects    :: [BufferObject]
+        , vertexBufferObjects   :: [BufferObject]
+        , vertexArrayObject     :: VertexArrayObject
         } deriving (Show, Eq)
 
 -- | Different Vertex-Array-Types in IQM

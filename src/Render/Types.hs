@@ -34,7 +34,7 @@ instance GLCamera Camera where
   getCam (Flat (x',z')) dist' xa' ya' =
         lookAt (cpos ^+^ at') at' up
                      where
-                        at'   = V3 x 0 z
+                        at'   = V3 x (y+1) z
                         cpos  = crot !* (V3 0 0 (-dist))
                         crot  = (
                                 (fromQuaternion $ axisAngle upmap (xa::CFloat))
@@ -52,7 +52,7 @@ instance GLCamera Camera where
   getCam (Sphere (inc',az') r') dist' xa' ya' = --inclination (pitch), azimuth (yaw)
         lookAt (cpos ^+^ at') at' up
                      where
-                        at'   = sphereToCart r inc az
+                        at'   = sphereToCart (r+1) inc az
                         cpos  = crot !* (V3 0 0 (-dist))
                         crot  = (
                                 (fromQuaternion $ axisAngle upmap (xa::CFloat))
