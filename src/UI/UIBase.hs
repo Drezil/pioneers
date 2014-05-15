@@ -70,6 +70,15 @@ instance Hashable WidgetStateKey where -- TODO: generic deriving creates functio
     hash = fromEnum
     hashWithSalt salt x = (salt * 16777619)  `xor` hash x
 
+-- |Global tracking of mouse actions to determine event handling.
+data UIButtonState = UIButtonState
+    { _mousePressed :: Int              -- ^amount of currently pressed buttons
+    , _mouseCurrentWidget :: Maybe (UIId, Pixel)
+      -- ^the current mouse-active widget and its global coordinates.
+      --  If @_mousePressed == 0@: widget the mouse is hovering over,
+      --  otherwise: widget the first button has been pressed on.
+    } deriving (Show, Eq)
+
 -- |The button dependant state of a 'MouseState'.
 data MouseButtonState = MouseButtonState
     { _mouseIsDragging      :: Bool -- ^firing if pressed but not confirmed
@@ -107,19 +116,22 @@ data EventHandler m =
     MouseHandler
         {
         -- |The function 'onMousePressed' is called when a button is pressed
-        --  while inside a screen coordinate within the widget ('isInside').
+        --  while the widget is mouse-active.
+        -- 
+        --  A widget becomes mouse-active if no other button is currently pressed and the mouse
+        --  coordinates are within the widget's extent ('isInside') until no button is pressed any
+        --  more.
         _onMousePress :: MouseButton       -- ^the pressed button
                       -> Pixel             -- ^screen position
                       -> GUIWidget m       -- ^widget the event is invoked on
                       -> m (GUIWidget m)   -- ^widget after the event and the possibly altered mouse handler
         ,
         -- |The function 'onMouseReleased' is called when a button is released
-        --  while the pressing event occured within the widget ('isInside').
+        --  while the widget is mouse-active.
         --  
         --  Thus, the mouse is either within the widget or outside while still dragging.
         _onMouseRelease :: MouseButton       -- ^the released button
                         -> Pixel             -- ^screen position
-                        -> Bool              -- ^@True@ if the event occured inside the widget
                         -> GUIWidget m       -- ^widget the event is invoked on
                         -> m (GUIWidget m)   -- ^widget after the event and the altered handler
         }
@@ -128,19 +140,22 @@ data EventHandler m =
     MouseMotionHandler
         {
         -- |The function 'onMouseMove' is invoked when the mouse is moved inside the
-        --  widget's space ('isInside').
+        --  widget's extent ('isInside') while no button is pressed or when the mouse is inside the
+        --  widget's extent while another button loses its mouse-active state. Triggered after
+        --  '_onMouseEnter'.
         _onMouseMove :: Pixel             -- ^screen position
                      -> GUIWidget m       -- ^widget the event is invoked on
                      -> m (GUIWidget m)   -- ^widget after the event and the altered handler
         ,
         -- |The function 'onMouseMove' is invoked when the mouse enters the
-        --  widget's space ('isInside').
+        --  widget's extent ('isInside') or when the mouse is inside the
+        --  widget's extent while another button loses its mouse-active state..
         _onMouseEnter :: Pixel           -- ^screen position
                       -> GUIWidget m     -- ^widget the event is invoked on
                       -> m (GUIWidget m) -- ^widget after the event and the altered handler
         ,
-        -- |The function 'onMouseMove' is invoked when the mouse leaves the
-        --  widget's space ('isInside').
+        -- |The function 'onMouseLeave' is invoked when the mouse leaves the
+        --  widget's extent ('isInside') while no other widget is mouse-active.
         _onMouseLeave :: Pixel           -- ^screen position
                       -> GUIWidget m     -- ^widget the event is invoked on
                       -> m (GUIWidget m) -- ^widget after the event and the altered handler
@@ -199,10 +214,9 @@ data GUIBaseProperties m = BaseProperties
 data GUIGraphics m = Graphics 
     {temp :: m Int}
 
-$(makeLenses ''WidgetStateKey)
+$(makeLenses ''UIButtonState)
 $(makeLenses ''WidgetState)
 $(makeLenses ''MouseButtonState)
-$(makeLenses ''EventKey)
 $(makeLenses ''EventHandler)
 $(makeLenses ''GUIWidget)
 $(makeLenses ''GUIBaseProperties)
@@ -221,6 +235,7 @@ initialMouseState = MouseState (array (minBound, maxBound) [(i, initialButtonSta
 
 -- TODO: combined mouse handler
 
+-- TODO? breaks if button array not of sufficient size -- will be avoided by excluding constructor export
 -- |Creates a 'MouseHandler' that sets a widget's 'MouseButtonState' properties if present,
 --  only fully functional in conjunction with 'setMouseMotionStateActions'.
 setMouseStateActions :: (Monad m) => EventHandler m
@@ -231,7 +246,7 @@ setMouseStateActions = MouseHandler press' release'
         return $ w & widgetStates.(ix MouseStateKey).mouseStates.(ix b).mouseIsDragging .~ True
 
     -- |Change 'MouseButtonState's '_mouseIsDragging' and '_mouseIsDeferred' to @False@.
-    release' b _ _ w =
+    release' b _ w =
         return $ w & widgetStates.(ix MouseStateKey).mouseStates.(ix b) %~
                 (mouseIsDragging .~ False) . (mouseIsDeferred .~ False)
 
@@ -260,8 +275,7 @@ setMouseMotionStateActions = MouseMotionHandler move' enter' leave'
                          -- following line executed BEFORE above line
                          . (\sState -> sState & mouseIsDeferred .~ not (sState ^. mouseIsDragging)))
 
-                            
--- TODO? breaks if array not of sufficient size -- will be avoided by excluding constructor export
+-- TODO: make only fire if press started within widget                            
 -- |Creates a MouseHandler that reacts on mouse clicks.
 -- 
 --  Does /not/ update 'WidgetState MouseState'!
@@ -271,10 +285,21 @@ buttonMouseActions a = MouseHandler press' release'
   where 
     press' _ _ = return
 
-    release' b p isIn w =
-      if isIn
-      then a b w p
-      else return w
+    release' b p w = do fire <- (w ^. baseProperties.isInside) w p
+                        if fire then a b w p else return w
+
+-- TODO: make only fire if press started within widget
+-- |Creates a MouseHandler that reacts on mouse clicks.
+-- 
+--  Does /not/ update 'WidgetState MouseState'!
+buttonSingleMouseActions :: (Monad m) => (GUIWidget m -> Pixel -> m (GUIWidget m)) -- ^action on button press
+                                      -> MouseButton -> EventHandler m
+buttonSingleMouseActions a btn = MouseHandler press' release'
+  where 
+    press' _ _ = return
+
+    release' b p w = do fire <- liftM (b == btn &&) $ (w ^. baseProperties.isInside) w p
+                        if fire then a w p else return w
 
 emptyGraphics :: (Monad m) => GUIGraphics m
 emptyGraphics = Graphics (return 3)
