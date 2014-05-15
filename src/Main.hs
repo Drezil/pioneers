@@ -232,7 +232,7 @@ run = do
         let 	double = fromRational.toRational :: (Real a) => a -> Double
 		targetFramerate = 60.0
 		targetFrametime = 1.0/targetFramerate
-		targetFrametimeμs = targetFrametime * 1000000.0
+		--targetFrametimeμs = targetFrametime * 1000000.0
         now <- getCurrentTime
         let diff  = diffUTCTime now (state ^. io.clock) -- get time-diffs
             title = unwords ["Pioneers @ ",show ((round . double $ 1.0/diff)::Int),"fps"]
