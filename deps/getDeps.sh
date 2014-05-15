@@ -14,7 +14,7 @@ fi
 
 if [[ $install -eq 0 ]]
 then
-	sudo apt-get install libsdl2-dev libsdl2-ttf-dev
+	sudo apt-get install libsdl2-dev libsdl2-ttf-dev libsdl2-image-dev libsdl2-mixer-dev
 fi
 
 
@@ -38,6 +38,25 @@ else
 	cd ..
 fi
 
+if [ ! -d "hsSDL2-mixer" ]
+then
+	git clone https://github.com/jdeseno/hs-sdl2-mixer hsSDL2-mixer
+else
+	cd hsSDL2-mixer
+	git pull
+	cd ..
+fi
+
+if [ ! -d "hsSDL2-image" ]
+then
+	git clone https://github.com/jdeseno/hs-sdl2-image hsSDL2-image
+else
+	cd hsSDL2-image
+	git pull
+	cd ..
+fi
+
+
 echo "trying to build"
 
 cabal install haddock
@@ -51,7 +70,7 @@ cabal install --only-dependencies
 cabal build
 cd ..
 
-for t in "hsSDL2-ttf"
+for t in "hsSDL2-ttf" "hsSDL2-mixer" "hsSDL2-image"
 do
 	echo "building ${t}.."
 	cd "${t}"

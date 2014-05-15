@@ -1,8 +1,6 @@
 #version 330
 
-#extension GL_ARB_tessellation_shader : require
-
-//#include "shaders/3rdParty/noise.glsl"
+//#include "3rdParty/noise.glsl"
 
 vec3 mod289(vec3 x) {
   return x - floor(x * (1.0 / 289.0)) * 289.0;
@@ -22,7 +20,7 @@ vec4 taylorInvSqrt(vec4 r)
 }
 
 float snoise(vec3 v)
-  {
+  { 
   const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
   const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
 
@@ -45,10 +43,10 @@ float snoise(vec3 v)
   vec3 x3 = x0 - D.yyy;      // -1.0+3.0*C.x = -0.5 = -D.y
 
 // Permutations
-  i = mod289(i);
-  vec4 p = permute( permute( permute(
+  i = mod289(i); 
+  vec4 p = permute( permute( permute( 
              i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
-           + i.y + vec4(0.0, i1.y, i2.y, 1.0 ))
+           + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) 
            + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
 
 // Gradients: 7x7 points over a square, mapped onto an octahedron.
@@ -92,61 +90,68 @@ float snoise(vec3 v)
 // Mix final noise value
   vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
   m = m * m;
-  return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1),
+  return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), 
                                 dot(p2,x2), dot(p3,x3) ) );
   }
 
+float fog(float dist) {
+    dist = max(0,dist - 50);
+    dist = dist * 0.05;
+//    dist = dist*dist;
+    return 1-exp(-dist);
+}
 
-layout(triangles, equal_spacing, cw) in;
-in vec3 tcPosition[];
-in vec4 tcColor[];
-in vec3 tcNormal[];
-out vec4 teColor;
-smooth out vec3 tePosition;
-smooth out vec3 teNormal;
-smooth out float fogDist;
-smooth out float gmix; //mixture of gravel
-out vec3 tePatchDistance;
-//out vec3 tePatchDistance;
-//constant projection matrix
-uniform mat4 ProjectionMatrix;
+smooth in vec3 teNormal;
+smooth in vec3 tePosition;
+smooth in float fogDist;
+smooth in float gmix;
+in vec4 teColor;
+
+out vec4 fgColor;
+
 uniform mat4 ViewMatrix;
-uniform mat3 NormalMatrix;
+uniform mat4 ProjectionMatrix;
 
-void main()
+void main(void)
 {
-    //NORMAL
-    vec3 n0 = gl_TessCoord.x * tcNormal[0];
-    vec3 n1 = gl_TessCoord.y * tcNormal[1];
-    vec3 n2 = gl_TessCoord.z * tcNormal[2];
-    vec3 tessNormal = normalize(n0 + n1 + n2);
-    teNormal = NormalMatrix * tessNormal;
+    //fog color
+    vec4 fogColor = vec4(0.6,0.7,0.8,1.0);
 
-    //POSITION
-    vec3 p0 = gl_TessCoord.x * tcPosition[0];
-    vec3 p1 = gl_TessCoord.y * tcPosition[1];
-    vec3 p2 = gl_TessCoord.z * tcPosition[2];
-    tePosition = p0 + p1 + p2;
-    tePatchDistance = gl_TessCoord;
+    //heliospheric lighting
+    vec4 light = vec4(1.0,1.0,1.0,1.0);
+    vec4 dark  = vec4(0.0,0.0,0.0,1.0);
+    //direction to sun from origin
+    vec3 lightDir = normalize(ViewMatrix * vec4(5.0,5.0,1.0,0.0)).xyz;
 
-    //sin(a,b) = length(cross(a,b))
-    float i0 = (1-gl_TessCoord.x)*gl_TessCoord.x * length(cross(tcNormal[0],tessNormal));
-    float i1 = (1-gl_TessCoord.y)*gl_TessCoord.y * length(cross(tcNormal[1],tessNormal));
-    float i2 = (1-gl_TessCoord.z)*gl_TessCoord.z * length(cross(tcNormal[2],tessNormal));
-    float standout = i0+i1+i2;
-    tePosition = tePosition+tessNormal*standout;
-    vec3 tmp = tePosition;//+clamp(tePosition,0,0.05)*snoise(tePosition/2);
-    tePosition = vec3(tePosition.x, tmp.y, tePosition.z);
-    gl_Position = ProjectionMatrix * ViewMatrix * vec4(tePosition, 1);
-    fogDist = gl_Position.z;
+    float costheta = dot(teNormal, lightDir);
+    float a = costheta * 0.5 + 0.5;
 
-    //COLOR-BLENDING
-    vec4 c0 = (1-exp(gl_TessCoord.x)) * tcColor[0];
-    vec4 c1 = (1-exp(gl_TessCoord.y)) * tcColor[1];
-    vec4 c2 = (1-exp(gl_TessCoord.z)) * tcColor[2];
-    teColor = (c0 + c1 + c2)/((1-exp(gl_TessCoord.x))+(1-exp(gl_TessCoord.y))+(1-exp(gl_TessCoord.z)));
+    //create gravel-texel
+    vec3 uvw = tePosition;
+    // Six components of noise in a fractal sum
+    //float n = snoise(uvw * 10);
+    float n = 0;
+    n += 0.5 * snoise(uvw * 20.0);
+    //n += 0.25 * snoise(uvw * 40.0);
+    //n += 0.125 * snoise(uvw * 80.0);
+    //n += 0.0625 * snoise(uvw * 160.0);
+    //n += 0.03125 * snoise(uvw * 320.0);
+    n = abs(n*2);//[0,1]
 
-    //mix gravel based on incline (sin (normal,up))
-    gmix = length(cross(tessNormal, vec3(0,1,0)));
+    //dirt
+    float d = snoise(uvw);
+    d += 0.5 * snoise(uvw * 2);
+    d += 0.25 * snoise(uvw * 4);
+    d = d/3*2 +0.5;
 
+    //                  base, dirt, noise-level*(above 0?)*(linear blend by y)
+    vec4 texBase = mix(teColor, vec4(0.45,0.27,0.1,1),d*d*step(0.01,tePosition.y)*clamp(tePosition.y/2,0,2));
+    //                  stone highlights
+    vec4 texHighlights = mix(texBase, vec4(0.9*n,0.9*n,0.9*n,1),n*n*n);
+    //mix highlights into Color with inclination, if inclination^2 > 0.35
+    vec4 texColor = mix(texBase,texHighlights, (gmix*(1-gmix))*4*(gmix*(1-gmix))*4);
+    vec4 Color = texColor;
+
+    fgColor = Color * mix(dark, light, a);
+    fgColor = mix(fgColor,fogColor,fog(fogDist));
 }

@@ -30,9 +30,7 @@ import Linear
 import Control.Arrow         ((***))
 
 import Map.Types
-import Map.StaticMaps
 import Map.Creation
-import Map.Combinators
 
 type Height = Float
 
@@ -91,8 +89,8 @@ fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 
 getMapBufferObject :: IO (BufferObject, NumArrayIndices)
 getMapBufferObject = do
-        mountains <- mnt
-        myMap'  <- return $ convertToGraphicsMap $ convertToStripeMap $ aplAll mountains mapEmpty
+        eMap    <- exportedMap
+        myMap'  <- return $ convertToGraphicsMap $ convertToStripeMap eMap
         ! myMap <- return $ generateTriangles myMap'
         len <- return $ fromIntegral $ P.length myMap `div` numComponents
         putStrLn $ P.unwords ["num verts in map:",show len]

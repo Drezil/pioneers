@@ -27,7 +27,7 @@ import           Foreign.Marshal.Alloc                (allocaBytes)
 import           Control.Lens                         ((^.), (.~), (%~))
 
 -- GUI
-import           Graphics.UI.SDL                      as SDL
+import qualified Graphics.UI.SDL                      as SDL
 
 -- Render
 import qualified Graphics.Rendering.OpenGL.GL         as GL
@@ -66,15 +66,15 @@ testParser a = putStrLn . show  =<< parseIQM a
 
 main :: IO ()
 main =
-    SDL.withInit [InitVideo, InitAudio, InitEvents, InitTimer] $ --also: InitNoParachute -> faster, without parachute!
-      SDL.withWindow "Pioneers" (SDL.Position 100 100) (Size 1024 600) [WindowOpengl     -- we want openGL
-                                                                             ,WindowShown      -- window should be visible
-                                                                             ,WindowResizable  -- and resizable
-                                                                             ,WindowInputFocus -- focused (=> active)
-                                                                             ,WindowMouseFocus -- Mouse into it
+    SDL.withInit [SDL.InitVideo, SDL.InitAudio, SDL.InitEvents, SDL.InitTimer] $ --also: InitNoParachute -> faster, without parachute!
+      SDL.withWindow "Pioneers" (SDL.Position 100 100) (SDL.Size 1024 600) [SDL.WindowOpengl     -- we want openGL
+                                                                             ,SDL.WindowShown      -- window should be visible
+                                                                             ,SDL.WindowResizable  -- and resizable
+                                                                             ,SDL.WindowInputFocus -- focused (=> active)
+                                                                             ,SDL.WindowMouseFocus -- Mouse into it
                                                                              --,WindowInputGrabbed-- never let go of input (KB/Mouse)
                                                                              ] $ \window' -> do
-       withOpenGL window' $ do
+       SDL.withOpenGL window' $ do
 
         --Create Renderbuffer & Framebuffer
         -- We will render to this buffer to copy the result into textures
@@ -83,15 +83,12 @@ main =
         GL.bindFramebuffer GL.Framebuffer GL.$= frameBuffer
         GL.bindRenderbuffer GL.Renderbuffer GL.$= renderBuffer
 
-        (Size fbWidth fbHeight) <- glGetDrawableSize window'
+        (SDL.Size fbWidth fbHeight) <- SDL.glGetDrawableSize window'
         initRendering
         --generate map vertices
         glMap' <- initMapShader 4 =<< getMapBufferObject
-        print window'
-        eventQueue <- newTQueueIO :: IO (TQueue Event)
-        putStrLn "foo"
+        eventQueue <- newTQueueIO :: IO (TQueue SDL.Event)
         now <- getCurrentTime
-        putStrLn "foo"
         --font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
         --TTF.setFontStyle font TTFNormal
         --TTF.setFontHinting font TTFHNormal
@@ -133,6 +130,7 @@ main =
                         }
               , _io                  = IOState
                         { _clock               = now
+                        , _tessClockFactor     = 0
                         }
               , _mouse               = MouseState
                         { _isDown              = False
@@ -182,7 +180,7 @@ run = do
 
     -- draw Scene
     draw
-    liftIO $ glSwapWindow (env ^. windowObject)
+    liftIO $ SDL.glSwapWindow (env ^. windowObject)
     -- getEvents & process
     processEvents
 
@@ -230,17 +228,33 @@ run = do
       }
     -}
 
-    mt <- liftIO $ do
-        let double = fromRational.toRational :: (Real a) => a -> Double
+    (mt,tc,sleepAmount,frameTime) <- liftIO $ do
+        let 	double = fromRational.toRational :: (Real a) => a -> Double
+		targetFramerate = 60.0
+		targetFrametime = 1.0/targetFramerate
+		targetFrametimeμs = targetFrametime * 1000000.0
         now <- getCurrentTime
-        diff <- return $ diffUTCTime now (state ^. io.clock) -- get time-diffs
-        title <- return $ unwords ["Pioneers @ ",show ((round . double $ 1.0/diff)::Int),"fps"]
-        setWindowTitle (env ^. windowObject) title
-        sleepAmount <- return $ floor (max 0 (0.04 - diff))*1000000 -- get time until next frame in microseconds
-        threadDelay sleepAmount
-        return now
+        let diff  = diffUTCTime now (state ^. io.clock) -- get time-diffs
+            title = unwords ["Pioneers @ ",show ((round . double $ 1.0/diff)::Int),"fps"]
+            ddiff = double diff
+        SDL.setWindowTitle (env ^. windowObject) title
+        let 	sleepAmount = floor ((targetFrametime - double diff)*1000000) :: Int -- get time until next frame in microseconds
+                clockFactor = (state ^. io.tessClockFactor)
+		tessChange
+			| (clockFactor < (75*targetFrametime)) && (state ^. gl.glMap.stateTessellationFactor < 5) = ((+)1 :: Int -> Int) 
+										-- > last 100 frames had > 25% leftover (on avg.)
+			| (clockFactor > (110*targetFrametime)) && (state ^. gl.glMap.stateTessellationFactor > 1) = (flip (-) 1 :: Int -> Int)
+									-- > last 100 frames had < 90% of target-fps
+			| otherwise = ((+)0 :: Int -> Int)              -- 0ms > x > 10% -> keep settings
+        when (sleepAmount > 0) $ threadDelay sleepAmount
+	now' <- getCurrentTime
+        return (now',tessChange,sleepAmount,ddiff)
     -- set state with new clock-time
-    modify $ io.clock .~ mt
+    --liftIO $ putStrLn $ unwords ["clockFactor:",show (state ^. io.tessClockFactor),"\ttc:", show (tc (state ^. gl.glMap.stateTessellationFactor)),"\tsleep ",show frameTime,"ms"]
+    modify $ (io.clock .~ mt)
+           . (gl.glMap.stateTessellationFactor %~ tc)
+           . (io.tessClockFactor %~ (((+) frameTime).((*) 0.99)))
+    -- liftIO $ putStrLn $ concat $ ["TessFactor at: ",show (state ^. gl.glMap.stateTessellationFactor), " - slept for ",show sleepAmount, "μs."]
     shouldClose' <- return $ state ^. window.shouldClose
     unless shouldClose' run
 
@@ -315,14 +329,14 @@ adjustWindow = do
 
 processEvents :: Pioneers ()
 processEvents = do
-    me <- liftIO pollEvent
+    me <- liftIO SDL.pollEvent
     case me of
       Just e -> do
           processEvent e
           processEvents
       Nothing -> return ()
 
-processEvent :: Event -> Pioneers ()
+processEvent :: SDL.Event -> Pioneers ()
 processEvent e = do
     eventCallback e
     -- env <- ask
@@ -331,7 +345,7 @@ processEvent e = do
             case winEvent of
                 SDL.Closing ->
                         modify $ window.shouldClose .~ True
-                SDL.Resized {windowResizedTo=size} -> do
+                SDL.Resized {SDL.windowResizedTo=size} -> do
                         modify $ (window . width .~ SDL.sizeWidth size)
                                . (window . height .~ SDL.sizeHeight size)
                         adjustWindow
