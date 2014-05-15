@@ -308,6 +308,8 @@ renderOverview = do
 -- | renders an IQM-Model at Position with scaling
 renderIQM :: IQM -> L.V3 CFloat -> L.V3 CFloat -> IO ()
 renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
+	bindVertexArrayObject $= Just (vertexArrayObject m)
+	glDrawArrays gl_TRIANGLES 0 3
 	return ()
 
 renderObject :: MapObject -> IO ()

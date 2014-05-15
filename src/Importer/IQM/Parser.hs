@@ -14,7 +14,11 @@ import Data.ByteString (split, null, ByteString)
 import Data.ByteString.Unsafe (unsafeUseAsCString)
 import qualified Data.ByteString as B
 import Graphics.GLUtil
+import Graphics.Rendering.OpenGL.GL.StateVar (($=))
 import Graphics.Rendering.OpenGL.GL.BufferObjects
+import Graphics.Rendering.OpenGL.GL.VertexArrays
+import Graphics.Rendering.OpenGL.GL.VertexArrayObjects
+import Graphics.Rendering.OpenGL.GL.VertexSpec
 import Data.Word
 import Data.Int
 import Unsafe.Coerce
@@ -205,8 +209,9 @@ parseIQM :: String -> IO IQM
 parseIQM a =
 	do
 	f <- B.readFile a
+	vao <- makeVAO (return ())
 	-- Parse Headers/Offsets
-	let result = parse doIQMparse f
+	let result = parse (doIQMparse vao) f
 	raw <- case result of
 		Done _ x -> return x
 		y -> error $ show y
@@ -214,10 +219,27 @@ parseIQM a =
 	let 	va = vertexArrays raw
 	va' <- mapM (readInVAO f) va
         vbo <- sequence $ map toVBOfromVAO va
+        withVAO vao $ createVAO (zip va' vbo)
 	return $ raw
 		{ vertexArrays = va'
                 , vertexBufferObjects = vbo
+                , vertexArrayObject = vao
 		}
+
+createVAO :: [(IQMVertexArray, BufferObject)] -> IO ()
+createVAO bo = do
+		initVAO (AttribLocation 0) IQMPosition bo
+		initVAO (AttribLocation 2) IQMColor    bo
+		initVAO (AttribLocation 1) IQMNormal   bo
+--		initVAO (AttribLocation 3) IQMTexCoord bo
+
+initVAO :: AttribLocation -> IQMVertexArrayType -> [(IQMVertexArray, BufferObject)] -> IO ()
+initVAO l t bo = do
+	let [(IQMVertexArray _ _ _ num _ _,buf)] = filter (\(IQMVertexArray ty _ _ _ _ _, _) -> ty == t) bo
+	bindBuffer (toBufferTargetfromVAType t)$= Just buf
+	vertexAttribArray l $= Enabled
+	vertexAttribPointer l $= (ToFloat, VertexArrayDescriptor num Float 0 nullPtr)
+
 
 -- | Creates a BufferObject on the Graphicscard for each BufferObject
 
@@ -258,8 +280,8 @@ readInVAO d (IQMVertexArray type' a format num offset ptr) =
 --
 --   Consumes the String only once, thus in O(n). But all Data-Structures are
 --   not allocated and copied. readInVAO has to be called on each one.
-doIQMparse :: Parser IQM
-doIQMparse = 
+doIQMparse :: VertexArrayObject -> Parser IQM
+doIQMparse vao = 
 	flip evalStateT 0 $ --evaluate parser with state starting at 0
 		do
         	h <- readHeader                                         --read header
@@ -275,7 +297,8 @@ doIQMparse =
 	                , texts = filter (not.null) (split (unsafeCoerce '\0') text)
 	                , meshes = meshes'
 			, vertexArrays = vaf
-                        , vertexArrayObjects = [] --initialized later, after vaf get allocated.
+                        , vertexBufferObjects = [] --initialized later, after vaf get allocated.
+                        , vertexArrayObject = vao
 	                }
 
 -- | Helper-Function for Extracting a random substring out of a Bytestring
