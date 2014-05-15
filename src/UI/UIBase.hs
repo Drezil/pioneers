@@ -77,6 +77,7 @@ data UIButtonState = UIButtonState
       -- ^the current mouse-active widget and its global coordinates.
       --  If @_mousePressed == 0@: widget the mouse is hovering over,
       --  otherwise: widget the first button has been pressed on.
+    , _mouseInside :: Bool -- ^@True@ if the mouse is currently within the mouse-active widget
     } deriving (Show, Eq)
 
 -- |The button dependant state of a 'MouseState'.

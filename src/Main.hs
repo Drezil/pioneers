@@ -162,7 +162,7 @@ main =
                         { _uiHasChanged        = True
                         , _uiMap = guiMap
                         , _uiRoots = guiRoots
-                        , _uiButtonState = UI.UIButtonState 0 Nothing
+                        , _uiButtonState = UI.UIButtonState 0 Nothing False
                         }
               }
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE DoAndIfThenElse #-}
 module UI.Callbacks where
 
 
@@ -145,7 +146,7 @@ mouseButtonHandler transFunc btn px = do
          Just (wui, px') -> do
              let target = toGUIAny hMap wui
              target' <- case target ^. eventHandlers.(at MouseEvent) of
-                             Just ma -> transFunc ma btn (px -: px') target -- TODO unsafe fromJust
+                             Just ma -> transFunc ma btn (px -: px') target
                              Nothing  -> return target
              modify $ ui.uiMap %~ Map.insert wui target'
              return ()
@@ -160,10 +161,72 @@ mouseReleaseHandler :: MouseButton -> Pixel -> Pioneers ()
 mouseReleaseHandler btn px = do
     modify $ ui.uiButtonState %~ (mousePressed %~ flip (-) 1) -- TODO: what happens if pressed outside window? not set properly?
     mouseButtonHandler (\ma -> fromJust (ma ^? onMouseRelease)) btn px
-    -- TODO: trigger move/enter/leave
+    state <- get
+    case state ^. ui.uiButtonState.mouseCurrentWidget of
+         Just (wui, px') -> do
+             let target = toGUIAny (state ^. ui.uiMap) wui
+             target' <- case target ^. eventHandlers.(at MouseMotionEvent) of --existing handler?
+                             Just ma -> do
+                                  target_ <- fromJust (ma ^? onMouseEnter) px' target -- TODO unsafe fromJust
+                                  fromJust (ma ^? onMouseMove) px' target_ -- TODO unsafe fromJust
+                             Nothing  -> return target
+             modify $ ui.uiMap %~ Map.insert wui target'
+         Nothing -> return ()
+    mouseSwitchMouseActive px -- TODO leave current
 
+mouseSwitchMouseActive :: Pixel -> Pioneers ()
+mouseSwitchMouseActive px = do
+    state <- get
+    let hMap = state ^. ui.uiMap
+    roots <- getRootIds
+    hits <- liftM concat $ mapM (getInsideId hMap px) roots
+    leading <- getLeadingWidget hits
+    case leading of
+         Just (wui, px') -> do
+             let target = toGUIAny hMap wui
+             modify $ ui.uiButtonState %~ (mouseCurrentWidget .~ Just (wui, px -: px')) . (mouseInside .~ True)
+             target' <- case target ^. eventHandlers.(at MouseMotionEvent) of --existing handler?
+                             Just ma -> do
+                                  target_ <- fromJust (ma ^? onMouseEnter) px' target -- TODO unsafe fromJust
+                                  fromJust (ma ^? onMouseMove) px' target_ -- TODO unsafe fromJust
+                             Nothing  -> return target
+             modify $ ui.uiMap %~ Map.insert wui target'
+         Nothing -> modify $ ui.uiButtonState %~ (mouseCurrentWidget .~ Nothing) . (mouseInside .~ False)
+    
 mouseMoveHandler :: Pixel -> Pioneers ()
-mouseMoveHandler px = undefined
+mouseMoveHandler px = do
+    state <- get
+    case state ^. ui.uiButtonState.mouseCurrentWidget of -- existing mouse-active widget?
+         Just (uiw, px') -> do
+             let target = toGUIAny (state ^. ui.uiMap) uiw
+             isIn <- (target ^. baseProperties.isInside) target (px -: px')
+             if isIn == state ^. ui.uiButtonState.mouseInside -- > moving inside or outside
+               then case target ^. eventHandlers.(at MouseMotionEvent) of --existing handler?
+                         Just ma -> do target' <- fromJust (ma ^? onMouseMove) px' target
+                                       modify $ ui.uiMap %~ Map.insert uiw target'
+                         Nothing -> return () 
+               else if isIn -- && not mouseInside --> entering
+                 then do modify $ ui.uiButtonState.mouseInside .~ True
+                         case target ^. eventHandlers.(at MouseMotionEvent) of --existing handler?
+                              Just ma -> do
+                                  target_ <- fromJust (ma ^? onMouseEnter) (px -: px') target --TODO unsafe fromJust
+                                  target' <- fromJust (ma ^? onMouseMove) (px -: px') target_ --TODO unsafe fromJust
+                                  modify $ ui.uiMap %~ Map.insert uiw target'
+                              Nothing -> return ()
+               else --  not isIn && mouseInside --> leaving
+                      do modify $ ui.uiButtonState.mouseInside .~ False
+                         case target ^. eventHandlers.(at MouseMotionEvent) of --existing handler?
+                              Just ma -> do
+                                  target_ <- fromJust (ma ^? onMouseLeave) (px -: px') target --TODO unsafe fromJust
+                                  target' <- fromJust (ma ^? onMouseMove) (px -: px') target_  -- TODO unsafe fromJust
+                                  modify $ ui.uiMap %~ Map.insert uiw target'
+                              Nothing -> return ()
+                         if state ^. ui.uiButtonState.mousePressed <= 0  -- change mouse-active widget?
+                           then mouseSwitchMouseActive px
+                           else return ()
+         Nothing -> do
+             mouseSwitchMouseActive px
+             
 
 -- | Handler for UI-Inputs.
 --   Indicates a primary click on something (e.g. left-click, touch on Touchpad, fire on Gamepad, ...
