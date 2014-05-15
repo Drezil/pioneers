@@ -196,7 +196,7 @@ data GUIBaseProperties m = BaseProperties
     --  The default implementations tests if the point is within the rectangle specified by the 
     --  'getBoundary' function.
     _isInside :: GUIWidget m
-              -> Pixel  -- ^screen position
+              -> Pixel  -- ^local coordinates
               -> m Bool
     ,
     -- |The @_getPriority@ function returns the priority score of a @GUIWidget@.
