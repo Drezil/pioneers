@@ -85,9 +85,8 @@ fgNormalIndex = (ToFloat, mapVertexArrayDescriptor 3 4) --normal after color
 fgVertexIndex :: (IntegerHandling, VertexArrayDescriptor GLfloat)
 fgVertexIndex = (ToFloat, mapVertexArrayDescriptor 3 7) --vertex after normal
 
-getMapBufferObject :: IO (BufferObject, NumArrayIndices)
-getMapBufferObject = do
-        eMap    <- exportedMap
+getMapBufferObject :: PlayMap -> IO (BufferObject, NumArrayIndices)
+getMapBufferObject eMap = do
         myMap'  <- return $ convertToGraphicsMap $ convertToStripeMap eMap
         ! myMap <- return $ generateTriangles myMap'
         len <- return $ fromIntegral $ P.length myMap `div` numComponents

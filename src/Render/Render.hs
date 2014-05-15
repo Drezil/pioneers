@@ -24,6 +24,7 @@ import           Render.Types
 import           Graphics.GLUtil.BufferObjects              (makeBuffer)
 import		 Importer.IQM.Parser
 import           Importer.IQM.Types
+import           Map.Map                               (giveMapHeight)
 
 mapVertexShaderFile :: String
 mapVertexShaderFile = "shaders/map/vertex.shader"
