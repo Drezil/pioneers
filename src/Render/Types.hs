@@ -40,7 +40,7 @@ instance GLCamera Camera where
   getCam (Flat (x',z') y') dist' xa' ya' =
         lookAt (cpos ^+^ at') at' up
                      where
-                        at'   = V3 x y z
+                        at'   = V3 x (y+2) z
                         cpos  = crot !* (V3 0 0 (-dist))
                         crot  = (
                                 (fromQuaternion $ axisAngle upmap (xa::CFloat))
