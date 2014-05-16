@@ -1,7 +1,6 @@
 module Map.Map where
 
 import Map.Types
-import Map.Creation
 
 import Data.Function (on)
 import Data.Array    (bounds, (!))
@@ -48,14 +47,32 @@ giveNeighbourhood mp n (a,b) = let ns = giveNeighbours mp (a,b) in
 giveMapHeight :: PlayMap
               -> (Float, Float)  -- ^ Coordinates on X/Z-axes 
               -> Float           -- ^ Terrain Height at that position
-giveMapHeight mp (x,z) = let [a,b,c] = getTrianglePoints [tff,tfc,tcf,tcc]
-                             ar = area (fi a) (fi b) (fi c)
-                             λa = area (fi b) (fi c) (x, z) / ar
-                             λb = area (fi a) (fi c) (x, z) / ar
-                             λc = area (fi a) (fi b) (x, z) / ar
-                         in  (λa * hlu a) + (λb * hlu b) + (λc * hlu c)
+giveMapHeight mp (x,z)
+  | outsideMap (x,z)           = 0.0
+  | (isInt z 6) && (isInt x 6) = hlu (round x, round z)
+  | (isInt z 6)                = let dist_down = x - fromIntegral ((floor x) :: Int)
+                                     dist_up   = fromIntegral ((ceiling x) :: Int) - x
+                                 in  (1 - dist_down) * (hlu (floor x, round z)) + (1 - dist_up) * (hlu (ceiling x, round z))
+  |                (isInt x 6) = let dist_down = z - fromIntegral ((floor z) :: Int)
+                                     dist_up   = fromIntegral ((ceiling z) :: Int) - z
+                                 in  (1 - dist_down) * (hlu (round x, floor z)) + (1 - dist_up) * (hlu (round x, ceiling z))
+  | otherwise                  = let [a,b,c] = getTrianglePoints [tff,tfc,tcf,tcc]
+                                     ar = area (fi a) (fi b) (fi c)
+                                     λa = area (fi b) (fi c) (x, z) / ar
+                                     λb = area (fi a) (fi c) (x, z) / ar
+                                     λc = area (fi a) (fi b) (x, z) / ar
+                                 in  (λa * hlu a) + (λb * hlu b) + (λc * hlu c)
   where
 
+    --Returns if q is an int to n decimal places
+    isInt :: RealFrac b => b -> Int -> Bool
+    isInt q n = (round $ 10^((fromIntegral n) :: Integer) * (q - (fromIntegral ((round q):: Integer)))) == (0 :: Integer)
+
+    outsideMap :: (Float, Float) -> Bool
+    outsideMap (mx, mz) = let ((a,b),(c,d)) = bounds mp
+                              fr = fromIntegral
+                          in  mx < (fr a) || mx > (fr c) || mz < (fr b) || mz > (fr d)
+ 
     fi :: (Int, Int) -> (Float, Float)
     fi (m, n) = (fromIntegral m, fromIntegral n)
 

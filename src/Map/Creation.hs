@@ -2,20 +2,9 @@ module Map.Creation
 where
 
 import Map.Types
--- import Map.Map unused (for now)
 
 import Data.Array
 import System.Random
-
--- preliminary
-infix 5 ->-
-(->-) :: (PlayMap -> PlayMap) -> (PlayMap -> PlayMap) -> PlayMap -> PlayMap
-f ->- g = g . f
-
--- also preliminary
-infix 5 -<-
-(-<-) :: (PlayMap -> PlayMap) -> (PlayMap -> PlayMap) -> PlayMap -> PlayMap
-f -<- g = f . g
 
 -- entirely empty map, only uses the minimal constructor
 mapEmpty :: PlayMap
@@ -57,17 +46,6 @@ gauss3Dgeneral :: Floating q =>
                   -> q -- ^ elevation on coordinate in question
 gauss3Dgeneral amp x0 z0 sX sZ x z = amp * exp(-(((x-x0)^(2 :: Int)/(2 * sX^(2 :: Int)))+((z-z0)^(2 :: Int)/(2 * sZ^(2 :: Int)))))
 
--- specialised 3D gaussian with an origin on 100/100, an amplitude of 15 and two sigmas of 15
-gauss3D :: Floating q =>
-           q     -- ^ X-Coordinate
-           -> q  -- ^ Z-Coordinate
-           -> q  -- ^ elevation on coordinate in quesion
-gauss3D = gauss3Dgeneral 15 100.0 100.0 15.0 15.0
-
--- 2D Manhattan distance
-mnh2D :: (Int,Int) -> (Int,Int) -> Int
-mnh2D (a,b) (c,d) = abs (a-c) + abs (b-d)
-
 -- | Basic Terrain-Generator. Will not implement "abnormal" Stuff for given Biome
 --   (like Deserts on Grass-Islands or Grass on Deserts)
 --
@@ -75,9 +53,9 @@ mnh2D (a,b) (c,d) = abs (a-c) + abs (b-d)
 heightToTerrain :: MapType -> YCoord -> TileType
 heightToTerrain GrassIslandMap y
                 | y < 0.1   = Ocean
-                | y < 0.2     = Beach
+                | y < 0.2   = Beach
                 | y < 1     = Grass
-                | y < 3    = Hill
+                | y < 3     = Hill
                 | otherwise = Mountain
 heightToTerrain _ _ = undefined
 
