@@ -49,15 +49,16 @@ giveMapHeight mop (x,z)
     outsideMap (mx, mz) = let ((a,b),(c,d)) = bounds mop
                               fr = fromIntegral
                           in  mx < (fr a) || mx > (fr c) || mz < (fr b) || mz > (fr d)
- 
+
     -- Height LookUp on PlayMap
     hlu :: (Int, Int) -> Double
     hlu (k,j) = let (Node _ (_,_,y) _ _ _ _ _ _) = mop ! (k,j) in y
 
     -- reference Points
     refs :: [(Int, Int)]
-    refs = map (tadd (floor x, floor z)) [(-1,-1),(-1,2),(0,0),(0,1),(1,0),(1,1),(2,-1),(2,2)]
+    refs = remdups $ map clmp $ map (tadd (floor x, floor z)) mods
       where
+        mods = [(-1,-1),(-1,2),(0,0),(0,1),(1,0),(1,1),(2,-1),(2,2)]
         tadd (a,b) (c,d) = (a+b,c+d)
 
     -- tupels with reference point and distance
@@ -65,6 +66,15 @@ giveMapHeight mop (x,z)
 
     -- total distance of all for reference point from the point in question
     totald = sum $ map (\(_,d) -> d) tups
+
+    -- clamp, as she is programmed
+    clamp :: (Ord a) => a -> a -> a -> a
+    clamp mn mx = max mn . min mx
+
+    -- clamp for tupels
+    clmp :: (Int, Int) -> (Int, Int)
+    clmp (a,b) = let ((xmin,zmin),(xmax,zmax)) = bounds mop
+                 in  ((clamp (xmin+2) (xmax-2) a),(clamp (zmin+2) (zmax-2) b))
 
     -- Real distance on PlayMap
     dist :: (Double, Double) -> (Int, Int) -> Double
