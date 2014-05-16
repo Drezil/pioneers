@@ -12,8 +12,8 @@ import           Control.Arrow                        ((***))
 
 -- data consistency/conversion
 import           Control.Concurrent                   (threadDelay)
-import           Control.Concurrent.STM               (TQueue,
-                                                       newTQueueIO)
+import           Control.Concurrent.STM               (TQueue, newTQueueIO, atomically)
+import           Control.Concurrent.STM.TMVar         (newTMVarIO, takeTMVar, putTMVar, readTMVar)
 
 import           Control.Monad.RWS.Strict             (ask, evalRWST, get, liftIO, modify)
 import           Data.Functor                         ((<$>))
@@ -94,16 +94,26 @@ main =
         --font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
         --TTF.setFontStyle font TTFNormal
         --TTF.setFontHinting font TTFHNormal
-
-        glHud' <- initHud
-        let zDistClosest'  = 2
-            zDistFarthest' = zDistClosest' + 10
-            --TODO: Move near/far/fov to state for runtime-changability & central storage
+        let
             fov           = 90  --field of view
             near          = 1   --near plane
             far           = 500 --far plane
             ratio         = fromIntegral fbWidth / fromIntegral fbHeight
             frust         = createFrustum fov near far ratio
+        cam' <- newTMVarIO CameraState
+                        { _xAngle              = pi/6
+                        , _yAngle              = pi/2
+                        , _zDist               = 10
+                        , _frustum             = frust
+                        , _camObject           = createFlatCam 25 25 curMap
+                        }
+        game' <- newTMVarIO GameState
+                        { _currentMap          = curMap
+                        }
+        glHud' <- initHud
+        let zDistClosest'  = 2
+            zDistFarthest' = zDistClosest' + 10
+            --TODO: Move near/far/fov to state for runtime-changability & central storage
             (guiMap, guiRoots) = createGUI
             aks = ArrowKeyState {
                   _up       = False
@@ -123,17 +133,11 @@ main =
                         , _height              = fbHeight
                         , _shouldClose         = False
                         }
-              , _camera              = CameraState
-                        { _xAngle              = pi/6
-                        , _yAngle              = pi/2
-                        , _zDist               = 10
-                        , _frustum             = frust
-                        , _camObject           = createFlatCam 25 25 curMap
-                        }
               , _io                  = IOState
                         { _clock               = now
                         , _tessClockFactor     = 0
                         }
+              , _camera              = cam'
               , _mouse               = MouseState
                         { _isDown              = False
                         , _isDragging          = False
@@ -155,9 +159,7 @@ main =
                         , _glRenderbuffer      = renderBuffer
                         , _glFramebuffer       = frameBuffer
                         }
-              , _game                = GameState
-                        { _currentMap          = curMap
-                        }
+              , _game                = game'
               , _ui                  = UIState
                         { _uiHasChanged        = True
                         , _uiMap = guiMap
@@ -207,20 +209,26 @@ run = do
                   | otherwise          = newYAngle'
               newYAngle' = sodya + myrot/100
 
-          modify $ ((camera.xAngle) .~ newXAngle)
-                 . ((camera.yAngle) .~ newYAngle)
+          liftIO $ atomically $ do
+              cam <- takeTMVar (state ^. camera)
+              cam' <- return $ (xAngle .~ newXAngle) . (yAngle .~ newYAngle) $ cam
+              putTMVar (state ^. camera) cam'
 
     -- get cursor-keys - if pressed
     --TODO: Add sin/cos from stateYAngle
     (kxrot, kyrot) <- fmap (join (***) fromIntegral) getArrowMovement
-    let
-        multc = cos $ state ^. camera.yAngle
-        mults = sin $ state ^. camera.yAngle
-        modx x' = x' - 0.2 * kxrot * multc
-                     - 0.2 * kyrot * mults
-        mody y' = y' + 0.2 * kxrot * mults
-                     - 0.2 * kyrot * multc
-    modify $ camera.camObject %~ (\c -> moveBy c (\(x,y) -> (modx x,mody y)) (state ^. game.currentMap))
+    liftIO $ atomically $ do
+        cam <- takeTMVar (state ^. camera)
+        game' <- readTMVar (state ^. game)
+        let
+            multc = cos $ cam ^. yAngle
+            mults = sin $ cam ^. yAngle
+            modx x' = x' - 0.2 * kxrot * multc
+                         - 0.2 * kyrot * mults
+            mody y' = y' + 0.2 * kxrot * mults
+                         - 0.2 * kyrot * multc
+        cam' <- return $ camObject %~ (\c -> moveBy c (\(x,y) -> (modx x,mody y)) (game' ^. currentMap)) $ cam
+        putTMVar (state ^. camera) cam'
 
     {-
     --modify the state with all that happened in mt time.
@@ -290,7 +298,10 @@ adjustWindow = do
         ratio         = fromIntegral fbWidth / fromIntegral fbHeight
         frust         = createFrustum fov near far ratio
     liftIO $ glViewport 0 0 (fromIntegral fbWidth) (fromIntegral fbHeight)
-    modify $ camera.frustum .~ frust
+    liftIO $ atomically $ do
+        cam <- readTMVar (state ^. camera)
+        cam' <- return $ frustum .~ frust $ cam
+        putTMVar (state ^. camera) cam'
     rb <- liftIO $ do
                    -- bind ints to CInt for lateron.
                    let fbCWidth  = (fromInteger.toInteger) fbWidth

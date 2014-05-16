@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Types where
 
-import           Control.Concurrent.STM               (TQueue)
+import           Control.Concurrent.STM               (TQueue, TMVar)
 import qualified Graphics.Rendering.OpenGL.GL         as GL
 import           Graphics.UI.SDL                      as SDL (Event, Window)
 import           Foreign.C                            (CFloat)
@@ -161,12 +161,12 @@ data UIState = UIState
 
 data State = State
     { _window              :: !WindowState
-    , _camera              :: !CameraState
+    , _camera              :: TMVar CameraState
     , _io                  :: !IOState
     , _mouse               :: !MouseState
     , _keyboard            :: !KeyboardState
     , _gl                  :: !GLState
-    , _game                :: !GameState
+    , _game                :: TMVar GameState
     , _ui                  :: !UIState
     }
 
