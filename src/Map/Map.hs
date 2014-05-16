@@ -55,10 +55,10 @@ giveMapHeight mop (x,z)
     hlu (k,j) = let (Node _ (_,_,y) _ _ _ _ _ _) = mop ! (k,j) in y
 
     -- reference Points
-    ff  = (floor   x, floor   z) :: (Int, Int)
-    fc  = (floor   x, ceiling z) :: (Int, Int)
-    cf  = (ceiling x, floor   z) :: (Int, Int)
-    cc  = (ceiling x, ceiling z) :: (Int, Int)
+    ff  = ((floor x)-1, (floor z)-1) :: (Int, Int)
+    fc  = ((floor x)-1, (floor z)+2) :: (Int, Int)
+    cf  = ((floor x)+2, (floor z)-1) :: (Int, Int)
+    cc  = ((floor x)+2, (floor z)+2) :: (Int, Int)
 
     -- tupels with reference point and distance
     tups = map (\t -> (t, dist (x,z) t)) [ff,fc,cf,cc]
