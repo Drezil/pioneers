@@ -55,13 +55,13 @@ giveMapHeight mop (x,z)
     hlu (k,j) = let (Node _ (_,_,y) _ _ _ _ _ _) = mop ! (k,j) in y
 
     -- reference Points
-    ff  = ((floor x)-1, (floor z)-1) :: (Int, Int)
-    fc  = ((floor x)-1, (floor z)+2) :: (Int, Int)
-    cf  = ((floor x)+2, (floor z)-1) :: (Int, Int)
-    cc  = ((floor x)+2, (floor z)+2) :: (Int, Int)
+    refs :: [(Int, Int)]
+    refs = map (tadd (floor x, floor z)) [(-1,-1),(-1,2),(0,0),(0,1),(1,0),(1,1),(2,-1),(2,2)]
+      where
+        tadd (a,b) (c,d) = (a+b,c+d)
 
     -- tupels with reference point and distance
-    tups = map (\t -> (t, dist (x,z) t)) [ff,fc,cf,cc]
+    tups = map (\t -> (t, dist (x,z) t)) refs
 
     -- total distance of all for reference point from the point in question
     totald = sum $ map (\(_,d) -> d) tups
