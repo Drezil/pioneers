@@ -76,8 +76,8 @@ gaussMountain seed mp = aplByPlace (liftUp c) (\(_,_) -> True) mp
   where
     gs  = map mkStdGen (map (*seed) [1..])
     c   = let ((a,b), (x,y)) = bounds mp in (head (randomRs (a,x) (gs !! 0)), (head (randomRs (b,y) (gs !! 1))))
-    amp = head $ randomRs ((2.0, 5.0) :: (Float, Float)) (gs !! 2)
-    sig = head $ randomRs ((2.0, 8.0) :: (Float, Float)) (gs !! 3)
+    amp = head $ randomRs ((2.0, 5.0) :: (Double, Double)) (gs !! 2)
+    sig = head $ randomRs ((2.0, 8.0) :: (Double, Double)) (gs !! 3)
     htt = heightToTerrain
 
     -- TODO: Fix Lambda to True with sensible function, maybe rework giveNeighbourhood in Map.Map
