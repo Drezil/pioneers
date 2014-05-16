@@ -228,14 +228,17 @@ parseIQM a =
 
 createVAO :: [(IQMVertexArray, BufferObject)] -> IO ()
 createVAO bo = do
+		print bo
 		initVAO (AttribLocation 0) IQMPosition bo
-		initVAO (AttribLocation 2) IQMColor    bo
 		initVAO (AttribLocation 1) IQMNormal   bo
---		initVAO (AttribLocation 3) IQMTexCoord bo
+		initVAO (AttribLocation 2) IQMTexCoord bo
 
 initVAO :: AttribLocation -> IQMVertexArrayType -> [(IQMVertexArray, BufferObject)] -> IO ()
 initVAO l t bo = do
-	let [(IQMVertexArray _ _ _ num _ _,buf)] = filter (\(IQMVertexArray ty _ _ _ _ _, _) -> ty == t) bo
+	print t
+	let (IQMVertexArray _ _ _ num _ _,buf) = case filter (\(IQMVertexArray ty _ _ _ _ _, _) -> ty == t) bo of
+							[(a,b)] -> (a,b)
+							_ -> error "IQM-Object not render-able with current shader-mechanics"
 	bindBuffer (toBufferTargetfromVAType t)$= Just buf
 	vertexAttribArray l $= Enabled
 	vertexAttribPointer l $= (ToFloat, VertexArrayDescriptor num Float 0 nullPtr)

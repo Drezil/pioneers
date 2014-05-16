@@ -134,6 +134,8 @@ initMapShader tessFac (buf, vertDes) = do
    let
 	objs = [MapObject testobj (L.V3 0 10 0) (MapObjectState ())]
 
+   currentProgram $= Nothing
+
    ! vertexSource' <- B.readFile objectVertexShaderFile
    ! fragmentSource' <- B.readFile objectFragmentShaderFile
    vertexShader' <- compileShaderSource VertexShader vertexSource'
@@ -145,6 +147,22 @@ initMapShader tessFac (buf, vertDes) = do
    
    currentProgram $= Just objProgram
 
+   vertexIndex' <- get (attribLocation program "Position")
+   vertexAttribArray vertexIndex $= Enabled
+   checkError "Object-vertexInd"
+
+   normalIndex' <- get (attribLocation program "Normal")
+   vertexAttribArray normalIndex $= Enabled
+   checkError "Object-normalInd"
+
+   texIndex' <- get (attribLocation program "TexCoord")
+   vertexAttribArray colorIndex $= Enabled
+   checkError "Object-texInd"
+
+   att <- get (activeAttribs objProgram)
+
+   putStrLn $ unlines $ "Attributes: ":map show att
+   putStrLn $ unlines $ ["Indices: ", show (texIndex', normalIndex', vertexIndex')]
    checkError "initShader"
    let sdata = MapShaderData
            { shdrVertexIndex      = vertexIndex
