@@ -42,9 +42,11 @@ giveMapHeight :: PlayMap
              -> (Double, Double)
              -> Double
 giveMapHeight mop (x,z)
-  | outsideMap (x,z) = 0.0
-  | otherwise        = sum $ map (\(p,d) -> (hlu p) * (1 - (d / totald))) tups
+  | outsideMap (x,z') = 0.0
+  | otherwise         = sum $ map (\(p,d) -> (hlu p) * (1 - (d / totald))) tups
   where
+    z' = z * ((sqrt 3)/2)
+
     outsideMap :: (Double, Double) -> Bool
     outsideMap (mx, mz) = let ((a,b),(c,d)) = bounds mop
                               fr = fromIntegral
@@ -56,13 +58,13 @@ giveMapHeight mop (x,z)
 
     -- reference Points
     refs :: [(Int, Int)]
-    refs = remdups $ map clmp $ map (tadd (floor x, floor z)) mods
+    refs = remdups $ map clmp $ map (tadd (floor x, floor z')) mods
       where
         mods = [(-1,-1),(-1,2),(0,0),(0,1),(1,0),(1,1),(2,-1),(2,2)]
         tadd (a,b) (c,d) = (a+b,c+d)
 
     -- tupels with reference point and distance
-    tups = map (\t -> (t, dist (x,z) t)) refs
+    tups = map (\t -> (t, dist (x,z') t)) refs
 
     -- total distance of all for reference point from the point in question
     totald = sum $ map (\(_,d) -> d) tups
