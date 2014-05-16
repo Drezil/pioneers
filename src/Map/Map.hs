@@ -38,7 +38,7 @@ giveNeighbourhood mp n (a,b) = let ns = giveNeighbours mp (a,b) in
                              remdups . concat $ ns : map (giveNeighbourhood mp (n-1)) ns
 
 -- | Calculates the height of any given point on the map.
--- Does not add camera distance to ground to that.
+ -- Does not add camera distance to ground to that.
 -- 
 -- This ueses barycentric coordinate stuff. Wanna read more?
 -- http://en.wikipedia.org/wiki/Barycentric_coordinate_system_%28mathematics%29
@@ -48,14 +48,14 @@ giveMapHeight :: PlayMap
               -> (Float, Float)  -- ^ Coordinates on X/Z-axes 
               -> Float           -- ^ Terrain Height at that position
 giveMapHeight mp (x,z)
-  | outsideMap (x,z)           = 0.0
-  | (isInt z 6) && (isInt x 6) = hlu (round x, round z)
-  | (isInt z 6)                = let dist_down = x - fromIntegral ((floor x) :: Int)
-                                     dist_up   = fromIntegral ((ceiling x) :: Int) - x
-                                 in  (1 - dist_down) * (hlu (floor x, round z)) + (1 - dist_up) * (hlu (ceiling x, round z))
-  |                (isInt x 6) = let dist_down = z - fromIntegral ((floor z) :: Int)
-                                     dist_up   = fromIntegral ((ceiling z) :: Int) - z
-                                 in  (1 - dist_down) * (hlu (round x, floor z)) + (1 - dist_up) * (hlu (round x, ceiling z))
+  | outsideMap (x',z)           = 0.0
+  | (isInt z 6) && (isInt x' 6) = hlu (round x', round z)
+  | (isInt z 6)                 = let dist_down = x' - fromIntegral ((floor x') :: Int)
+                                      dist_up   = fromIntegral ((ceiling x') :: Int) - x'
+                                  in  (1 - dist_down) * (hlu (floor x', round z)) + (1 - dist_up) * (hlu (ceiling x', round z))
+  |                (isInt x' 6) = let dist_down = z - fromIntegral ((floor z) :: Int)
+                                      dist_up   = fromIntegral ((ceiling z) :: Int) - z
+                                  in  (1 - dist_down) * (hlu (round x', floor z)) + (1 - dist_up) * (hlu (round x', ceiling z))
   | otherwise                  = let [a,b,c] = getTrianglePoints [tff,tfc,tcf,tcc]
                                      ar = area (fi a) (fi b) (fi c)
                                      λa = area (fi b) (fi c) (x, z) / ar
@@ -63,6 +63,9 @@ giveMapHeight mp (x,z)
                                      λc = area (fi a) (fi b) (x, z) / ar
                                  in  (λa * hlu a) + (λb * hlu b) + (λc * hlu c)
   where
+
+    -- compensating
+    x' = x * ((sqrt 3) / 2)
 
     --Returns if q is an int to n decimal places
     isInt :: RealFrac b => b -> Int -> Bool
@@ -94,9 +97,9 @@ giveMapHeight mp (x,z)
     getTrianglePoints = ((take 3) . (map fst) . (sortBy (compare `on` snd)))
 
     dist :: (Float, Float) -> (Int, Int) -> Float
-    dist (x1,z1) (x2,z2) = let x' = x1 - fromIntegral x2
-                               z' = z1 - fromIntegral z2
-                           in  sqrt $ x'*x' + z'*z'
+    dist (x1,z1) (x2,z2) = let xf = x1 - fromIntegral x2
+                               zf = z1 - fromIntegral z2
+                           in  sqrt $ xf*xf + zf*zf
 
     -- Heron's Formula: http://en.wikipedia.org/wiki/Heron%27s_formula
     area :: (Float, Float) -> (Float, Float) -> (Float, Float) -> Float
