@@ -41,11 +41,11 @@ giveNeighbourhood mp n (a,b) = let ns = giveNeighbours mp (a,b) in
 giveMapHeight :: PlayMap
              -> (Double, Double)
              -> Double
-giveMapHeight mop (x,z)
+giveMapHeight mop (x, z)
   | outsideMap (x,z') = 0.0
   | otherwise         = sum $ map (\(p,d) -> (hlu p) * (1 - (d / totald))) tups
   where
-    z' = z * ((sqrt 3)/2)
+    z' = z * 2/(sqrt 3)
 
     outsideMap :: (Double, Double) -> Bool
     outsideMap (mx, mz) = let ((a,b),(c,d)) = bounds mop
