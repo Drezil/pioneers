@@ -13,7 +13,7 @@ import           Data.Maybe
 import           Foreign.Marshal.Array                (pokeArray)
 import           Foreign.Marshal.Alloc                (allocaBytes)
 import qualified Graphics.UI.SDL                      as SDL
-import           Control.Concurrent.STM.TMVar         (readTMVar, takeTMVar, putTMVar)
+import           Control.Concurrent.STM.TVar          (readTVar, readTVarIO, writeTVar)
 import           Control.Concurrent.STM               (atomically)
 
 
@@ -108,7 +108,7 @@ eventCallback e = do
                 if state ^. mouse.isDown && not (state ^. mouse.isDragging)
                   then
                     do
-                    cam <- liftIO $ atomically $ readTMVar (state ^. camera)
+                    cam <- liftIO $ readTVarIO (state ^. camera)
                     modify $ (mouse.isDragging .~ True)
                            . (mouse.dragStartX .~ fromIntegral x)
                            . (mouse.dragStartY .~ fromIntegral y)
@@ -139,11 +139,11 @@ eventCallback e = do
                 do
                 state <- get
                 liftIO $ atomically $ do
-                    cam <- takeTMVar (state ^. camera)
+                    cam <- readTVar (state ^. camera)
                     let zDist' = (cam ^. zDist) + realToFrac (negate vscroll)
                         zDist'' = curb (env ^. zDistClosest) (env ^. zDistFarthest) zDist'
                     cam' <- return $ zDist .~ zDist'' $ cam
-                    putTMVar (state ^. camera) cam'
+                    writeTVar (state ^. camera) cam'
                   
             -- there is more (joystic, touchInterface, ...), but currently ignored
             SDL.Quit -> modify $ window.shouldClose .~ True

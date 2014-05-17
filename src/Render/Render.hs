@@ -12,7 +12,7 @@ import qualified Linear as L
 import           Control.Lens                               ((^.))
 import           Control.Monad.RWS.Strict             (liftIO)
 import qualified Control.Monad.RWS.Strict as RWS      (get)
-import           Control.Concurrent.STM.TMVar         (readTMVar)
+import           Control.Concurrent.STM.TVar          (readTVarIO)
 import           Control.Concurrent.STM               (atomically)
 import           Data.Distributive                    (distribute, collect)
 -- FFI
@@ -366,7 +366,7 @@ drawMap = do
 render :: Pioneers ()
 render = do
     state <- RWS.get
-    cam <- liftIO $ atomically $ readTMVar (state ^. camera)
+    cam <- liftIO $ readTVarIO (state ^. camera)
     let xa       = cam ^. xAngle
         ya       = cam ^. yAngle
         frust    = cam ^. Types.frustum

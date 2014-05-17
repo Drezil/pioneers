@@ -13,7 +13,7 @@ import           Control.Arrow                        ((***))
 -- data consistency/conversion
 import           Control.Concurrent                   (threadDelay)
 import           Control.Concurrent.STM               (TQueue, newTQueueIO, atomically)
-import           Control.Concurrent.STM.TMVar         (newTMVarIO, takeTMVar, putTMVar, readTMVar)
+import           Control.Concurrent.STM.TVar          (newTVarIO, writeTVar, readTVar)
 
 import           Control.Monad.RWS.Strict             (ask, evalRWST, get, liftIO, modify)
 import           Data.Functor                         ((<$>))
@@ -100,14 +100,14 @@ main =
             far           = 500 --far plane
             ratio         = fromIntegral fbWidth / fromIntegral fbHeight
             frust         = createFrustum fov near far ratio
-        cam' <- newTMVarIO CameraState
+        cam' <- newTVarIO CameraState
                         { _xAngle              = pi/6
                         , _yAngle              = pi/2
                         , _zDist               = 10
                         , _frustum             = frust
                         , _camObject           = createFlatCam 25 25 curMap
                         }
-        game' <- newTMVarIO GameState
+        game' <- newTVarIO GameState
                         { _currentMap          = curMap
                         }
         glHud' <- initHud
@@ -210,16 +210,16 @@ run = do
               newYAngle' = sodya + myrot/100
 
           liftIO $ atomically $ do
-              cam <- takeTMVar (state ^. camera)
+              cam <- readTVar (state ^. camera)
               cam' <- return $ (xAngle .~ newXAngle) . (yAngle .~ newYAngle) $ cam
-              putTMVar (state ^. camera) cam'
+              writeTVar (state ^. camera) cam'
 
     -- get cursor-keys - if pressed
     --TODO: Add sin/cos from stateYAngle
     (kxrot, kyrot) <- fmap (join (***) fromIntegral) getArrowMovement
     liftIO $ atomically $ do
-        cam <- takeTMVar (state ^. camera)
-        game' <- readTMVar (state ^. game)
+        cam <- readTVar (state ^. camera)
+        game' <- readTVar (state ^. game)
         let
             multc = cos $ cam ^. yAngle
             mults = sin $ cam ^. yAngle
@@ -228,7 +228,7 @@ run = do
             mody y' = y' + 0.2 * kxrot * mults
                          - 0.2 * kyrot * multc
         cam' <- return $ camObject %~ (\c -> moveBy c (\(x,y) -> (modx x,mody y)) (game' ^. currentMap)) $ cam
-        putTMVar (state ^. camera) cam'
+        writeTVar (state ^. camera) cam'
 
     {-
     --modify the state with all that happened in mt time.
@@ -299,9 +299,9 @@ adjustWindow = do
         frust         = createFrustum fov near far ratio
     liftIO $ glViewport 0 0 (fromIntegral fbWidth) (fromIntegral fbHeight)
     liftIO $ atomically $ do
-        cam <- readTMVar (state ^. camera)
+        cam <- readTVar (state ^. camera)
         cam' <- return $ frustum .~ frust $ cam
-        putTMVar (state ^. camera) cam'
+        writeTVar (state ^. camera) cam'
     rb <- liftIO $ do
                    -- bind ints to CInt for lateron.
                    let fbCWidth  = (fromInteger.toInteger) fbWidth
