@@ -30,9 +30,8 @@ import Linear
 import Control.Arrow         ((***))
 
 import Map.Types
-import Map.Creation
 
-type Height = Float
+type Height = Double
 
 type MapEntry = (
                 Height,

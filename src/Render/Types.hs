@@ -29,7 +29,7 @@ data Camera = Flat Position Height
 
 -- | create a Flatcam-Camera starting at given x/z-Coordinates
 createFlatCam :: Double -> Double -> PlayMap -> Camera
-createFlatCam x z map' = Flat (x,z) (float2Double $ giveMapHeight map' (double2Float x,double2Float z))
+createFlatCam x z map' = Flat (x,z) (giveMapHeight map' (x, z))
 
 -- | create a Flatcam-Camera starting at given pitch/azimuth/radius
 createSphereCam :: Double -> Double -> Double -> Camera
@@ -40,7 +40,7 @@ instance GLCamera Camera where
   getCam (Flat (x',z') y') dist' xa' ya' =
         lookAt (cpos ^+^ at') at' up
                      where
-                        at'   = V3 x (y+1) z
+                        at'   = V3 x (y+2) z
                         cpos  = crot !* (V3 0 0 (-dist))
                         crot  = (
                                 (fromQuaternion $ axisAngle upmap (xa::CFloat))
@@ -76,11 +76,10 @@ instance GLCamera Camera where
                         xa    = realToFrac xa'
                         ya    = realToFrac ya'
   moveBy (Sphere (inc, az) r) f map = undefined
-  moveBy (Flat (x', z') y) f map = Flat (x,z) (float2Double y)
+  moveBy (Flat (x', z') y) f map = Flat (x,z) y
 				where
 					(x,z) = f (x', z')
-					y = giveMapHeight map (fc x,fc z)
-					fc = double2Float
+					y     = giveMapHeight map (x,z)
   move c (x', z') map = moveBy c (\(x,z) -> (x+x',z+z')) map
 
 sphereToCart :: (Floating a) => a -> a -> a -> V3 a

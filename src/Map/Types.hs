@@ -7,9 +7,9 @@ type PlayMap = Array (Xindex, Zindex) Node
 
 type Xindex  = Int
 type Zindex  = Int
-type XCoord  = Float
-type ZCoord  = Float
-type YCoord  = Float
+type XCoord  = Double
+type ZCoord  = Double
+type YCoord  = Double
 
 data MapType    = GrassIslandMap
                 | DesertMap

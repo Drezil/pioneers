@@ -12,6 +12,8 @@ import qualified Linear as L
 import           Control.Lens                               ((^.))
 import           Control.Monad.RWS.Strict             (liftIO)
 import qualified Control.Monad.RWS.Strict as RWS      (get)
+import           Control.Concurrent.STM.TVar          (readTVarIO)
+import           Control.Concurrent.STM               (atomically)
 import           Data.Distributive                    (distribute, collect)
 -- FFI
 import           Foreign                              (Ptr, castPtr, with)
@@ -384,11 +386,12 @@ drawMap = do
 render :: Pioneers ()
 render = do
     state <- RWS.get
-    let xa       = state ^. camera.xAngle
-        ya       = state ^. camera.yAngle
-        frust    = state ^. camera.Types.frustum
-        camPos   = state ^. camera.camObject
-        zDist'   = state ^. camera.zDist
+    cam <- liftIO $ readTVarIO (state ^. camera)
+    let xa       = cam ^. xAngle
+        ya       = cam ^. yAngle
+        frust    = cam ^. Types.frustum
+        camPos   = cam ^. camObject
+        zDist'   = cam ^. zDist
         d        = state ^. gl.glMap.mapShaderData
         (UniformLocation proj)  = shdrProjMatIndex d
         (UniformLocation nmat)  = shdrNormalMatIndex d
