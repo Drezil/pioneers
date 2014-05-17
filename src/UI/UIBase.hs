@@ -122,19 +122,19 @@ data EventHandler m =
         --  A widget becomes mouse-active if no other button is currently pressed and the mouse
         --  coordinates are within the widget's extent ('isInside') until no button is pressed any
         --  more.
-        _onMousePress :: MouseButton       -- ^the pressed button
-                      -> Pixel             -- ^screen position
-                      -> GUIWidget m       -- ^widget the event is invoked on
-                      -> m (GUIWidget m)   -- ^widget after the event and the possibly altered mouse handler
+        _onMousePress :: MouseButton       -- the pressed button
+                      -> Pixel             -- screen position
+                      -> GUIWidget m       -- widget the event is invoked on
+                      -> m (GUIWidget m)   -- widget after the event and the possibly altered mouse handler
         ,
         -- |The function 'onMouseReleased' is called when a button is released
         --  while the widget is mouse-active.
         --  
         --  Thus, the mouse is either within the widget or outside while still dragging.
-        _onMouseRelease :: MouseButton       -- ^the released button
-                        -> Pixel             -- ^screen position
-                        -> GUIWidget m       -- ^widget the event is invoked on
-                        -> m (GUIWidget m)   -- ^widget after the event and the altered handler
+        _onMouseRelease :: MouseButton       -- the released button
+                        -> Pixel             -- screen position
+                        -> GUIWidget m       -- widget the event is invoked on
+                        -> m (GUIWidget m)   -- widget after the event and the altered handler
         }
     |
     -- |Handler to control the functionality of a 'GUIWidget' on mouse movement. 
@@ -144,22 +144,22 @@ data EventHandler m =
         --  widget's extent ('isInside') while no button is pressed or when the mouse is inside the
         --  widget's extent while another button loses its mouse-active state. Triggered after
         --  '_onMouseEnter'.
-        _onMouseMove :: Pixel             -- ^screen position
-                     -> GUIWidget m       -- ^widget the event is invoked on
-                     -> m (GUIWidget m)   -- ^widget after the event and the altered handler
+        _onMouseMove :: Pixel             -- screen position
+                     -> GUIWidget m       -- widget the event is invoked on
+                     -> m (GUIWidget m)   -- widget after the event and the altered handler
         ,
         -- |The function 'onMouseMove' is invoked when the mouse enters the
         --  widget's extent ('isInside') or when the mouse is inside the
         --  widget's extent while another button loses its mouse-active state..
-        _onMouseEnter :: Pixel           -- ^screen position
-                      -> GUIWidget m     -- ^widget the event is invoked on
-                      -> m (GUIWidget m) -- ^widget after the event and the altered handler
+        _onMouseEnter :: Pixel           -- screen position
+                      -> GUIWidget m     -- widget the event is invoked on
+                      -> m (GUIWidget m) -- widget after the event and the altered handler
         ,
         -- |The function 'onMouseLeave' is invoked when the mouse leaves the
         --  widget's extent ('isInside') while no other widget is mouse-active.
-        _onMouseLeave :: Pixel           -- ^screen position
-                      -> GUIWidget m     -- ^widget the event is invoked on
-                      -> m (GUIWidget m) -- ^widget after the event and the altered handler
+        _onMouseLeave :: Pixel           -- screen position
+                      -> GUIWidget m     -- widget the event is invoked on
+                      -> m (GUIWidget m) -- widget after the event and the altered handler
         }
     deriving ()
 
@@ -196,7 +196,7 @@ data GUIBaseProperties m = BaseProperties
     --  The default implementations tests if the point is within the rectangle specified by the 
     --  'getBoundary' function.
     _isInside :: GUIWidget m
-              -> Pixel  -- ^local coordinates
+              -> Pixel  -- local coordinates
               -> m Bool
     ,
     -- |The @_getPriority@ function returns the priority score of a @GUIWidget@.
