@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Types where
 
-import           Control.Concurrent.STM               (TQueue, TVar)
+import           Control.Concurrent.STM               (TQueue, TVar, readTVar, writeTVar, atomically)
 import qualified Graphics.Rendering.OpenGL.GL         as GL
 import           Graphics.UI.SDL                      as SDL (Event, Window)
 import           Foreign.C                            (CFloat)
@@ -9,7 +9,8 @@ import qualified Data.HashMap.Strict                  as Map
 import           Data.Time                            (UTCTime)
 import Linear.Matrix (M44)
 import Linear (V3)
-import Control.Monad.RWS.Strict (RWST)
+import Control.Monad.RWS.Strict (RWST, liftIO, get)
+import Control.Monad (when)
 import Control.Lens
 import Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
 import Render.Types
@@ -187,4 +188,19 @@ $(makeLenses ''WindowState)
 $(makeLenses ''Position)
 $(makeLenses ''Env)
 $(makeLenses ''UIState)
+
+-- helper-functions for types
+
+-- | atomically change gamestate on condition
+changeIfGamestate :: (GameState -> Bool) -> (GameState -> GameState) -> Pioneers ()
+changeIfGamestate cond f = do
+	state <- get
+	liftIO $ atomically $ do
+		game' <- readTVar (state ^. game)
+		when (cond game') (writeTVar (state ^. game) (f game'))
+
+
+-- | atomically change gamestate
+changeGamestate :: (GameState -> GameState) -> Pioneers ()
+changeGamestate = changeIfGamestate (const True) 
 
