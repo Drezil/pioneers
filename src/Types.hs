@@ -192,15 +192,20 @@ $(makeLenses ''UIState)
 -- helper-functions for types
 
 -- | atomically change gamestate on condition
-changeIfGamestate :: (GameState -> Bool) -> (GameState -> GameState) -> Pioneers ()
+changeIfGamestate :: (GameState -> Bool) -> (GameState -> GameState) -> Pioneers Bool
 changeIfGamestate cond f = do
 	state <- get
 	liftIO $ atomically $ do
 		game' <- readTVar (state ^. game)
-		when (cond game') (writeTVar (state ^. game) (f game'))
+        let cond' = cond game'
+		when cond' (writeTVar (state ^. game) (f game'))
+        return cond'
 
 
 -- | atomically change gamestate
 changeGamestate :: (GameState -> GameState) -> Pioneers ()
-changeGamestate = changeIfGamestate (const True) 
+changeGamestate = do
+                    --forget implied result - is True anyway
+                    _ <- changeIfGamestate (const True)
+                    return ()
 

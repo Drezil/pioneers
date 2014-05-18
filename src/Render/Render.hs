@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, InstanceSigs, ExistentialQuantification #-}
-module Render.Render where
+module Render.Render (initBuffer, initMapShader, initBuffer, initHud, initRendering, render) where
 
 import qualified Data.ByteString                            as B
 import           Foreign.Marshal.Array                      (withArray)
