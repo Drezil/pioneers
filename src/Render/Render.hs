@@ -333,6 +333,18 @@ drawMap = do
                 (ColorAttachment 1)          --sample 1
                 Renderbuffer                 --const
                 rb                              --buffer-}
+mat44ToGPU :: L.M44 CFloat -> UniformLocation -> String -> IO ()
+mat44ToGPU mat (UniformLocation dest) name = do
+        with (distribute mat) $ \ptr ->
+              glUniformMatrix4fv dest 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
+        checkError $ "copy Matrix (" ++ name ++ ")"
+
+mat33ToGPU :: L.M33 CFloat -> UniformLocation -> String -> IO ()
+mat33ToGPU mat (UniformLocation dest) name = do
+        with (distribute mat) $ \ptr ->
+              glUniformMatrix3fv dest 1 0 (castPtr (ptr :: Ptr (L.M33 CFloat)))
+        checkError $ "copy Matrix (" ++ name ++ ")"
+
 
 render :: Pioneers ()
 render = do
@@ -347,13 +359,13 @@ render = do
         camPos   = cam ^. camObject
         zDist'   = cam ^. zDist
         d        = state ^. gl.glMap.mapShaderData
-        (UniformLocation proj)  = shdrProjMatIndex d
-        (UniformLocation nmat)  = shdrNormalMatIndex d
-        (UniformLocation vmat)  = shdrViewMatIndex d
+        proj  = shdrProjMatIndex d
+        nmat  = shdrNormalMatIndex d
+        vmat  = shdrViewMatIndex d
         dmo      = state ^. gl.glMap.mapObjectShaderData
-        (UniformLocation projmo) = shdrMOProjMatIndex dmo
-        (UniformLocation nmatmo) = shdrMONormalMatIndex dmo
-        (UniformLocation vmatmo) = shdrMOViewMatIndex dmo
+        projmo = shdrMOProjMatIndex dmo
+        nmatmo = shdrMONormalMatIndex dmo
+        vmatmo = shdrMOViewMatIndex dmo
     liftIO $ do
 
         bindFramebuffer Framebuffer $= (state ^. gl.glFramebuffer)
@@ -384,16 +396,12 @@ render = do
 
         --set up projection (= copy from state)
         --TODO: Fix width/depth
-        with (distribute (createFrustumOrtho 20 20 0 100)) $ \ptr ->
-              glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
-        checkError "copy shadowmap-projection"
+        mat44ToGPU (createFrustumOrtho 20 20 0 100) proj "shadowmap-projection"
 
         --set up camera
         --TODO: Fix magic constants... and camPos
         let ! cam = getCam camPos 1 0.7 0
-        with (distribute cam) $ \ptr ->
-              glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
-        checkError "copy shadowmap-cam"
+        mat44ToGPU cam vmat "shadowmap-cam"
 
         --set up normal--Mat transpose((model*camera)^-1)
         --needed?
@@ -402,10 +410,7 @@ render = do
                                              Nothing  -> L.eye3) :: L.M33 CFloat
             nmap = collect id normal' :: L.M33 CFloat --transpose...
 
-        with (distribute nmap) $ \ptr ->
-              glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (L.M33 CFloat)))
-
-        checkError "nmat"
+        mat33ToGPU nmap nmat "nmat"
 
     drawMap
 
@@ -416,16 +421,12 @@ render = do
 
         --set up projection (= copy from state)
         --TODO: Fix width/depth
-        with (distribute (createFrustumOrtho 20 20 0 100)) $ \ptr ->
-              glUniformMatrix4fv projmo 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
-        checkError "copy shadowmap-projection"
+        mat44ToGPU (createFrustumOrtho 20 20 0 100) projmo "shadowmap-projection"
 
         --set up camera
         --TODO: Fix magic constants... and camPos
         let ! cam = getCam camPos 1 0.7 0
-        with (distribute cam) $ \ptr ->
-              glUniformMatrix4fv vmatmo 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
-        checkError "copy shadowmap-cam"
+        mat44ToGPU cam vmatmo "shadowmap-camera"
 
         --set up normal--Mat transpose((model*camera)^-1)
         --needed?
@@ -434,10 +435,8 @@ render = do
                                              Nothing  -> L.eye3) :: L.M33 CFloat
             nmap = collect id normal' :: L.M33 CFloat --transpose...
 
-        with (distribute nmap) $ \ptr ->
-              glUniformMatrix3fv nmatmo 1 0 (castPtr (ptr :: Ptr (L.M33 CFloat)))
+        mat33ToGPU nmap nmatmo "nmat"
 
-        checkError "nmat"
         mapM_ renderObject (state ^. gl.glMap.mapObjects)
         checkError "draw mapobjects"
 
@@ -465,15 +464,11 @@ render = do
 
         checkError "setting up buffer"
         --set up projection (= copy from state)
-        with (distribute frust) $ \ptr ->
-              glUniformMatrix4fv proj 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
-        checkError "copy projection"
+        mat44ToGPU frust proj "projection"
 
         --set up camera
         let ! cam = getCam camPos zDist' xa ya
-        with (distribute cam) $ \ptr ->
-              glUniformMatrix4fv vmat 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
-        checkError "copy cam"
+        mat44ToGPU cam vmat "camera"
 
         --set up normal--Mat transpose((model*camera)^-1)
         let normal' = (case L.inv33 (fmap (^. L._xyz) cam ^. L._xyz) of
@@ -481,10 +476,7 @@ render = do
                                              Nothing  -> L.eye3) :: L.M33 CFloat
             nmap = collect id normal' :: L.M33 CFloat --transpose...
 
-        with (distribute nmap) $ \ptr ->
-              glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (L.M33 CFloat)))
-
-        checkError "nmat"
+        mat33ToGPU nmap nmat "nmat"
 
     drawMap --draw map -> put to another function for readability
     liftIO $ do
@@ -494,16 +486,12 @@ render = do
 
         --set up projection (= copy from state)
         --TODO: Fix width/depth
-        with (distribute frust) $ \ptr ->
-              glUniformMatrix4fv projmo 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
-        checkError "copy projection"
+        mat44ToGPU frust projmo "mapObjects-projection"
 
         --set up camera
         --TODO: Fix magic constants... and camPos
         let ! cam = getCam camPos zDist' xa ya
-        with (distribute cam) $ \ptr ->
-              glUniformMatrix4fv vmatmo 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
-        checkError "copy shadowmap-cam"
+        mat44ToGPU cam vmatmo "mapObjects-cam"
 
         --set up normal--Mat transpose((model*camera)^-1)
         --needed?
@@ -512,10 +500,8 @@ render = do
                                              Nothing  -> L.eye3) :: L.M33 CFloat
             nmap = collect id normal' :: L.M33 CFloat --transpose...
 
-        with (distribute nmap) $ \ptr ->
-              glUniformMatrix3fv nmatmo 1 0 (castPtr (ptr :: Ptr (L.M33 CFloat)))
+        mat33ToGPU nmap nmatmo "mapObjects-nmat"
 
-        checkError "nmat"
         mapM_ renderObject (state ^. gl.glMap.mapObjects)
         checkError "draw mapobjects"
 
