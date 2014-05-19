@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, InstanceSigs, ExistentialQuantification #-}
-module Render.Render (initBuffer, initMapShader, initBuffer, initHud, initRendering, render) where
+module Render.Render (initBuffer, initMapShader, initHud, initRendering, render) where
 
 import qualified Data.ByteString                            as B
 import           Foreign.Marshal.Array                      (withArray)
@@ -7,13 +7,12 @@ import           Foreign.Storable
 import           Graphics.Rendering.OpenGL.GL
 import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
-import           Graphics.GLUtil.BufferObjects        
+import           Graphics.GLUtil.BufferObjects
 import qualified Linear as L
 import           Control.Lens                               ((^.))
 import           Control.Monad.RWS.Strict             (liftIO)
 import qualified Control.Monad.RWS.Strict as RWS      (get)
-import           Control.Concurrent.STM.TVar          (readTVarIO)
-import           Control.Concurrent.STM               (atomically)
+import           Control.Concurrent.STM               (readTVarIO)
 import           Data.Distributive                    (distribute, collect)
 -- FFI
 import           Foreign                              (Ptr, castPtr, with)
@@ -23,10 +22,8 @@ import           Map.Graphics
 import           Types
 import           Render.Misc
 import           Render.Types
-import           Graphics.GLUtil.BufferObjects              (makeBuffer)
-import		 Importer.IQM.Parser
+import           Importer.IQM.Parser
 import           Importer.IQM.Types
-import           Map.Map                               (giveMapHeight)
 
 mapVertexShaderFile :: String
 mapVertexShaderFile = "shaders/map/vertex.shader"
@@ -121,16 +118,16 @@ initMapShader tessFac (buf, vertDes) = do
 
    att <- get (activeAttribs program)
 
-   putStrLn $ unlines $ "Attributes: ":map show att
-   putStrLn $ unlines $ ["Indices: ", show (colorIndex, normalIndex, vertexIndex)]
+   putStrLn $ unlines $ "Map-Attributes: ":map show att
+   putStrLn $ unlines ["Map-Indices: ", show (colorIndex, normalIndex, vertexIndex)]
 
    tex <- genObjectName
    overTex <- genObjectName
 
-   texts <- genObjectNames 6
+   textures <- genObjectNames 6
 
    smap <- genObjectName
-   
+
    testobj <- parseIQM "sample.iqm"
 
    let
@@ -146,50 +143,85 @@ initMapShader tessFac (buf, vertDes) = do
    checkError "compile Object-Fragment"
    objProgram <- createProgramUsing [vertexShader', fragmentShader']
    checkError "compile Object-Program"
-   
+
    currentProgram $= Just objProgram
 
-   vertexIndex' <- get (attribLocation program "Position")
+   vertexIndex' <- get (attribLocation objProgram "Position")
    vertexAttribArray vertexIndex $= Enabled
    checkError "Object-vertexInd"
 
-   normalIndex' <- get (attribLocation program "Normal")
+   normalIndex' <- get (attribLocation objProgram "Normal")
    vertexAttribArray normalIndex $= Enabled
    checkError "Object-normalInd"
 
-   texIndex' <- get (attribLocation program "TexCoord")
+   texIndex' <- get (attribLocation objProgram "TexCoord")
    vertexAttribArray colorIndex $= Enabled
    checkError "Object-texInd"
 
-   att <- get (activeAttribs objProgram)
+   projectionMatrixIndex' <- get (uniformLocation objProgram "ProjectionMatrix")
+   checkError "projMat"
 
-   putStrLn $ unlines $ "Attributes: ":map show att
-   putStrLn $ unlines $ ["Indices: ", show (texIndex', normalIndex', vertexIndex')]
+   viewMatrixIndex' <- get (uniformLocation objProgram "ViewMatrix")
+   checkError "viewMat"
+
+   modelMatrixIndex' <- get (uniformLocation objProgram "ModelMatrix")
+   checkError "modelMat"
+
+   normalMatrixIndex' <- get (uniformLocation objProgram "NormalMatrix")
+   checkError "normalMat"
+
+   --tessLevelInner' <- get (uniformLocation objProgram "TessLevelInner")
+   --checkError "TessLevelInner"
+
+   --tessLevelOuter' <- get (uniformLocation objProgram "TessLevelOuter")
+   --checkError "TessLevelOuter"
+
+   vertexOffsetIndex' <- get (uniformLocation objProgram "PositionOffset")
+   checkError "PositionOffset"
+
+   att' <- get (activeAttribs objProgram)
+
+   putStrLn $ unlines $ "Model-Attributes: ":map show att'
+   putStrLn $ unlines $ ["Model-Indices: ", show (texIndex', normalIndex', vertexIndex')]
    checkError "initShader"
    let sdata = MapShaderData
-           { shdrVertexIndex      = vertexIndex
-           , shdrColorIndex       = colorIndex
-           , shdrNormalIndex      = normalIndex
-           , shdrProjMatIndex     = projectionMatrixIndex
-           , shdrViewMatIndex     = viewMatrixIndex
-           , shdrModelMatIndex    = modelMatrixIndex
-           , shdrNormalMatIndex   = normalMatrixIndex
-           , shdrTessInnerIndex   = tessLevelInner
-           , shdrTessOuterIndex   = tessLevelOuter
-           }
+            { shdrVertexIndex      = vertexIndex
+            , shdrColorIndex       = colorIndex
+            , shdrNormalIndex      = normalIndex
+            , shdrProjMatIndex     = projectionMatrixIndex
+            , shdrViewMatIndex     = viewMatrixIndex
+            , shdrModelMatIndex    = modelMatrixIndex
+            , shdrNormalMatIndex   = normalMatrixIndex
+            , shdrTessInnerIndex   = tessLevelInner
+            , shdrTessOuterIndex   = tessLevelOuter
+            }
+
+   let smodata = MapObjectShaderData
+            { shdrMOVertexIndex    = vertexIndex'
+            , shdrMOVertexOffsetIndex = vertexOffsetIndex'
+            , shdrMONormalIndex    = normalIndex'
+            , shdrMOTexIndex       = texIndex'
+            , shdrMOProjMatIndex   = projectionMatrixIndex'
+            , shdrMOViewMatIndex   = viewMatrixIndex'
+            , shdrMOModelMatIndex  = modelMatrixIndex'
+            , shdrMONormalMatIndex = normalMatrixIndex'
+            , shdrMOTessInnerIndex = (UniformLocation 0)--tessLevelInner'
+            , shdrMOTessOuterIndex = (UniformLocation 0)--tessLevelOuter'
+            }
 
    return GLMapState
         { _mapProgram         = program
         , _mapShaderData      = sdata
+        , _mapObjectShaderData = smodata
         , _renderedMapTexture = tex
         , _stateTessellationFactor = tessFac
         , _stateMap           = buf
         , _mapVert            = vertDes
         , _overviewTexture    = overTex
-        , _mapTextures        = texts
+        , _mapTextures        = textures
         , _shadowMapTexture   = smap
-	, _mapObjects         = objs
-	, _objectProgram      = objProgram
+        , _mapObjects         = objs
+        , _objectProgram      = objProgram
         , _shadowMapProgram   = shadowProgram
         }
 
@@ -333,13 +365,13 @@ renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
 	return ()
 
 renderObject :: MapObject -> IO ()
-renderObject (MapObject model pos@(L.V3 x y z) _{-state-}) = 
+renderObject (MapObject model pos@(L.V3 x y z) _{-state-}) =
 	renderIQM model pos (L.V3 1 1 1)
-		
+
 drawMap :: Pioneers ()
 drawMap = do
     state <- RWS.get
-    let 
+    let
         d        = state ^. gl.glMap.mapShaderData
         vi       = shdrVertexIndex d
         ni       = shdrNormalIndex d
@@ -370,12 +402,6 @@ drawMap = do
 
         checkError "draw map"
 
-	---- RENDER MAPOBJECTS --------------------------------------------
-	
-	currentProgram $= Just (state ^. gl.glMap.objectProgram)
-
-	mapM_ renderObject (state ^. gl.glMap.mapObjects)
-
         -- set sample 1 as target in renderbuffer
         {-framebufferRenderbuffer
                 DrawFramebuffer              --write-only
@@ -385,6 +411,9 @@ drawMap = do
 
 render :: Pioneers ()
 render = do
+    -- -- FOO <<<<<<<<< denotes a stage (Shadowmap, Map, UI)
+    -- -- BAR --------- denotes a substage (which parts etc.)
+    -- -- BAZ           denotes a sub-substage
     state <- RWS.get
     cam <- liftIO $ readTVarIO (state ^. camera)
     let xa       = cam ^. xAngle
@@ -396,8 +425,11 @@ render = do
         (UniformLocation proj)  = shdrProjMatIndex d
         (UniformLocation nmat)  = shdrNormalMatIndex d
         (UniformLocation vmat)  = shdrViewMatIndex d
+        dmo      = state ^. gl.glMap.mapObjectShaderData
+        (UniformLocation projmo) = shdrMOProjMatIndex dmo
+        (UniformLocation nmatmo) = shdrMONormalMatIndex dmo
+        (UniformLocation vmatmo) = shdrMOViewMatIndex dmo
     liftIO $ do
-        ---- RENDER MAP IN TEXTURE ------------------------------------------
 
         bindFramebuffer Framebuffer $= (state ^. gl.glFramebuffer)
         {-bindRenderbuffer Renderbuffer $= (state ^. gl.glRenderbuffer)
@@ -406,10 +438,10 @@ render = do
                 DepthAttachment
                 Renderbuffer
                 (state ^. gl.glRenderbuffer)-}
-        
-        -- SHADOWMAP
+
+        ---- RENDER SHADOWMAP <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         textureBinding Texture2D $= Just (state ^. gl.glMap.shadowMapTexture)
-        framebufferTexture2D 
+        framebufferTexture2D
                 Framebuffer
                 DepthAttachment
                 Texture2D
@@ -421,8 +453,7 @@ render = do
 
         clear [DepthBuffer]
         checkError "clearing shadowmap-buffer"
-        
-        --TODO: simplified program for shadows?
+
         currentProgram $= Just (state ^. gl.glMap.mapProgram)
         checkError "setting up shadowmap-program"
 
@@ -450,10 +481,44 @@ render = do
               glUniformMatrix3fv nmat 1 0 (castPtr (ptr :: Ptr (L.M33 CFloat)))
 
         checkError "nmat"
+
     drawMap
+
     liftIO $ do
+        ---- RENDER MAPOBJECTS --------------------------------------------
+        currentProgram $= Just (state ^. gl.glMap.objectProgram)
+        checkError "setting up shadowmap-program"
+
+        --set up projection (= copy from state)
+        --TODO: Fix width/depth
+        with (distribute (createFrustumOrtho 20 20 0 100)) $ \ptr ->
+              glUniformMatrix4fv projmo 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
+        checkError "copy shadowmap-projection"
+
+        --set up camera
+        --TODO: Fix magic constants... and camPos
+        let ! cam = getCam camPos 1 0.7 0
+        with (distribute cam) $ \ptr ->
+              glUniformMatrix4fv vmatmo 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
+        checkError "copy shadowmap-cam"
+
+        --set up normal--Mat transpose((model*camera)^-1)
+        --needed?
+        let normal' = (case L.inv33 (fmap (^. L._xyz) cam ^. L._xyz) of
+                                             (Just a) -> a
+                                             Nothing  -> L.eye3) :: L.M33 CFloat
+            nmap = collect id normal' :: L.M33 CFloat --transpose...
+
+        with (distribute nmap) $ \ptr ->
+              glUniformMatrix3fv nmatmo 1 0 (castPtr (ptr :: Ptr (L.M33 CFloat)))
+
+        checkError "nmat"
+        mapM_ renderObject (state ^. gl.glMap.mapObjects)
+        checkError "draw mapobjects"
+
         checkError "draw ShadowMap"
 
+        ---- RENDER MAP IN TEXTURE <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         -- COLORMAP
         textureBinding Texture2D $= Just (state ^. gl.glMap.renderedMapTexture)
         framebufferTexture2D

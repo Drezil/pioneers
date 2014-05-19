@@ -104,6 +104,7 @@ data KeyboardState = KeyboardState
 
 data GLMapState = GLMapState
     { _mapShaderData        :: !MapShaderData
+    , _mapObjectShaderData  :: !MapObjectShaderData
     , _stateTessellationFactor :: !Int
     , _stateMap             :: !GL.BufferObject
     , _mapVert              :: !GL.NumArrayIndices
@@ -128,6 +129,22 @@ data MapShaderData = MapShaderData
     , shdrTessInnerIndex   :: !GL.UniformLocation
     , shdrTessOuterIndex   :: !GL.UniformLocation
     }
+
+data MapObjectShaderData = MapObjectShaderData
+    { shdrMOVertexIndex    :: !GL.AttribLocation
+    , shdrMOVertexOffsetIndex :: !GL.UniformLocation
+    , shdrMONormalIndex    :: !GL.AttribLocation
+    , shdrMOTexIndex       :: !GL.AttribLocation
+    , shdrMOProjMatIndex   :: !GL.UniformLocation
+    , shdrMOViewMatIndex   :: !GL.UniformLocation
+    , shdrMOModelMatIndex  :: !GL.UniformLocation
+    , shdrMONormalMatIndex :: !GL.UniformLocation
+    , shdrMOTessInnerIndex :: !GL.UniformLocation
+    , shdrMOTessOuterIndex :: !GL.UniformLocation
+    }
+
+
+
 
 data MapObject = MapObject !IQM !MapCoordinates !MapObjectState
 
@@ -194,18 +211,18 @@ $(makeLenses ''UIState)
 -- | atomically change gamestate on condition
 changeIfGamestate :: (GameState -> Bool) -> (GameState -> GameState) -> Pioneers Bool
 changeIfGamestate cond f = do
-	state <- get
-	liftIO $ atomically $ do
-		game' <- readTVar (state ^. game)
+    state <- get
+    liftIO $ atomically $ do
+        game' <- readTVar (state ^. game)
         let cond' = cond game'
-		when cond' (writeTVar (state ^. game) (f game'))
+        when cond' (writeTVar (state ^. game) (f game'))
         return cond'
 
 
 -- | atomically change gamestate
 changeGamestate :: (GameState -> GameState) -> Pioneers ()
-changeGamestate = do
-                    --forget implied result - is True anyway
-                    _ <- changeIfGamestate (const True)
-                    return ()
+changeGamestate s = do
+        --forget implied result - is True anyway
+        _ <- changeIfGamestate (const True) s
+        return ()
 
