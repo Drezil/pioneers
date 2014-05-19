@@ -488,6 +488,36 @@ render = do
 
     drawMap --draw map -> put to another function for readability
     liftIO $ do
+        ---- RENDER MAPOBJECTS --------------------------------------------
+        currentProgram $= Just (state ^. gl.glMap.objectProgram)
+        checkError "setting up shadowmap-program"
+
+        --set up projection (= copy from state)
+        --TODO: Fix width/depth
+        with (distribute frust) $ \ptr ->
+              glUniformMatrix4fv projmo 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
+        checkError "copy projection"
+
+        --set up camera
+        --TODO: Fix magic constants... and camPos
+        let ! cam = getCam camPos zDist' xa ya
+        with (distribute cam) $ \ptr ->
+              glUniformMatrix4fv vmatmo 1 0 (castPtr (ptr :: Ptr (L.M44 CFloat)))
+        checkError "copy shadowmap-cam"
+
+        --set up normal--Mat transpose((model*camera)^-1)
+        --needed?
+        let normal' = (case L.inv33 (fmap (^. L._xyz) cam ^. L._xyz) of
+                                             (Just a) -> a
+                                             Nothing  -> L.eye3) :: L.M33 CFloat
+            nmap = collect id normal' :: L.M33 CFloat --transpose...
+
+        with (distribute nmap) $ \ptr ->
+              glUniformMatrix3fv nmatmo 1 0 (castPtr (ptr :: Ptr (L.M33 CFloat)))
+
+        checkError "nmat"
+        mapM_ renderObject (state ^. gl.glMap.mapObjects)
+        checkError "draw mapobjects"
 
         ---- COMPOSE RENDERING --------------------------------------------
         -- Render to BackBuffer (=Screen)
