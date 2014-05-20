@@ -368,6 +368,17 @@ render = do
         projmo = shdrMOProjMatIndex dmo
         nmatmo = shdrMONormalMatIndex dmo
         vmatmo = shdrMOViewMatIndex dmo
+        suncam = getCam camPos 1 0.7 0 --TODO: Fix position of sun
+        sunnormal' = (case L.inv33 (fmap (^. L._xyz) suncam ^. L._xyz) of
+                                         (Just a) -> a
+                                         Nothing  -> L.eye3) :: L.M33 CFloat
+        sunnmap = collect id sunnormal' :: L.M33 CFloat --transpose...
+        cam' = getCam camPos zDist' xa ya
+        normal' = (case L.inv33 (fmap (^. L._xyz) cam' ^. L._xyz) of
+                                         (Just a) -> a
+                                         Nothing  -> L.eye3) :: L.M33 CFloat
+        nmap = collect id normal' :: L.M33 CFloat --transpose...
+
     liftIO $ do
 
         bindFramebuffer Framebuffer $= (state ^. gl.glFramebuffer)
@@ -399,20 +410,11 @@ render = do
         --set up projection (= copy from state)
         --TODO: Fix width/depth
         mat44ToGPU (createFrustumOrtho 20 20 0 100) proj "shadowmap-projection"
-
         --set up camera
-        --TODO: Fix magic constants... and camPos
-        let ! cam = getCam camPos 1 0.7 0
-        mat44ToGPU cam vmat "shadowmap-cam"
-
+        mat44ToGPU suncam vmat "shadowmap-cam"
         --set up normal--Mat transpose((model*camera)^-1)
-        --needed?
-        let normal' = (case L.inv33 (fmap (^. L._xyz) cam ^. L._xyz) of
-                                             (Just a) -> a
-                                             Nothing  -> L.eye3) :: L.M33 CFloat
-            nmap = collect id normal' :: L.M33 CFloat --transpose...
-
-        mat33ToGPU nmap nmat "nmat"
+        --TODO: needed?
+        mat33ToGPU sunnmap nmat "nmat"
 
     drawMap
 
@@ -427,17 +429,11 @@ render = do
 
         --set up camera
         --TODO: Fix magic constants... and camPos
-        let ! cam = getCam camPos 1 0.7 0
-        mat44ToGPU cam vmatmo "shadowmap-camera"
+        mat44ToGPU suncam vmatmo "shadowmap-camera"
 
         --set up normal--Mat transpose((model*camera)^-1)
         --needed?
-        let normal' = (case L.inv33 (fmap (^. L._xyz) cam ^. L._xyz) of
-                                             (Just a) -> a
-                                             Nothing  -> L.eye3) :: L.M33 CFloat
-            nmap = collect id normal' :: L.M33 CFloat --transpose...
-
-        mat33ToGPU nmap nmatmo "nmat"
+        mat33ToGPU sunnmap nmatmo "nmat"
 
         mapM_ renderObject (state ^. gl.glMap.mapObjects)
         checkError "draw mapobjects"
@@ -461,41 +457,25 @@ render = do
         clear [ColorBuffer, DepthBuffer]
         checkError "clear buffer"
 
-
         currentProgram $= Just (state ^. gl.glMap.mapProgram)
-
         checkError "setting up buffer"
         --set up projection (= copy from state)
         mat44ToGPU frust proj "projection"
-
         --set up camera
-        let ! cam = getCam camPos zDist' xa ya
-        mat44ToGPU cam vmat "camera"
-
+        mat44ToGPU cam' vmat "camera"
         --set up normal--Mat transpose((model*camera)^-1)
-        let normal' = (case L.inv33 (fmap (^. L._xyz) cam ^. L._xyz) of
-                                             (Just a) -> a
-                                             Nothing  -> L.eye3) :: L.M33 CFloat
-            nmap = collect id normal' :: L.M33 CFloat --transpose...
-
         mat33ToGPU nmap nmat "nmat"
 
-    drawMap --draw map -> put to another function for readability
+    drawMap
     liftIO $ do
         ---- RENDER MAPOBJECTS --------------------------------------------
         currentProgram $= Just (state ^. gl.glMap.objectProgram)
         checkError "setting up shadowmap-program"
-
         --set up projection (= copy from state)
         mat44ToGPU frust projmo "mapObjects-projection"
         --set up camera
-        let ! cam = getCam camPos zDist' xa ya
-        mat44ToGPU cam vmatmo "mapObjects-cam"
+        mat44ToGPU cam' vmatmo "mapObjects-cam"
         --set up normal
-        let normal' = (case L.inv33 (fmap (^. L._xyz) cam ^. L._xyz) of
-                                             (Just a) -> a
-                                             Nothing  -> L.eye3) :: L.M33 CFloat
-            nmap = collect id normal' :: L.M33 CFloat --transpose...
         mat33ToGPU nmap nmatmo "mapObjects-nmat"
 
         mapM_ renderObject (state ^. gl.glMap.mapObjects)
@@ -528,12 +508,4 @@ render = do
 
         bindBuffer ElementArrayBuffer $= Just (hud ^. hudEBO)
         drawElements TriangleStrip 4 UnsignedInt offset0
-
-
-        {-let winRenderer = env ^. renderer
-        tryWithTexture
-                (state ^. hudTexture)                          --maybe tex
-                (\tex -> renderCopy winRenderer tex Nothing Nothing) --function with "hole"
-                                                       --Nothing == whole source-tex, whole dest-tex
-                (return ())                                       --fail-case-}
 
