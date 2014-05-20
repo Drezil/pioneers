@@ -31,7 +31,7 @@ isInsideFast wg px = do
 
 
 -- |The function 'getInsideId' returns child widgets that overlap with a 
---  specific screen position and the pixel's local coordinates.
+--  specific screen position and the pixel’s local coordinates.
 --  
 --  A screen position may be inside the bounding box of a widget but not
 --  considered part of the component. The function returns all hit widgets that 
@@ -46,7 +46,7 @@ getInsideId px uid = do
   (bX, bY, _, _) <- wg ^. baseProperties.boundary
   let px' = px -: (bX, bY)
   inside <- isInsideFast wg px'
-  if inside -- test inside parent's bounding box
+  if inside -- test inside parent’s bounding box
     then do
       childrenIds <- wg ^. baseProperties.children
       hitChildren <- liftM concat $ mapM (getInsideId px') childrenIds

@@ -311,7 +311,7 @@ prepareGUI = do
                 modify $ ui.uiHasChanged .~ False
 
 --TODO: Perform border-checking ... is xoff + width and yoff+height inside the screen-coordinates..
-copyGUI :: GL.TextureObject -> Pixel -- ^current view's offset
+copyGUI :: GL.TextureObject -> Pixel -- ^current view’s offset
         -> GUIWidget Pioneers -- ^the widget to draw
         -> Pioneers ()
 copyGUI tex (vX, vY) widget = do
