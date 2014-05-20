@@ -206,8 +206,8 @@ initMapShader tessFac (buf, vertDes) = do
             , shdrMOViewMatIndex   = viewMatrixIndex'
             , shdrMOModelMatIndex  = modelMatrixIndex'
             , shdrMONormalMatIndex = normalMatrixIndex'
-            , shdrMOTessInnerIndex = (UniformLocation 0)--tessLevelInner'
-            , shdrMOTessOuterIndex = (UniformLocation 0)--tessLevelOuter'
+            , shdrMOTessInnerIndex = UniformLocation 0 --tessLevelInner'
+            , shdrMOTessOuterIndex = UniformLocation 0 --tessLevelOuter'
             }
 
    return GLMapState
