@@ -180,8 +180,9 @@ initMapShader tessFac (buf, vertDes) = do
    checkError "PositionOffset"
 
    att' <- get (activeAttribs objProgram)
-
    putStrLn $ unlines $ "Model-Attributes: ":map show att'
+   uni' <- get (activeUniforms objProgram)
+   putStrLn $ unlines $ "Model-Uniforms: ":map show uni'
    putStrLn $ unlines $ ["Model-Indices: ", show (texIndex', normalIndex', vertexIndex')]
    checkError "initShader"
    let sdata = MapShaderData
@@ -285,9 +286,10 @@ initRendering = do
 -- | renders an IQM-Model at Position with scaling
 renderIQM :: IQM -> L.V3 CFloat -> L.V3 CFloat -> IO ()
 renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
-	bindVertexArrayObject $= Just (vertexArrayObject m)
-	glDrawArrays gl_TRIANGLES 0 3
-	return ()
+    bindVertexArrayObject $= Just (vertexArrayObject m)
+    let n = num_vertexes $ header m
+    glDrawArrays gl_TRIANGLES 0 (fromIntegral n)
+    return ()
 
 renderObject :: MapObject -> IO ()
 renderObject (MapObject model pos@(L.V3 x y z) _{-state-}) =
@@ -485,21 +487,15 @@ render = do
         checkError "setting up shadowmap-program"
 
         --set up projection (= copy from state)
-        --TODO: Fix width/depth
         mat44ToGPU frust projmo "mapObjects-projection"
-
         --set up camera
-        --TODO: Fix magic constants... and camPos
         let ! cam = getCam camPos zDist' xa ya
         mat44ToGPU cam vmatmo "mapObjects-cam"
-
-        --set up normal--Mat transpose((model*camera)^-1)
-        --needed?
+        --set up normal
         let normal' = (case L.inv33 (fmap (^. L._xyz) cam ^. L._xyz) of
                                              (Just a) -> a
                                              Nothing  -> L.eye3) :: L.M33 CFloat
             nmap = collect id normal' :: L.M33 CFloat --transpose...
-
         mat33ToGPU nmap nmatmo "mapObjects-nmat"
 
         mapM_ renderObject (state ^. gl.glMap.mapObjects)

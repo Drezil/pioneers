@@ -268,16 +268,17 @@ toBufferTargetfromVAType _                = ArrayBuffer
 --   is needed in term of computation.
 readInVAO :: ByteString -> IQMVertexArray -> IO IQMVertexArray
 readInVAO d (IQMVertexArray type' a format num offset ptr) = 
-		do
-		let 
-			byteLen = fromIntegral num * vaSize format
-			data' = skipDrop (fromIntegral offset) byteLen d
-			
-		unless (ptr == nullPtr) $ error $ "Error reading Vertex-Array: Double Read of " ++ show type'
-		p <- mallocBytes byteLen
-		putStrLn $ concat ["Allocating ", show byteLen, " Bytes at ", show p]
-		unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
-		return $ IQMVertexArray type' a format num offset $ castPtr p
+        do
+        let 
+            byteLen = fromIntegral num * vaSize format
+            data' = skipDrop (fromIntegral offset) byteLen d
+
+        unless (ptr == nullPtr) $ error $ "Error reading Vertex-Array: Double Read of " ++ show type'
+        p <- mallocBytes byteLen
+        putStrLn $ concat ["Allocating ", show num,"x",show (vaSize format)," = ", show byteLen, " Bytes at ", show p, " for ", show type']
+        putStrLn $ concat ["Filling with: ", show data', " starting at ", show offset]
+        unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
+        return $ IQMVertexArray type' a format num offset $ castPtr p
 		
 -- | Real internal Parser.
 --
@@ -308,5 +309,8 @@ doIQMparse vao =
 --   by the Offsets provided.
 --
 --   O(1).
-skipDrop :: Int -> Int -> ByteString -> ByteString
-skipDrop a b= B.drop b . B.take a
+skipDrop :: Int -- ^ Bytes to drop
+         -> Int -- ^ Bytes to take
+         -> ByteString 
+         -> ByteString
+skipDrop a b= B.take b . B.drop a

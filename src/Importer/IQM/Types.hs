@@ -194,7 +194,7 @@ data IQMVertexArray = IQMVertexArray
                         IQMVertexArrayFormat
                         NumComponents
                         Offset
-			IQMData
+                        IQMData
                        deriving (Eq)
 instance Show IQMVertexArray where
     show (IQMVertexArray t fl fo nc off dat) = "IQMVertexArray (Type: " ++ show t ++
