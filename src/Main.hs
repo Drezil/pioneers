@@ -133,8 +133,7 @@ main =
                         , _tessClockFactor     = 0
                         }
               , _mouse               = MouseState
-                        { _isDown              = False
-                        , _isDragging          = False
+                        { _isDragging          = False
                         , _dragStartX          = 0
                         , _dragStartY          = 0
                         , _dragStartXAngle     = 0

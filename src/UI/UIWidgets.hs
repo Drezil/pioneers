@@ -2,10 +2,10 @@
 
 module UI.UIWidgets (module UI.UIWidgets, module UI.UIBase) where
 
-import           Control.Lens                         ((^.), (.~), (&))
+import           Control.Lens                         ((^.), (.~), (%~), (&))
 import           Control.Monad
---import           Control.Monad.IO.Class -- MonadIO
-import           Control.Monad.RWS.Strict             (get)
+-- import           Control.Monad.IO.Class               (liftIO)
+import           Control.Monad.RWS.Strict             (get, modify)
 import           Data.List
 import           Data.Maybe
 import qualified Data.HashMap.Strict as Map
@@ -43,3 +43,38 @@ createButton bnd prio action = Widget (rectangularBase bnd [] prio "BTN")
                                       emptyGraphics
                                       (Map.fromList [(MouseStateKey, initialMouseState)]) -- widget states
                                       (Map.fromList [(MouseEvent, buttonMouseActions action)]) -- event handlers
+
+createViewport :: MouseButton -- ^ button to drag with
+               -> (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> [UIId] -> Int -> GUIWidget Pioneers
+createViewport btn bnd chld prio = Widget (rectangularBase bnd chld prio "VWP")
+                                    emptyGraphics
+                                    Map.empty -- widget states
+                                    (Map.fromList [(MouseEvent, viewportMouseAction)
+                                                  ,(MouseMotionEvent, viewportMouseMotionAction)]) -- event handlers
+  where
+    viewportMouseAction :: EventHandler Pioneers
+    viewportMouseAction =
+        let press btn' (x, y) _ w =
+              do when (btn == btn') $ do
+                     state <- get
+                     modify $ mouse %~ (isDragging .~ True)
+                                     . (dragStartX .~ fromIntegral x)
+                                     . (dragStartY .~ fromIntegral y)
+                                     . (dragStartXAngle .~ (state ^. camera.xAngle))
+                                     . (dragStartYAngle .~ (state ^. camera.yAngle))
+                                     . (mousePosition.Types._x .~ fromIntegral x)
+                                     . (mousePosition.Types._y .~ fromIntegral y)
+                 return w
+            release btn' _ _ w = do when (btn == btn') (modify $ mouse.isDragging .~ False)
+                                    return w
+        in MouseHandler press release
+    
+    viewportMouseMotionAction :: EventHandler Pioneers
+    viewportMouseMotionAction =
+        let move (x, y) w =
+              do state <- get
+                 when (state ^. mouse.isDragging) $
+                        modify $ mouse %~ (mousePosition.Types._x .~ fromIntegral x)
+                                        . (mousePosition.Types._y .~ fromIntegral y)
+                 return w
+        in emptyMouseMotionHandler & onMouseMove .~ move

@@ -8,7 +8,7 @@ import           Control.Monad                        (liftM, when, unless)
 import           Control.Monad.RWS.Strict             (ask, get, modify)
 import           Control.Monad.Trans                  (liftIO)
 import qualified Data.HashMap.Strict                  as Map
-import           Data.List                            (foldl')
+--import           Data.List                            (foldl')
 import           Data.Maybe
 import           Foreign.Marshal.Array                (pokeArray)
 import           Foreign.Marshal.Alloc                (allocaBytes)
@@ -22,7 +22,7 @@ import UI.UIOperations
 
 -- TODO: define GUI positions in a file
 createGUI :: (Map.HashMap UIId (GUIWidget Pioneers), [UIId])
-createGUI = (Map.fromList [ (UIId 0, createPanel (0, 0, 0, 0) [UIId 1, UIId 2] 0)
+createGUI = (Map.fromList [ (UIId 0, createViewport LeftButton (0, 0, 1024, 600) [UIId 1, UIId 2] 0) -- TODO: automatic resize
                           , (UIId 1, createContainer (30, 215, 100, 80) [] 1)
                           , (UIId 2, createPanel (50, 40, 0, 0) [UIId 3, UIId 4] 3)
                           , (UIId 3, createContainer (80, 15, 130, 90) [] 4 )
@@ -101,38 +101,14 @@ eventCallback e = do
                     _ ->
                         return ()
             SDL.MouseMotion _ _ _ (SDL.Position x y) _ _ -> -- windowID mouseID motionState motionPosition xrel yrel
-                do
-                state <- get
-                if state ^. mouse.isDown && not (state ^. mouse.isDragging)
-                  then
-                    modify $ (mouse.isDragging .~ True)
-                           . (mouse.dragStartX .~ fromIntegral x)
-                           . (mouse.dragStartY .~ fromIntegral y)
-                           . (mouse.dragStartXAngle .~ (state ^. camera.xAngle))
-                           . (mouse.dragStartYAngle .~ (state ^. camera.yAngle))
-                    else mouseMoveHandler (x, y)
-                modify $ (mouse.mousePosition. Types._x .~ fromIntegral x)
-                       . (mouse.mousePosition. Types._y .~ fromIntegral y)
+                mouseMoveHandler (x, y)
             SDL.MouseButton _ _ button state (SDL.Position x y) -> -- windowID mouseID button buttonState buttonAt
-             do 
-                case button of
-                     SDL.LeftButton -> do
-                         let pressed = state == SDL.Pressed
-                         modify $ mouse.isDown .~ pressed
-                         if pressed 
-                           then mouseReleaseHandler LeftButton (x, y)
-                           else do
-                             st <- get
-                             if st ^. mouse.isDragging then
-                                 modify $ mouse.isDragging .~ False
-                             else do
-                                 mousePressHandler LeftButton (x, y)
-                     _ -> case state of
-                               SDL.Pressed -> maybe (return ()) (`mousePressHandler` (x, y)) $ transformButton button
-                               SDL.Released -> maybe (return ()) (`mouseReleaseHandler` (x, y)) $ transformButton button
-                               _ -> return ()
+               case state of
+                    SDL.Pressed -> maybe (return ()) (`mousePressHandler` (x, y)) $ transformButton button
+                    SDL.Released -> maybe (return ()) (`mouseReleaseHandler` (x, y)) $ transformButton button
+                    _ -> return ()
             SDL.MouseWheel _ _ _ vscroll -> -- windowID mouseID hScroll vScroll
-                do
+                do -- TODO: MouseWheelHandler
                 state <- get
                 let zDist' = (state ^. camera.zDist) + realToFrac (negate vscroll) in
                   modify $ camera.zDist .~ curb (env ^. zDistClosest) (env ^. zDistFarthest) zDist'
@@ -295,6 +271,7 @@ copyGUI tex (vX, vY) widget = do
                             --temporary color here. lateron better some getData-function to
                             --get a list of pixel-data or a texture.
                             color = case widget ^. baseProperties.shorthand of
+                                "VWP" -> [0,128,128,30]
                                 "CNT" -> [255,0,0,128]
                                 "BTN" -> [255,255,0,255]
                                 "PNL" -> [128,128,128,128]

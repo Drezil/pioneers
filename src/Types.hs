@@ -60,8 +60,7 @@ data GameState = GameState
     }
 
 data MouseState = MouseState
-    { _isDown              :: !Bool
-    , _isDragging          :: !Bool
+    { _isDragging          :: !Bool
     , _dragStartX          :: !Double
     , _dragStartY          :: !Double
     , _dragStartXAngle     :: !Double

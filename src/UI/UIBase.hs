@@ -4,7 +4,7 @@
 module UI.UIBase where
 
 import           Control.Lens             ((^.), (.~), (%~), (&), ix, mapped, makeLenses)
-import           Control.Monad            (liftM)
+import           Control.Monad            (join,liftM)
 import           Data.Array
 import           Data.Bits                 (xor)
 import           Data.Hashable
@@ -157,7 +157,7 @@ data EventHandler m =
         --  widget’s extent ('isInside') or when the mouse is inside the
         --  widget’s extent while another button loses its mouse-active state.
         --  
-        -- The function returns the altered widget resulting from the button press
+        -- The function returns the altered widget resulting from the button press.
         _onMouseEnter :: Pixel -> GUIWidget m -> m (GUIWidget m)
         ,
         -- |The function 'onMouseLeave' is invoked when the mouse leaves the
@@ -239,7 +239,45 @@ initialMouseState = MouseState (array (minBound, maxBound) [(i, initialButtonSta
                                False (0, 0)
 {-# INLINE initialMouseState #-}
 
--- TODO: combined mouse handler
+-- |The function 'combinedMouseHandler' creates a 'MouseHandler' by composing the action functions
+--  of two handlers. Thereby, the resulting widget of the first handler is the input widget of the
+--  second handler and all other parameters are the same for both function calls.
+--  
+--  If not both input handlers are of type @MouseHandler@ an error is raised.
+combinedMouseHandler :: (Monad m) => EventHandler m -> EventHandler m -> EventHandler m
+combinedMouseHandler (MouseHandler p1 r1) (MouseHandler p2 r2) =
+    MouseHandler (comb p1 p2) (comb r1 r2)
+  where comb h1 h2 btn px inside = join . liftM (h2 btn px inside) . h1 btn px inside
+combinedMouseHandler _ _ = error $ "combineMouseHandler can only combine two EventHandler" ++
+    " with constructor MouseHandler"
+
+-- |The function 'combinedMouseMotionHandler' creates a 'MouseHandler' by composing the action
+--  functions of two handlers. Thereby, the resulting widget of the second handler is the input
+--  widget of the second handler and all other parameters are the same for both function calls.
+--  
+--  If not both input handlers are of type @MouseMotionHandler@ an error is raised.
+combinedMouseMotionHandler :: (Monad m) => EventHandler m -> EventHandler m -> EventHandler m
+combinedMouseMotionHandler (MouseMotionHandler m1 e1 l1) (MouseMotionHandler m2 e2 l2) =
+    MouseMotionHandler (comb m1 m2) (comb e1 e2) (comb l1 l2)
+  where comb h1 h2 px = join . liftM (h2 px) . h1 px
+combinedMouseMotionHandler _ _ = error $ "combineMouseMotionHandler can only combine two EventHandler" ++
+    " with constructor MouseMotionHandler" 
+
+-- |The function 'emptyMouseHandler' creates a 'MouseHandler' that does nothing.
+--  It may be useful as construction kit.
+--  
+--  >>> emptyMouseHandler & _onMousePress .~ myPressFunction
+--  >>> emptyMouseHandler { _onMousePress = myPressFunction }
+emptyMouseHandler :: (Monad m) => EventHandler m
+emptyMouseHandler = MouseHandler (\_ _ _ -> return) (\_ _ _ -> return)
+
+-- |The function 'emptyMouseMotionHandler' creates a 'MouseMotionHandler' that does nothing.
+--  It may be useful as construction kit.
+--  
+--  >>> emptyMouseMotionHandler & _onMouseMove .~ myMoveFunction
+--  >>> emptyMouseHandler { _onMouseMove = myMoveFunction }
+emptyMouseMotionHandler :: (Monad m) => EventHandler m
+emptyMouseMotionHandler = MouseMotionHandler (const return) (const return) (const return)
 
 -- TODO? breaks if button array not of sufficient size -- will be avoided by excluding constructor export
 -- |Creates a 'MouseHandler' that sets a widget’s 'MouseButtonState' properties if present,
