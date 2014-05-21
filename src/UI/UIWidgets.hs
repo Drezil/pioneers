@@ -2,9 +2,10 @@
 
 module UI.UIWidgets (module UI.UIWidgets, module UI.UIBase) where
 
+import           Control.Concurrent.STM.TVar          (readTVarIO)
 import           Control.Lens                         ((^.), (.~), (%~), (&))
 import           Control.Monad
--- import           Control.Monad.IO.Class               (liftIO)
+import           Control.Monad.IO.Class               (liftIO)
 import           Control.Monad.RWS.Strict             (get, modify)
 import           Data.List
 import           Data.Maybe
@@ -57,11 +58,12 @@ createViewport btn bnd chld prio = Widget (rectangularBase bnd chld prio "VWP")
         let press btn' (x, y) _ w =
               do when (btn == btn') $ do
                      state <- get
+                     cam <- liftIO $ readTVarIO (state ^. camera)
                      modify $ mouse %~ (isDragging .~ True)
                                      . (dragStartX .~ fromIntegral x)
                                      . (dragStartY .~ fromIntegral y)
-                                     . (dragStartXAngle .~ (state ^. camera.xAngle))
-                                     . (dragStartYAngle .~ (state ^. camera.yAngle))
+                                     . (dragStartXAngle .~ (cam ^. xAngle))
+                                     . (dragStartYAngle .~ (cam ^. yAngle))
                                      . (mousePosition.Types._x .~ fromIntegral x)
                                      . (mousePosition.Types._y .~ fromIntegral y)
                  return w

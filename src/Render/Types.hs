@@ -4,6 +4,10 @@ module Render.Types (createFlatCam, createSphereCam, Camera, GLCamera(..)) where
 import Linear
 import Foreign.C (CFloat)
 import Render.Misc (lookAt)
+import Map.Map (giveMapHeight)
+import Map.Types (PlayMap)
+import GHC.Float
+import qualified Debug.Trace as D
 
 type Distance = Double
 type Pitch = Double
@@ -11,30 +15,32 @@ type Yaw = Double
 
 class GLCamera a where
   getCam :: a -> Distance -> Pitch -> Yaw -> M44 CFloat
-  moveBy :: a -> (Position -> Position) -> a
-  move   :: a -> Position -> a
+  moveBy :: a -> (Position -> Position) -> PlayMap -> a
+  move   :: a -> Position -> PlayMap -> a
 
 type Position = (Double, Double)
 
 type Radius = Double
 
-data Camera = Flat Position
+type Height = Double
+
+data Camera = Flat Position Height
             | Sphere Position Radius
 
 -- | create a Flatcam-Camera starting at given x/z-Coordinates
-createFlatCam :: Double -> Double -> Camera
-createFlatCam x z = Flat (x,z)
+createFlatCam :: Double -> Double -> PlayMap -> Camera
+createFlatCam x z map' = Flat (x,z) (giveMapHeight map' (x, z))
 
 -- | create a Flatcam-Camera starting at given pitch/azimuth/radius
 createSphereCam :: Double -> Double -> Double -> Camera
-createSphereCam p a r = Sphere (p,a) r
+createSphereCam p a = Sphere (p,a)
 
 
 instance GLCamera Camera where
-  getCam (Flat (x',z')) dist' xa' ya' =
+  getCam (Flat (x',z') y') dist' xa' ya' =
         lookAt (cpos ^+^ at') at' up
                      where
-                        at'   = V3 x 0 z
+                        at'   = V3 x (y+2) z
                         cpos  = crot !* (V3 0 0 (-dist))
                         crot  = (
                                 (fromQuaternion $ axisAngle upmap (xa::CFloat))
@@ -44,6 +50,7 @@ instance GLCamera Camera where
                         upmap = ((fromQuaternion $ axisAngle (V3 0 1 0) (ya::CFloat)) :: M33 CFloat)
                                 !* (V3 1 0 0)
                         x     = realToFrac x'
+                        y     = realToFrac y'
                         z     = realToFrac z'
                         dist  = realToFrac dist'
                         xa    = realToFrac xa'
@@ -68,9 +75,12 @@ instance GLCamera Camera where
                         dist  = realToFrac dist'
                         xa    = realToFrac xa'
                         ya    = realToFrac ya'
-  moveBy (Sphere (inc, az) r) f = undefined
-  moveBy (Flat (x', z')) f = Flat (f (x',z'))
-  move c (x', z') = moveBy c (\(x,z) -> (x+x',z+z'))
+  moveBy (Sphere (inc, az) r) f map = undefined
+  moveBy (Flat (x', z') y) f map = Flat (x,z) y
+				where
+					(x,z) = f (x', z')
+					y     = giveMapHeight map (x,z)
+  move c (x', z') map = moveBy c (\(x,z) -> (x+x',z+z')) map
 
 sphereToCart :: (Floating a) => a -> a -> a -> V3 a
 sphereToCart r inc az = V3

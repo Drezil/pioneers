@@ -2,8 +2,8 @@ module Map.Map where
 
 import Map.Types
 
-import Data.Array (bounds)
-import Data.List  (sort, group)
+import Data.Array    (bounds, (!))
+import Data.List     (sort, group)
 
 -- WARNING: Does NOT Check for neighbours exceeding maximum map coordinates yet.
 unsafeGiveNeighbours :: (Int, Int)  -- ^ original coordinates
@@ -35,6 +35,57 @@ giveNeighbourhood :: PlayMap      -- ^ map on which to find neighbourhood
 giveNeighbourhood _  0 (a,b) = [(a,b)]
 giveNeighbourhood mp n (a,b) = let ns = giveNeighbours mp (a,b) in 
                              remdups . concat $ ns : map (giveNeighbourhood mp (n-1)) ns
+
+-- | Calculates the height of any given point on the map.
+-- Does not add camera distance to ground to that.
+giveMapHeight :: PlayMap
+             -> (Double, Double)
+             -> Double
+giveMapHeight mop (x, z)
+  | outsideMap (x,z') = 0.0
+  | otherwise         = sum $ map (\(p,d) -> (hlu p) * (1 - (d / totald))) tups
+  where
+    z' = z * 2/(sqrt 3)
+
+    outsideMap :: (Double, Double) -> Bool
+    outsideMap (mx, mz) = let ((a,b),(c,d)) = bounds mop
+                              fr = fromIntegral
+                          in  mx < (fr a) || mx > (fr c) || mz < (fr b) || mz > (fr d)
+
+    -- Height LookUp on PlayMap
+    hlu :: (Int, Int) -> Double
+    hlu (k,j) = let (Node _ (_,_,y) _ _ _ _ _ _) = mop ! (k,j) in y
+
+    -- reference Points
+    refs :: [(Int, Int)]
+    refs = remdups $ map clmp $ map (tadd (floor x, floor z')) mods
+      where
+        mods = [(-1,-1),(-1,2),(0,0),(0,1),(1,0),(1,1),(2,-1),(2,2)]
+        tadd (a,b) (c,d) = (a+b,c+d)
+
+    -- tupels with reference point and distance
+    tups = map (\t -> (t, dist (x,z') t)) refs
+
+    -- total distance of all for reference point from the point in question
+    totald = sum $ map (\(_,d) -> d) tups
+
+    -- clamp, as she is programmed
+    clamp :: (Ord a) => a -> a -> a -> a
+    clamp mn mx = max mn . min mx
+
+    -- clamp for tupels
+    clmp :: (Int, Int) -> (Int, Int)
+    clmp (a,b) = let ((xmin,zmin),(xmax,zmax)) = bounds mop
+                 in  ((clamp (xmin+2) (xmax-2) a),(clamp (zmin+2) (zmax-2) b))
+
+    -- Real distance on PlayMap
+    dist :: (Double, Double) -> (Int, Int) -> Double
+    dist (x1,z1) pmp = let xf = x1 - realx 
+                           zf = z1 - realz
+                       in  sqrt $ xf*xf + zf*zf
+      where
+        realx = (\(Node _ (nx,_,_) _ _ _ _ _ _) -> nx) (mop ! pmp)
+        realz = (\(Node _ (_,nz,_) _ _ _ _ _ _) -> nz) (mop ! pmp)
 
 -- removing duplicates in O(n log n), losing order and adding Ord requirement
 remdups :: Ord a => [a] -> [a]

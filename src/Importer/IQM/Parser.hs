@@ -13,6 +13,8 @@ import Data.ByteString.Char8 (pack)
 import Data.ByteString (split, null, ByteString)
 import Data.ByteString.Unsafe (unsafeUseAsCString)
 import qualified Data.ByteString as B
+import Graphics.GLUtil
+import Graphics.Rendering.OpenGL.GL.BufferObjects
 import Data.Word
 import Data.Int
 import Unsafe.Coerce
@@ -211,9 +213,28 @@ parseIQM a =
 	-- Fill Vertex-Arrays with data of Offsets
 	let 	va = vertexArrays raw
 	va' <- mapM (readInVAO f) va
-	return $ raw {
-		vertexArrays = va'
+        vbo <- sequence $ map toVBOfromVAO va
+	return $ raw
+		{ vertexArrays = va'
+                , vertexArrayObjects = vbo
 		}
+
+-- | Creates a BufferObject on the Graphicscard for each BufferObject
+
+toVBOfromVAO :: IQMVertexArray -> IO BufferObject
+toVBOfromVAO (IQMVertexArray type' _ _ num _ ptr) =
+	fromPtr (toBufferTargetfromVAType type') (fromIntegral num) ptr
+
+-- | translates from VA-type to BufferTarget
+
+toBufferTargetfromVAType :: IQMVertexArrayType -> BufferTarget
+toBufferTargetfromVAType IQMPosition      = ArrayBuffer
+toBufferTargetfromVAType IQMTexCoord      = TextureBuffer
+toBufferTargetfromVAType IQMNormal        = ArrayBuffer
+toBufferTargetfromVAType IQMBlendIndexes  = ElementArrayBuffer
+toBufferTargetfromVAType IQMBlendWeights  = ArrayBuffer
+toBufferTargetfromVAType IQMColor         = ArrayBuffer
+toBufferTargetfromVAType _                = ArrayBuffer
 
 -- | Allocates memory for the Vertex-data and copies it over there
 --   from the given input-String
@@ -254,6 +275,7 @@ doIQMparse =
 	                , texts = filter (not.null) (split (unsafeCoerce '\0') text)
 	                , meshes = meshes'
 			, vertexArrays = vaf
+                        , vertexArrayObjects = [] --initialized later, after vaf get allocated.
 	                }
 
 -- | Helper-Function for Extracting a random substring out of a Bytestring

@@ -12,8 +12,8 @@ import           Control.Arrow                        ((***))
 
 -- data consistency/conversion
 import           Control.Concurrent                   (threadDelay)
-import           Control.Concurrent.STM               (TQueue,
-                                                       newTQueueIO)
+import           Control.Concurrent.STM               (TQueue, newTQueueIO, atomically)
+import           Control.Concurrent.STM.TVar          (newTVarIO, writeTVar, readTVar)
 
 import           Control.Monad.RWS.Strict             (ask, evalRWST, get, liftIO, modify)
 import           Data.Functor                         ((<$>))
@@ -43,6 +43,7 @@ import           Render.Render                        (initRendering,
 import           Render.Types
 import           UI.Callbacks
 import           Map.Graphics
+import           Map.Creation                          (exportedMap)
 import           Types
 import qualified UI.UIBase as UI
 import           Importer.IQM.Parser
@@ -54,7 +55,7 @@ import           Importer.IQM.Parser
 --------------------------------------------------------------------------------
 
 testParser :: String -> IO ()
-testParser a = putStrLn . show  =<< parseIQM a
+testParser a = print  =<< parseIQM a
 {-do
         f <- B.readFile a
         putStrLn "reading in:"
@@ -86,22 +87,33 @@ main =
         (SDL.Size fbWidth fbHeight) <- SDL.glGetDrawableSize window'
         initRendering
         --generate map vertices
-        glMap' <- initMapShader 4 =<< getMapBufferObject
+        curMap <- exportedMap
+        glMap' <- initMapShader 4 =<< getMapBufferObject curMap
         eventQueue <- newTQueueIO :: IO (TQueue SDL.Event)
         now <- getCurrentTime
         --font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
         --TTF.setFontStyle font TTFNormal
         --TTF.setFontHinting font TTFHNormal
-
-        glHud' <- initHud
-        let zDistClosest'  = 1
-            zDistFarthest' = zDistClosest' + 50
-            --TODO: Move near/far/fov to state for runtime-changability & central storage
+        let
             fov           = 90  --field of view
             near          = 1   --near plane
             far           = 500 --far plane
             ratio         = fromIntegral fbWidth / fromIntegral fbHeight
             frust         = createFrustum fov near far ratio
+        cam' <- newTVarIO CameraState
+                        { _xAngle              = pi/6
+                        , _yAngle              = pi/2
+                        , _zDist               = 10
+                        , _frustum             = frust
+                        , _camObject           = createFlatCam 25 25 curMap
+                        }
+        game' <- newTVarIO GameState
+                        { _currentMap          = curMap
+                        }
+        glHud' <- initHud
+        let zDistClosest'  = 2
+            zDistFarthest' = zDistClosest' + 10
+            --TODO: Move near/far/fov to state for runtime-changability & central storage
             (guiMap, guiRoots) = createGUI
             aks = ArrowKeyState {
                   _up       = False
@@ -121,17 +133,11 @@ main =
                         , _height              = fbHeight
                         , _shouldClose         = False
                         }
-              , _camera              = CameraState
-                        { _xAngle              = pi/6
-                        , _yAngle              = pi/2
-                        , _zDist               = 10
-                        , _frustum             = frust
-                        , _camObject           = createFlatCam 25 25
-                        }
               , _io                  = IOState
                         { _clock               = now
                         , _tessClockFactor     = 0
                         }
+              , _camera              = cam'
               , _mouse               = MouseState
                         { _isDragging          = False
                         , _dragStartX          = 0
@@ -152,9 +158,7 @@ main =
                         , _glRenderbuffer      = renderBuffer
                         , _glFramebuffer       = frameBuffer
                         }
-              , _game                = GameState
-                        {
-                        }
+              , _game                = game'
               , _ui                  = UIState
                         { _uiHasChanged        = True
                         , _uiMap = guiMap
@@ -204,20 +208,26 @@ run = do
                   | otherwise          = newYAngle'
               newYAngle' = sodya + myrot/100
 
-          modify $ ((camera.xAngle) .~ newXAngle)
-                 . ((camera.yAngle) .~ newYAngle)
+          liftIO $ atomically $ do
+              cam <- readTVar (state ^. camera)
+              cam' <- return $ (xAngle .~ newXAngle) . (yAngle .~ newYAngle) $ cam
+              writeTVar (state ^. camera) cam'
 
     -- get cursor-keys - if pressed
     --TODO: Add sin/cos from stateYAngle
     (kxrot, kyrot) <- fmap (join (***) fromIntegral) getArrowMovement
-    let
-        multc = cos $ state ^. camera.yAngle
-        mults = sin $ state ^. camera.yAngle
-        modx x' = x' - 0.2 * kxrot * multc
-                     - 0.2 * kyrot * mults
-        mody y' = y' + 0.2 * kxrot * mults
-                     - 0.2 * kyrot * multc
-    modify $ camera.camObject %~ (\c -> moveBy c (\(x,y) -> (modx x,mody y)))
+    liftIO $ atomically $ do
+        cam <- readTVar (state ^. camera)
+        game' <- readTVar (state ^. game)
+        let
+            multc = cos $ cam ^. yAngle
+            mults = sin $ cam ^. yAngle
+            modx x' = x' - 0.2 * kxrot * multc
+                         - 0.2 * kyrot * mults
+            mody y' = y' + 0.2 * kxrot * mults
+                         - 0.2 * kyrot * multc
+        cam' <- return $ camObject %~ (\c -> moveBy c (\(x,y) -> (modx x,mody y)) (game' ^. currentMap)) $ cam
+        writeTVar (state ^. camera) cam'
 
     {-
     --modify the state with all that happened in mt time.
@@ -233,7 +243,7 @@ run = do
 		targetFrametime = 1.0/targetFramerate
 		--targetFrametimeμs = targetFrametime * 1000000.0
         now <- getCurrentTime
-        let diff  = diffUTCTime now (state ^. io.clock) -- get time-diffs
+        let diff  = max 0.1 $ diffUTCTime now (state ^. io.clock) -- get time-diffs
             title = unwords ["Pioneers @ ",show ((round . double $ 1.0/diff)::Int),"fps"]
             ddiff = double diff
         SDL.setWindowTitle (env ^. windowObject) title
@@ -287,7 +297,10 @@ adjustWindow = do
         ratio         = fromIntegral fbWidth / fromIntegral fbHeight
         frust         = createFrustum fov near far ratio
     liftIO $ glViewport 0 0 (fromIntegral fbWidth) (fromIntegral fbHeight)
-    modify $ camera.frustum .~ frust
+    liftIO $ atomically $ do
+        cam <- readTVar (state ^. camera)
+        cam' <- return $ frustum .~ frust $ cam
+        writeTVar (state ^. camera) cam'
     rb <- liftIO $ do
                    -- bind ints to CInt for lateron.
                    let fbCWidth  = (fromInteger.toInteger) fbWidth
@@ -305,6 +318,7 @@ adjustWindow = do
 
                    let hudtexid = state ^. gl.glHud.hudTexture
                        maptexid = state ^. gl.glMap.renderedMapTexture
+                       smaptexid = state ^. gl.glMap.shadowMapTexture
                    allocaBytes (fbWidth*fbHeight*4) $ \ptr -> do
                                                                --default to ugly pink to see if
                                                                --somethings go wrong.
@@ -321,6 +335,13 @@ adjustWindow = do
                         textureFilter  Texture2D GL.$= ((Linear', Nothing), Linear')
                         texImage2D Texture2D GL.NoProxy 0 RGBA8 (GL.TextureSize2D fbCWidth fbCHeight) 0
                                                 (GL.PixelData GL.RGBA GL.UnsignedByte ptr)
+                   allocaBytes (2048*2048) $ \ptr -> do
+                        let smapdata = genColorData (2048*2048) [0]
+                        pokeArray ptr smapdata
+                        textureBinding Texture2D GL.$= Just smaptexid
+                        textureFilter  Texture2D GL.$= ((Nearest,Nothing), Nearest)
+                        texImage2D Texture2D GL.NoProxy 0 GL.DepthComponent16 (GL.TextureSize2D 2048 2048) 0
+                                                (GL.PixelData GL.DepthComponent GL.UnsignedByte ptr)
                    checkError "setting up HUD-Tex"
                    return renderBuffer
     modify $ gl.glRenderbuffer .~ rb

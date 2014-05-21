@@ -1,15 +1,15 @@
 module Map.Types
 where
 
-import Types
-
 import Data.Array
 
-type PlayMap = Array (XCoord, ZCoord) Node 
+type PlayMap = Array (Xindex, Zindex) Node 
 
-type XCoord  = Int
-type ZCoord  = Int
-type YCoord  = Float
+type Xindex  = Int
+type Zindex  = Int
+type XCoord  = Double
+type ZCoord  = Double
+type YCoord  = Double
 
 data MapType    = GrassIslandMap
                 | DesertMap
@@ -66,7 +66,67 @@ data TileType   = Ocean
                 | Mountain -- ^ Not accessible
                 deriving (Show, Eq)
 
--- TODO: Record Syntax
-data Node = Full    (XCoord, ZCoord) YCoord TileType BuildInfo PlayerInfo PathInfo ResInfo StorInfo
-          | Minimal (XCoord, ZCoord) -- defaults to empty green grass node on height 1
+-- TODO: Record Syntax?
+data Node = Node (Xindex, Zindex) (XCoord, ZCoord, YCoord) TileType BuildInfo PlayerInfo PathInfo ResInfo StorInfo
           deriving (Show)
+
+data Structure = Flag           -- Flag
+               | Woodcutter     -- Huts
+               | Forester
+               | Stonemason
+               | Fisher
+               | Hunter
+               | Barracks
+               | Guardhouse
+               | LookoutTower
+               | Well
+               | Sawmill        -- Houses
+               | Slaughterhouse
+               | Mill
+               | Bakery
+               | IronSmelter
+               | Metalworks
+               | Armory
+               | Mint
+               | Shipyard
+               | Brewery
+               | Storehouse
+               | Watchtower
+               | Catapult
+               | GoldMine       -- Mines
+               | IronMine
+               | GraniteMine
+               | CoalMine
+               | Farm           -- Castles
+               | PigFarm
+               | DonkeyBreeder
+               | Harbor
+               | Fortress
+               deriving (Show, Eq)
+
+data Amount    = Infinite   -- Neverending supply
+               | Finite Int -- Finite supply
+
+-- Extremely preliminary, expand when needed
+data Commodity = WoodPlank
+               | Sword
+               | Fish
+               deriving Eq
+
+data Resource  = Coal
+               | Iron
+               | Gold
+               | Granite
+               | Water
+               | Fishes
+               deriving (Show, Eq)
+
+instance Show Amount where
+    show (Infinite) = "inexhaustable supply"
+    show (Finite n) = show n ++ " left"
+
+instance Show Commodity where
+    show WoodPlank = "wooden plank"
+    show Sword     = "sword"
+    show Fish      = "fish"
+

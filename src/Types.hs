@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Types where
 
-import           Control.Concurrent.STM               (TQueue)
+import           Control.Concurrent.STM               (TQueue, TVar, readTVar, writeTVar, atomically)
 import qualified Graphics.Rendering.OpenGL.GL         as GL
 import           Graphics.UI.SDL                      as SDL (Event, Window)
 import           Foreign.C                            (CFloat)
@@ -9,12 +9,14 @@ import qualified Data.HashMap.Strict                  as Map
 import           Data.Time                            (UTCTime)
 import Linear.Matrix (M44)
 import Linear (V3)
-import Control.Monad.RWS.Strict (RWST)
+import Control.Monad.RWS.Strict (RWST, liftIO, get)
+import Control.Monad (when)
 import Control.Lens
 import Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
 import Render.Types
 import Importer.IQM.Types
 import UI.UIBase
+import Map.Types (PlayMap)
 
 data Coord3D a = Coord3D a a a
 
@@ -56,7 +58,7 @@ data IOState = IOState
     }
 
 data GameState = GameState
-    {
+    { _currentMap          :: !PlayMap
     }
 
 data MouseState = MouseState
@@ -100,24 +102,30 @@ data KeyboardState = KeyboardState
 
 
 data GLMapState = GLMapState
-    { _shdrVertexIndex      :: !GL.AttribLocation
-    , _shdrColorIndex       :: !GL.AttribLocation
-    , _shdrNormalIndex      :: !GL.AttribLocation
-    , _shdrProjMatIndex     :: !GL.UniformLocation
-    , _shdrViewMatIndex     :: !GL.UniformLocation
-    , _shdrModelMatIndex    :: !GL.UniformLocation
-    , _shdrNormalMatIndex   :: !GL.UniformLocation
-    , _shdrTessInnerIndex   :: !GL.UniformLocation
-    , _shdrTessOuterIndex   :: !GL.UniformLocation
+    { _mapShaderData        :: !MapShaderData
     , _stateTessellationFactor :: !Int
     , _stateMap             :: !GL.BufferObject
     , _mapVert              :: !GL.NumArrayIndices
     , _mapProgram           :: !GL.Program
     , _renderedMapTexture   :: !TextureObject --TODO: Probably move to UI?
     , _overviewTexture      :: !TextureObject
+    , _shadowMapTexture     :: !TextureObject
     , _mapTextures          :: ![TextureObject] --TODO: Fix size on list?
     , _objectProgram        :: !GL.Program
     , _mapObjects           :: ![MapObject]
+    , _shadowMapProgram     :: !GL.Program
+    }
+
+data MapShaderData = MapShaderData
+    { shdrVertexIndex      :: !GL.AttribLocation
+    , shdrColorIndex       :: !GL.AttribLocation
+    , shdrNormalIndex      :: !GL.AttribLocation
+    , shdrProjMatIndex     :: !GL.UniformLocation
+    , shdrViewMatIndex     :: !GL.UniformLocation
+    , shdrModelMatIndex    :: !GL.UniformLocation
+    , shdrNormalMatIndex   :: !GL.UniformLocation
+    , shdrTessInnerIndex   :: !GL.UniformLocation
+    , shdrTessOuterIndex   :: !GL.UniformLocation
     }
 
 data MapObject = MapObject !IQM !MapCoordinates !MapObjectState
@@ -153,12 +161,12 @@ data UIState = UIState
 
 data State = State
     { _window              :: !WindowState
-    , _camera              :: !CameraState
+    , _camera              :: TVar CameraState
     , _io                  :: !IOState
     , _mouse               :: !MouseState
     , _keyboard            :: !KeyboardState
     , _gl                  :: !GLState
-    , _game                :: !GameState
+    , _game                :: TVar GameState
     , _ui                  :: !UIState
     }
 
@@ -180,63 +188,18 @@ $(makeLenses ''Position)
 $(makeLenses ''Env)
 $(makeLenses ''UIState)
 
-data Structure = Flag           -- Flag
-               | Woodcutter     -- Huts
-               | Forester
-               | Stonemason
-               | Fisher
-               | Hunter
-               | Barracks
-               | Guardhouse
-               | LookoutTower
-               | Well
-               | Sawmill        -- Houses
-               | Slaughterhouse
-               | Mill
-               | Bakery
-               | IronSmelter
-               | Metalworks
-               | Armory
-               | Mint
-               | Shipyard
-               | Brewery
-               | Storehouse
-               | Watchtower
-               | Catapult
-               | GoldMine       -- Mines
-               | IronMine
-               | GraniteMine
-               | CoalMine
-               | Farm           -- Castles
-               | PigFarm
-               | DonkeyBreeder
-               | Harbor
-               | Fortress
-               deriving (Show, Eq)
+-- helper-functions for types
 
-data Amount    = Infinite   -- Neverending supply
-               | Finite Int -- Finite supply
+-- | atomically change gamestate on condition
+changeIfGamestate :: (GameState -> Bool) -> (GameState -> GameState) -> Pioneers ()
+changeIfGamestate cond f = do
+	state <- get
+	liftIO $ atomically $ do
+		game' <- readTVar (state ^. game)
+		when (cond game') (writeTVar (state ^. game) (f game'))
 
--- Extremely preliminary, expand when needed
-data Commodity = WoodPlank
-               | Sword
-               | Fish
-               deriving Eq
 
-data Resource  = Coal
-               | Iron
-               | Gold
-               | Granite
-               | Water
-               | Fishes
-               deriving (Show, Eq)
-
-instance Show Amount where
-    show (Infinite) = "inexhaustable supply"
-    show (Finite n) = show n ++ " left"
-
-instance Show Commodity where
-    show WoodPlank = "wooden plank"
-    show Sword     = "sword"
-    show Fish      = "fish"
+-- | atomically change gamestate
+changeGamestate :: (GameState -> GameState) -> Pioneers ()
+changeGamestate = changeIfGamestate (const True) 
 

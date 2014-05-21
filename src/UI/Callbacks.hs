@@ -13,6 +13,8 @@ import           Data.Maybe
 import           Foreign.Marshal.Array                (pokeArray)
 import           Foreign.Marshal.Alloc                (allocaBytes)
 import qualified Graphics.UI.SDL                      as SDL
+import           Control.Concurrent.STM.TVar          (readTVar, readTVarIO, writeTVar)
+import           Control.Concurrent.STM               (atomically)
 
 
 import Render.Misc                                    (curb,genColorData)
@@ -102,6 +104,7 @@ eventCallback e = do
                         return ()
             SDL.MouseMotion _ _ _ (SDL.Position x y) _ _ -> -- windowID mouseID motionState motionPosition xrel yrel
                 mouseMoveHandler (x, y)
+
             SDL.MouseButton _ _ button state (SDL.Position x y) -> -- windowID mouseID button buttonState buttonAt
                case state of
                     SDL.Pressed -> maybe (return ()) (`mousePressHandler` (x, y)) $ transformButton button
@@ -110,8 +113,13 @@ eventCallback e = do
             SDL.MouseWheel _ _ _ vscroll -> -- windowID mouseID hScroll vScroll
                 do -- TODO: MouseWheelHandler
                 state <- get
-                let zDist' = (state ^. camera.zDist) + realToFrac (negate vscroll) in
-                  modify $ camera.zDist .~ curb (env ^. zDistClosest) (env ^. zDistFarthest) zDist'
+                liftIO $ atomically $ do
+                    cam <- readTVar (state ^. camera)
+                    let zDist' = (cam ^. zDist) + realToFrac (negate vscroll)
+                        zDist'' = curb (env ^. zDistClosest) (env ^. zDistFarthest) zDist'
+                    cam' <- return $ zDist .~ zDist'' $ cam
+                    writeTVar (state ^. camera) cam'
+                  
             -- there is more (joystic, touchInterface, ...), but currently ignored
             SDL.Quit -> modify $ window.shouldClose .~ True
             _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:", show e]
