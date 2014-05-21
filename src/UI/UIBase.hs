@@ -124,7 +124,7 @@ data EventHandler m =
         --  The boolean value indicates if the button press happened within the widget
         --  ('_isInside').
         --  
-        --  The function returns the altered widget resulting from the button press
+        --  The function returns the altered widget resulting from the button press.
         _onMousePress :: MouseButton -> Pixel -> Bool -> GUIWidget m -> m (GUIWidget m)
         ,
         -- |The function 'onMouseReleased' is called when a button is released
@@ -136,7 +136,7 @@ data EventHandler m =
         --  The boolean value indicates if the button release happened within the widget
         --  ('_isInside').
         --  
-        --  The function returns the altered widget resulting from the button press
+        --  The function returns the altered widget resulting from the button press.
         _onMouseRelease :: MouseButton -> Pixel -> Bool -> GUIWidget m -> m (GUIWidget m)
         }
     |
@@ -148,9 +148,9 @@ data EventHandler m =
         -- |The function 'onMouseMove' is invoked when the mouse is moved inside the
         --  widget’s extent ('isInside') while no button is pressed or when the mouse is inside the
         --  widget’s extent while another button loses its mouse-active state. Triggered after
-        --  '_onMouseEnter'.
+        --  '_onMouseEnter' or '_onMouseLeave' (only if still mouse-active on leaving) if applicable.
         --  
-        -- The function returns the altered widget resulting from the button press
+        -- The function returns the altered widget resulting from the button press.
         _onMouseMove :: Pixel -> GUIWidget m -> m (GUIWidget m)
         ,
         -- |The function 'onMouseMove' is invoked when the mouse enters the
@@ -163,7 +163,7 @@ data EventHandler m =
         -- |The function 'onMouseLeave' is invoked when the mouse leaves the
         --  widget’s extent ('isInside') while no other widget is mouse-active.
         --  
-        -- The function returns the altered widget resulting from the button press
+        -- The function returns the altered widget resulting from the button press.
         _onMouseLeave :: Pixel -> GUIWidget m -> m (GUIWidget m)
         }
     deriving ()

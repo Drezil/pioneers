@@ -220,7 +220,9 @@ mouseSetLeaving wid px = do
     modify $ ui.uiButtonState.mouseInside .~ False
     case target ^. eventHandlers.(at MouseMotionEvent) of --existing handler?
          Just ma -> do
-             target' <- fromJust (ma ^? onMouseLeave) px target --TODO unsafe fromJust
+             target_ <- fromJust (ma ^? onMouseLeave) px target --TODO unsafe fromJust
+             target' <- if state ^. ui.uiButtonState.mousePressed <= 0 then return target_
+                        else fromJust (ma ^? onMouseMove) px target_ --TODO unsafe fromJust
              modify $ ui.uiMap %~ Map.insert wid target'
          Nothing -> return ()
         
@@ -236,7 +238,7 @@ mouseMoveHandler px = do
                   Left b -> -- no child hit
                       if b == state ^. ui.uiButtonState.mouseInside then -- > moving inside or outside
                         case target ^. eventHandlers.(at MouseMotionEvent) of --existing handler?
-                             Just ma -> do target' <- fromJust (ma ^? onMouseMove) px' target
+                             Just ma -> do target' <- fromJust (ma ^? onMouseMove) (px -: px') target
                                            modify $ ui.uiMap %~ Map.insert wid target'
                              Nothing -> return () 
                       else if b then -- && not mouseInside --> entering
