@@ -141,7 +141,7 @@ eventCallback e = do
             _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:", show e]
 
 
-mouseButtonHandler :: (EventHandler Pioneers -> MouseButton -> Pixel -> GUIWidget Pioneers -> Pioneers (GUIWidget Pioneers))
+mouseButtonHandler :: (EventHandler Pioneers -> MouseButton -> Pixel -> Bool -> GUIWidget Pioneers -> Pioneers (GUIWidget Pioneers))
                    -> MouseButton -> Pixel -> Pioneers ()
 mouseButtonHandler transFunc btn px = do
     state <- get
@@ -151,7 +151,7 @@ mouseButtonHandler transFunc btn px = do
          Just (wid, px') -> do
              let target = toGUIAny hMap wid
              target' <- case target ^. eventHandlers.(at MouseEvent) of
-                             Just ma -> transFunc ma btn (px -: px') target
+                             Just ma -> transFunc ma btn (px -: px') (state ^. ui.uiButtonState.mouseInside) target
                              Nothing  -> return target
              modify $ ui.uiMap %~ Map.insert wid target'
              return ()
@@ -259,36 +259,6 @@ mouseMoveHandler px = do
          Nothing -> do
              mouseSetMouseActive px
              
-
--- | Handler for UI-Inputs.
---   Indicates a primary click on something (e.g. left-click, touch on Touchpad, fire on Gamepad, ...
-clickHandler :: MouseButton -> Pixel -> Pioneers ()
-clickHandler btn pos@(x,y) = do
-  roots <- getRootIds
-  hits <- liftM concat $ mapM (getInsideId pos) roots
-  case hits of
-       [] -> liftIO $ putStrLn $ unwords [show btn ++ ":press on (",show x,",",show y,")"]
-       _  -> do
-         changes <- mapM (\(uid, pos') -> do
-           state <- get
-           let w = toGUIAny (state ^. ui.uiMap) uid
-               short = w ^. baseProperties.shorthand
-           bound <- w ^. baseProperties.boundary
-           prio <- w ^. baseProperties.priority
-           liftIO $ putStrLn $ "hitting(" ++ show btn ++ ") " ++ short ++ ": " ++ show bound ++ " "
-                             ++ show prio ++ " at [" ++ show x ++ "," ++ show y ++ "]"
-           case w ^. eventHandlers.(at MouseEvent) of
-                Just ma -> do w'  <- fromJust (ma ^? onMousePress) btn pos' w -- TODO unsafe fromJust
-                              w'' <- fromJust (ma ^? onMouseRelease) btn pos' w' -- TODO unsafe fromJust
-                              return $ Just (uid, w'')
-                Nothing  -> return Nothing
-           ) hits
-         state <- get
-         let hMap = state ^. ui.uiMap
-             newMap = foldl' (\hm (uid, w') -> Map.insert uid w' hm) hMap $ catMaybes changes
-         modify $ ui.uiMap .~ newMap
-         return ()
-         
 
 -- | informs the GUI to prepare a blitting of state ^. gl.glHud.hudTexture
 --

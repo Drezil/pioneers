@@ -121,16 +121,23 @@ data EventHandler m =
         -- |The function 'onMousePressed' is called when a button is pressed
         --  while the button is mouse-active.
         --  
-        -- The function returns the altered widget resulting from the button press
-        _onMousePress :: MouseButton -> Pixel -> GUIWidget m -> m (GUIWidget m)
+        --  The boolean value indicates if the button press happened within the widget
+        --  ('_isInside').
+        --  
+        --  The function returns the altered widget resulting from the button press
+        _onMousePress :: MouseButton -> Pixel -> Bool -> GUIWidget m -> m (GUIWidget m)
         ,
         -- |The function 'onMouseReleased' is called when a button is released
         --  while the widget is mouse-active.
         --  
         --  Thus, the mouse is either within the widget or outside while still dragging.
         --  
-        -- The function returns the altered widget resulting from the button press
-        _onMouseRelease :: MouseButton -> Pixel -> GUIWidget m -> m (GUIWidget m)
+        --  
+        --  The boolean value indicates if the button release happened within the widget
+        --  ('_isInside').
+        --  
+        --  The function returns the altered widget resulting from the button press
+        _onMouseRelease :: MouseButton -> Pixel -> Bool -> GUIWidget m -> m (GUIWidget m)
         }
     |
     -- |Handler to control the functionality of a 'GUIWidget' on mouse movement.
@@ -241,11 +248,11 @@ setMouseStateActions :: (Monad m) => EventHandler m
 setMouseStateActions = MouseHandler press' release'
   where 
     -- |Change 'MouseButtonState'’s '_mouseIsDragging' to @True@.
-    press' b _ w =
+    press' b _ _ w =
         return $ w & widgetStates.(ix MouseStateKey).mouseStates.(ix b).mouseIsDragging .~ True
 
     -- |Change 'MouseButtonState'’s '_mouseIsDragging' and '_mouseIsDeferred' to @False@.
-    release' b _ w =
+    release' b _ _ w =
         return $ w & widgetStates.(ix MouseStateKey).mouseStates.(ix b) %~
                 (mouseIsDragging .~ False) . (mouseIsDeferred .~ False)
 
@@ -282,10 +289,9 @@ buttonMouseActions :: (Monad m) => (MouseButton -> GUIWidget m -> Pixel -> m (GU
                                 -> EventHandler m
 buttonMouseActions a = MouseHandler press' release'
   where 
-    press' _ _ = return
+    press' _ _ _ = return
 
-    release' b p w = do fire <- (w ^. baseProperties.isInside) w p
-                        if fire then a b w p else return w
+    release' b p inside w = if inside then a b w p else return w
 
 -- TODO: make only fire if press started within widget
 -- |Creates a 'MouseHandler' that reacts on mouse clicks.
@@ -295,10 +301,9 @@ buttonSingleMouseActions :: (Monad m) => (GUIWidget m -> Pixel -> m (GUIWidget m
                                       -> MouseButton -> EventHandler m
 buttonSingleMouseActions a btn = MouseHandler press' release'
   where 
-    press' _ _ = return
+    press' _ _ _ = return
 
-    release' b p w = do fire <- liftM (b == btn &&) $ (w ^. baseProperties.isInside) w p
-                        if fire then a w p else return w
+    release' b p inside w = if inside && b == btn then a w p else return w
 
 emptyGraphics :: (Monad m) => GUIGraphics m
 emptyGraphics = Graphics (return 3)
