@@ -3,7 +3,7 @@ module UI.Callbacks where
 
 
 import qualified Graphics.Rendering.OpenGL.GL         as GL
-import           Control.Lens                         ((^.), (.~), (%~), (^?), at)
+import           Control.Lens                         ((^.), (.~), (%~), (^?), at, ix)
 import           Control.Monad                        (liftM, when, unless)
 import           Control.Monad.RWS.Strict             (ask, get, modify)
 import           Control.Monad.Trans                  (liftIO)
@@ -13,7 +13,7 @@ import           Data.Maybe
 import           Foreign.Marshal.Array                (pokeArray)
 import           Foreign.Marshal.Alloc                (allocaBytes)
 import qualified Graphics.UI.SDL                      as SDL
-import           Control.Concurrent.STM.TVar          (readTVar, readTVarIO, writeTVar)
+import           Control.Concurrent.STM.TVar          (readTVar, writeTVar)
 import           Control.Concurrent.STM               (atomically)
 
 
@@ -23,13 +23,19 @@ import UI.UIWidgets
 import UI.UIOperations
 
 -- TODO: define GUI positions in a file
-createGUI :: (Map.HashMap UIId (GUIWidget Pioneers), [UIId])
-createGUI = (Map.fromList [ (UIId 0, createViewport LeftButton (0, 0, 1024, 600) [UIId 1, UIId 2] 0) -- TODO: automatic resize
-                          , (UIId 1, createContainer (30, 215, 100, 80) [] 1)
-                          , (UIId 2, createPanel (50, 40, 0, 0) [UIId 3, UIId 4] 3)
-                          , (UIId 3, createContainer (80, 15, 130, 90) [] 4 )
-                          , (UIId 4, createButton (10, 40, 60, 130) 2 testMessage)
-                          ], [UIId 0])
+createGUI :: ScreenUnit -> ScreenUnit -> UIState
+createGUI w h = UIState
+    { _uiHasChanged     = True
+    , _uiMap            = Map.fromList [ (UIId 0, createViewport LeftButton (0, 0, w, h) [UIId 1, UIId 2] 0) -- TODO: automatic resize
+                                       , (UIId 1, createContainer (30, 215, 100, 80) [] 1)
+                                       , (UIId 2, createPanel (50, 40, 0, 0) [UIId 3, UIId 4] 3)
+                                       , (UIId 3, createContainer (80, 15, 130, 90) [] 4 )
+                                       , (UIId 4, createButton (10, 40, 60, 130) 2 testMessage)
+                                       ]
+    , _uiObserverEvents = Map.fromList [(WindowEvent, [resizeToScreenHandler (UIId 0)])]
+    , _uiRoots          = [UIId 0]
+    , _uiButtonState    = UIButtonState 0 Nothing False
+    }
          
 getGUI :: Map.HashMap UIId (GUIWidget Pioneers) -> [GUIWidget Pioneers]
 getGUI = Map.elems
@@ -69,9 +75,10 @@ eventCallback :: SDL.Event -> Pioneers ()
 eventCallback e = do
         env <- ask
         case SDL.eventData e of
-            SDL.Window _ _ -> -- windowID event
-                -- TODO: resize GUI
-                return ()
+            SDL.Window _ ev -> -- windowID event
+                case ev of
+                     SDL.Resized (SDL.Size x y) -> windowResizeHandler x y
+                     _ -> return ()
             SDL.Keyboard movement _ _ key -> -- keyMovement windowID keyRepeat keySym
                      -- need modifiers? use "keyModifiers key" to get them
                 let aks = keyboard.arrowsPressed in
@@ -125,7 +132,18 @@ eventCallback e = do
             _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:", show e]
 
 
-mouseButtonHandler :: (EventHandler Pioneers -> MouseButton -> Pixel -> Bool -> GUIWidget Pioneers -> Pioneers (GUIWidget Pioneers))
+windowResizeHandler :: ScreenUnit -> ScreenUnit -> Pioneers ()
+windowResizeHandler x y = do
+    state <- get
+    case state ^. ui.uiObserverEvents.(at WindowEvent) of
+         Just evs -> let handle :: EventHandler Pioneers -> Pioneers (EventHandler Pioneers)
+                         handle (WindowHandler h _) = h x y
+                         handle h = return h -- TODO: may log invalid event mapping
+           in do newEvs <- mapM handle evs
+                 modify $ ui.uiObserverEvents.(ix WindowEvent) .~ newEvs
+         Nothing -> return ()
+
+mouseButtonHandler :: (WidgetEventHandler Pioneers -> MouseButton -> Pixel -> Bool -> GUIWidget Pioneers -> Pioneers (GUIWidget Pioneers))
                    -> MouseButton -> Pixel -> Pioneers ()
 mouseButtonHandler transFunc btn px = do
     state <- get
@@ -279,7 +297,7 @@ copyGUI tex (vX, vY) widget = do
                             --temporary color here. lateron better some getData-function to
                             --get a list of pixel-data or a texture.
                             color = case widget ^. baseProperties.shorthand of
-                                "VWP" -> [0,128,128,30]
+                                "VWP" -> [0,128,128,0]
                                 "CNT" -> [255,0,0,128]
                                 "BTN" -> [255,255,0,255]
                                 "PNL" -> [128,128,128,128]

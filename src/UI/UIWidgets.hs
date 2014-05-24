@@ -13,6 +13,7 @@ import qualified Data.HashMap.Strict as Map
 
 import           Types
 import UI.UIBase
+import UI.UIOperations
 
 
 createContainer :: (Monad m) => (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> [UIId] -> Int -> GUIWidget m
@@ -53,7 +54,7 @@ createViewport btn bnd chld prio = Widget (rectangularBase bnd chld prio "VWP")
                                     (Map.fromList [(MouseEvent, viewportMouseAction)
                                                   ,(MouseMotionEvent, viewportMouseMotionAction)]) -- event handlers
   where
-    viewportMouseAction :: EventHandler Pioneers
+    viewportMouseAction :: WidgetEventHandler Pioneers
     viewportMouseAction =
         let press btn' (x, y) _ w =
               do when (btn == btn') $ do
@@ -71,7 +72,7 @@ createViewport btn bnd chld prio = Widget (rectangularBase bnd chld prio "VWP")
                                     return w
         in MouseHandler press release
     
-    viewportMouseMotionAction :: EventHandler Pioneers
+    viewportMouseMotionAction :: WidgetEventHandler Pioneers
     viewportMouseMotionAction =
         let move (x, y) w =
               do state <- get
@@ -80,3 +81,18 @@ createViewport btn bnd chld prio = Widget (rectangularBase bnd chld prio "VWP")
                                         . (mousePosition.Types._y .~ fromIntegral y)
                  return w
         in emptyMouseMotionHandler & onMouseMove .~ move
+        
+resizeToScreenHandler :: UIId -- ^id of a widget
+                      -> EventHandler Pioneers
+resizeToScreenHandler id' = WindowHandler resize (UIId 0) -- TODO: unique id
+  where resize :: ScreenUnit -> ScreenUnit -> Pioneers (EventHandler Pioneers)
+        resize w h = do
+            state <- get
+            let wg = toGUIAny (state ^. ui.uiMap) id'
+            (x, y, _, _) <- wg ^. baseProperties.boundary
+            let wg' = wg & baseProperties.boundary .~ return (x, y, w-x, h-y)
+            modify $ ui.uiMap %~ Map.insert id' wg'
+            return $ WindowHandler resize (UIId 0)
+            
+            
+            

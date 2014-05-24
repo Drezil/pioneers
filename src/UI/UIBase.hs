@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell, DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell, DeriveGeneric, KindSignatures #-}
 -- widget data is separated into several modules to avoid cyclic dependencies with the Type module
 -- TODO: exclude UIMouseState constructor from export?
 module UI.UIBase where
@@ -87,7 +87,7 @@ data MouseButtonState = MouseButtonState
       -- ^deferred if e. g. dragging but outside component
     } deriving (Eq, Show)
     
--- |An applied state a widget may take, depending on its usage and event handlers.
+-- |An applied state a widget may take, depending on its usage and event handlers. Corresponding Key: 'WidgetStateKey'. 
 data WidgetState = 
     -- |The state of a mouse reactive ui widget. Referenced by 'MouseStateKey'.
     MouseState
@@ -101,18 +101,18 @@ data WidgetState =
 --- events
 ---------------------------
 
--- |A key to reference a specific 'EventHandler'.
-data EventKey = MouseEvent | MouseMotionEvent
+-- |A key to reference a specific 'WidgetEventHandler'.
+data WidgetEventKey = MouseEvent | MouseMotionEvent
     deriving (Eq, Ord, Enum, Ix, Bounded, Generic, Show, Read)
     
-instance Hashable EventKey where -- TODO: generic deriving creates functions that run forever
+instance Hashable WidgetEventKey where -- TODO: generic deriving creates functions that run forever
     hash = fromEnum
     hashWithSalt salt x = (salt * 16777619)  `xor` hash x
 
 --- event handlers
 
--- |A handler to react on certain events.
-data EventHandler m = 
+-- |A handler to react on certain events. Corresponding key: 'WidgetEventKey'.
+data WidgetEventHandler m = 
     -- |Handler to control the functionality of a 'GUIWidget' on mouse button events.
     --  
     --  All screen coordinates are widget-local coordinates.
@@ -168,6 +168,34 @@ data EventHandler m =
         }
     deriving ()
 
+-- |A key to reference a specific 'EventHandler'.
+data EventKey = WindowEvent | WidgetPositionEvent 
+    deriving (Eq, Ord, Enum, Ix, Bounded, Generic, Show, Read)
+
+instance Hashable EventKey where -- TODO: generic deriving creates functions that run forever
+    hash = fromEnum
+    hashWithSalt salt x = (salt * 16777619)  `xor` hash x
+
+ -- |A handler to react on certain events. Corresponding key: 'EventKey'.
+data EventHandler (m :: * -> *) = 
+    WindowHandler
+        {
+        -- |The function '_onWindowResize' is invoked when the global application window changes size.
+        --  
+        --  The input is the window’s new width and height in that order.
+        --  
+        --  The returned handler is resulting handler that may change by the event. Its type must
+        --  remain @WindowHandler@. 
+        _onWindowResize :: ScreenUnit -> ScreenUnit -> m (EventHandler m)
+        ,
+        -- |Unique id to identify an event instance.
+        _eventId :: UIId
+        }
+    
+instance Eq (EventHandler m) where
+    WindowHandler _ id' == WindowHandler _ id'' = id' == id''
+    _ == _ = False
+
 
 ---------------------------
 --- widgets
@@ -178,7 +206,7 @@ data GUIWidget m = Widget
     {_baseProperties :: GUIBaseProperties m
     ,_graphics :: GUIGraphics m
     ,_widgetStates :: Map.HashMap WidgetStateKey WidgetState -- TODO? unsave mapping
-    ,_eventHandlers :: Map.HashMap EventKey (EventHandler m) -- no guarantee that data match key
+    ,_eventHandlers :: Map.HashMap WidgetEventKey (WidgetEventHandler m) -- no guarantee that data match key
     }
 
 -- |Base properties are fundamental settings of any 'GUIWidget'.
@@ -217,13 +245,12 @@ data GUIBaseProperties m = BaseProperties
 
 -- |@GUIGraphics@ functions define the look of a 'GUIWidget'.
 
-data GUIGraphics m = Graphics 
-    {temp :: m Int}
+data GUIGraphics (m :: * -> *) = Graphics
 
 $(makeLenses ''UIButtonState)
 $(makeLenses ''WidgetState)
 $(makeLenses ''MouseButtonState)
-$(makeLenses ''EventHandler)
+$(makeLenses ''WidgetEventHandler)
 $(makeLenses ''GUIWidget)
 $(makeLenses ''GUIBaseProperties)
 $(makeLenses ''GUIGraphics)
@@ -244,11 +271,11 @@ initialMouseState = MouseState (array (minBound, maxBound) [(i, initialButtonSta
 --  second handler and all other parameters are the same for both function calls.
 --  
 --  If not both input handlers are of type @MouseHandler@ an error is raised.
-combinedMouseHandler :: (Monad m) => EventHandler m -> EventHandler m -> EventHandler m
+combinedMouseHandler :: (Monad m) => WidgetEventHandler m -> WidgetEventHandler m -> WidgetEventHandler m
 combinedMouseHandler (MouseHandler p1 r1) (MouseHandler p2 r2) =
     MouseHandler (comb p1 p2) (comb r1 r2)
   where comb h1 h2 btn px inside = join . liftM (h2 btn px inside) . h1 btn px inside
-combinedMouseHandler _ _ = error $ "combineMouseHandler can only combine two EventHandler" ++
+combinedMouseHandler _ _ = error $ "combineMouseHandler can only combine two WidgetEventHandler" ++
     " with constructor MouseHandler"
 
 -- |The function 'combinedMouseMotionHandler' creates a 'MouseHandler' by composing the action
@@ -256,11 +283,11 @@ combinedMouseHandler _ _ = error $ "combineMouseHandler can only combine two Eve
 --  widget of the second handler and all other parameters are the same for both function calls.
 --  
 --  If not both input handlers are of type @MouseMotionHandler@ an error is raised.
-combinedMouseMotionHandler :: (Monad m) => EventHandler m -> EventHandler m -> EventHandler m
+combinedMouseMotionHandler :: (Monad m) => WidgetEventHandler m -> WidgetEventHandler m -> WidgetEventHandler m
 combinedMouseMotionHandler (MouseMotionHandler m1 e1 l1) (MouseMotionHandler m2 e2 l2) =
     MouseMotionHandler (comb m1 m2) (comb e1 e2) (comb l1 l2)
   where comb h1 h2 px = join . liftM (h2 px) . h1 px
-combinedMouseMotionHandler _ _ = error $ "combineMouseMotionHandler can only combine two EventHandler" ++
+combinedMouseMotionHandler _ _ = error $ "combineMouseMotionHandler can only combine two WidgetEventHandler" ++
     " with constructor MouseMotionHandler" 
 
 -- |The function 'emptyMouseHandler' creates a 'MouseHandler' that does nothing.
@@ -268,7 +295,7 @@ combinedMouseMotionHandler _ _ = error $ "combineMouseMotionHandler can only com
 --  
 --  >>> emptyMouseHandler & _onMousePress .~ myPressFunction
 --  >>> emptyMouseHandler { _onMousePress = myPressFunction }
-emptyMouseHandler :: (Monad m) => EventHandler m
+emptyMouseHandler :: (Monad m) => WidgetEventHandler m
 emptyMouseHandler = MouseHandler (\_ _ _ -> return) (\_ _ _ -> return)
 
 -- |The function 'emptyMouseMotionHandler' creates a 'MouseMotionHandler' that does nothing.
@@ -276,13 +303,13 @@ emptyMouseHandler = MouseHandler (\_ _ _ -> return) (\_ _ _ -> return)
 --  
 --  >>> emptyMouseMotionHandler & _onMouseMove .~ myMoveFunction
 --  >>> emptyMouseHandler { _onMouseMove = myMoveFunction }
-emptyMouseMotionHandler :: (Monad m) => EventHandler m
+emptyMouseMotionHandler :: (Monad m) => WidgetEventHandler m
 emptyMouseMotionHandler = MouseMotionHandler (const return) (const return) (const return)
 
 -- TODO? breaks if button array not of sufficient size -- will be avoided by excluding constructor export
 -- |Creates a 'MouseHandler' that sets a widget’s 'MouseButtonState' properties if present,
 --  only fully functional in conjunction with 'setMouseMotionStateActions'.
-setMouseStateActions :: (Monad m) => EventHandler m
+setMouseStateActions :: (Monad m) => WidgetEventHandler m
 setMouseStateActions = MouseHandler press' release'
   where 
     -- |Change 'MouseButtonState'’s '_mouseIsDragging' to @True@.
@@ -296,7 +323,7 @@ setMouseStateActions = MouseHandler press' release'
 
 -- |Creates a 'MouseHandler' that sets a widget’s 'MouseState' properties if present,
 --  only fully functional in conjunction with 'setMouseStateActions'.
-setMouseMotionStateActions :: (Monad m) => EventHandler m
+setMouseMotionStateActions :: (Monad m) => WidgetEventHandler m
 setMouseMotionStateActions = MouseMotionHandler move' enter' leave'
   where
     -- |Updates mouse position.
@@ -324,7 +351,7 @@ setMouseMotionStateActions = MouseMotionHandler move' enter' leave'
 -- 
 --  Does /not/ update the widget’s 'MouseState'!
 buttonMouseActions :: (Monad m) => (MouseButton -> GUIWidget m -> Pixel -> m (GUIWidget m)) -- ^action on button press
-                                -> EventHandler m
+                                -> WidgetEventHandler m
 buttonMouseActions a = MouseHandler press' release'
   where 
     press' _ _ _ = return
@@ -336,7 +363,7 @@ buttonMouseActions a = MouseHandler press' release'
 -- 
 --  Does /not/ update the widget’s 'MouseState'!
 buttonSingleMouseActions :: (Monad m) => (GUIWidget m -> Pixel -> m (GUIWidget m)) -- ^action on button press
-                                      -> MouseButton -> EventHandler m
+                                      -> MouseButton -> WidgetEventHandler m
 buttonSingleMouseActions a btn = MouseHandler press' release'
   where 
     press' _ _ _ = return
@@ -344,7 +371,7 @@ buttonSingleMouseActions a btn = MouseHandler press' release'
     release' b p inside w = if inside && b == btn then a w p else return w
 
 emptyGraphics :: (Monad m) => GUIGraphics m
-emptyGraphics = Graphics (return 3)
+emptyGraphics = Graphics
 
 -- |Extracts width and height from a '_boundary' property of a 'GUIBaseProperties'.
 extractExtent :: (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> (ScreenUnit, ScreenUnit)
