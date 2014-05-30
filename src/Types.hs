@@ -180,6 +180,7 @@ data UIState = UIState
 data State = State
     { _window              :: !WindowState
     , _camera              :: TVar CameraState
+    , _camStack            :: TVar (Map.HashMap UIId (CameraState, TextureObject))
     , _io                  :: !IOState
     , _mouse               :: !MouseState
     , _keyboard            :: !KeyboardState
@@ -187,6 +188,7 @@ data State = State
     , _game                :: TVar GameState
     , _ui                  :: !UIState
     }
+
 
 type Pioneers = RWST Env () State IO
 

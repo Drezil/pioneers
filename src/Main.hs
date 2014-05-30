@@ -18,6 +18,7 @@ import           Control.Concurrent.STM.TVar          (newTVarIO, writeTVar, rea
 import           Control.Monad.RWS.Strict             (ask, evalRWST, get, liftIO, modify)
 import           Data.Functor                         ((<$>))
 import           Data.Monoid                          (mappend)
+import qualified Data.HashMap.Strict                  as Map
 
 -- FFI
 import           Foreign.Marshal.Array                (pokeArray)
@@ -110,6 +111,7 @@ main =
         game' <- newTVarIO GameState
                         { _currentMap          = curMap
                         }
+        camStack' <- newTVarIO Map.empty
         glHud' <- initHud
         let zDistClosest'  = 2
             zDistFarthest' = zDistClosest' + 10
@@ -138,6 +140,7 @@ main =
                         , _tessClockFactor     = 0
                         }
               , _camera              = cam'
+              , _camStack            = camStack'
               , _mouse               = MouseState
                         { _isDown              = False
                         , _isDragging          = False
