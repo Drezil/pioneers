@@ -128,7 +128,7 @@ initMapShader tessFac (buf, vertDes) = do
 
    smap <- genObjectName
 
-   testobj <- parseIQM "sample.iqm"
+   testobj <- parseIQM "models/box.iqm"
 
    let
 	objs = [MapObject testobj (L.V3 0 10 0) (MapObjectState ())]
