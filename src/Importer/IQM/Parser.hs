@@ -75,7 +75,7 @@ readHeader = do
          _ <- lift $ string (pack "INTERQUAKEMODEL\0")
          modify (+16)
          v <- w32leCParser
-	 lift $ when (v /= 2) $ fail "Version /= 2.\nThis Parser only supports Version 2 of the InterQuake-Model IQM"
+         lift $ when (v /= 2) $ fail "Version /= 2.\nThis Parser only supports Version 2 of the InterQuake-Model IQM"
          -- when v /= 2 then fail parsing.
          size' <- w32leCParser
          flags' <- w32leCParser
@@ -207,24 +207,25 @@ skipToCounter a = do
 --   fills the Structure in a 2nd Pass from Offsets (O(memcpy'd bytes)).
 parseIQM :: String -> IO IQM
 parseIQM a =
-	do
-	f <- B.readFile a
-	vao <- makeVAO (return ())
-	-- Parse Headers/Offsets
-	let result = parse (doIQMparse vao) f
-	raw <- case result of
-		Done _ x -> return x
-		y -> error $ show y
-	-- Fill Vertex-Arrays with data of Offsets
-	let 	va = vertexArrays raw
-	va' <- mapM (readInVAO f) va
-        vbo <- sequence $ map toVBOfromVAO va
-        withVAO vao $ createVAO (zip va' vbo)
-	return $ raw
-		{ vertexArrays = va'
+    do
+    f <- B.readFile a
+    vao <- makeVAO (return ())
+    -- Parse Headers/Offsets
+    let result = parse (doIQMparse vao) f
+    raw <- case result of
+        Done _ x -> return x
+        y -> error $ show y
+    -- Fill Vertex-Arrays with data of Offsets
+    let va = vertexArrays raw
+    va' <- mapM (readInVAO f) va
+    vbo <- mapM toVBOfromVAO va
+    withVAO vao $ createVAO (zip va' vbo)
+    print raw
+    return $ raw
+        { vertexArrays = va'
                 , vertexBufferObjects = vbo
                 , vertexArrayObject = vao
-		}
+        }
 
 createVAO :: [(IQMVertexArray, BufferObject)] -> IO ()
 createVAO bo = do
@@ -267,9 +268,9 @@ toBufferTargetfromVAType _                = ArrayBuffer
 --   Note: The String-Operations are O(1), so only O(numberOfCopiedBytes)
 --   is needed in term of computation.
 readInVAO :: ByteString -> IQMVertexArray -> IO IQMVertexArray
-readInVAO d (IQMVertexArray type' a format num offset ptr) = 
+readInVAO d (IQMVertexArray type' a format num offset ptr) =
         do
-        let 
+        let
             byteLen = fromIntegral num * vaSize format
             data' = skipDrop (fromIntegral offset) byteLen d
 
@@ -279,31 +280,31 @@ readInVAO d (IQMVertexArray type' a format num offset ptr) =
         putStrLn $ concat ["Filling with: ", show data', " starting at ", show offset]
         unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
         return $ IQMVertexArray type' a format num offset $ castPtr p
-		
+
 -- | Real internal Parser.
 --
 --   Consumes the String only once, thus in O(n). But all Data-Structures are
 --   not allocated and copied. readInVAO has to be called on each one.
 doIQMparse :: VertexArrayObject -> Parser IQM
-doIQMparse vao = 
-	flip evalStateT 0 $ --evaluate parser with state starting at 0
-		do
-        	h <- readHeader                                         --read header
-	        skipToCounter $ ofs_text h                              --skip 0-n bytes to get to text
-	        text <- lift . take . fromIntegral $ num_text h         --read texts
-	       	modify . (+) . fromIntegral $ num_text h                --put offset forward
-	        skipToCounter $ ofs_meshes h                            --skip 0-n bytes to get to meshes
-	        meshes' <- readMeshes $ fromIntegral $ num_meshes h     --read meshes
-		skipToCounter $ ofs_vertexarrays h			--skip 0-n bytes to get to Vertex-Arrays
-                vaf <- readVAFs $ fromIntegral $ num_vertexarrays h     --read Vertex-Arrays
-	        return IQM
-	                { header = h
-	                , texts = filter (not.null) (split (unsafeCoerce '\0') text)
-	                , meshes = meshes'
-			, vertexArrays = vaf
-                        , vertexBufferObjects = [] --initialized later, after vaf get allocated.
-                        , vertexArrayObject = vao
-	                }
+doIQMparse vao =
+    flip evalStateT 0 $ --evaluate parser with state starting at 0
+        do
+            h <- readHeader                                         --read header
+            skipToCounter $ ofs_text h                              --skip 0-n bytes to get to text
+            text <- lift . take . fromIntegral $ num_text h         --read texts
+            modify . (+) . fromIntegral $ num_text h                --put offset forward
+            skipToCounter $ ofs_meshes h                            --skip 0-n bytes to get to meshes
+            meshes' <- readMeshes $ fromIntegral $ num_meshes h     --read meshes
+            skipToCounter $ ofs_vertexarrays h            --skip 0-n bytes to get to Vertex-Arrays
+            vaf <- readVAFs $ fromIntegral $ num_vertexarrays h     --read Vertex-Arrays
+            return IQM
+                    { header = h
+                    , texts = filter (not.null) (split (unsafeCoerce '\0') text)
+                    , meshes = meshes'
+                    , vertexArrays = vaf
+                    , vertexBufferObjects = [] --initialized later, after vaf get allocated.
+                    , vertexArrayObject = vao
+                    }
 
 -- | Helper-Function for Extracting a random substring out of a Bytestring
 --   by the Offsets provided.
@@ -311,6 +312,6 @@ doIQMparse vao =
 --   O(1).
 skipDrop :: Int -- ^ Bytes to drop
          -> Int -- ^ Bytes to take
-         -> ByteString 
+         -> ByteString
          -> ByteString
 skipDrop a b= B.take b . B.drop a
