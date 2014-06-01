@@ -217,7 +217,7 @@ parseIQM a =
         y -> error $ show y
     -- Fill Vertex-Arrays with data of Offsets
     let va = vertexArrays raw
-    va' <- mapM (readInVAO f) va
+    va' <- mapM (readInVAO f (num_vertexes.header $ raw)) va
     vbo <- mapM toVBOfromVAO va
     withVAO vao $ createVAO (zip va' vbo)
     print raw
@@ -267,11 +267,11 @@ toBufferTargetfromVAType _                = ArrayBuffer
 --
 --   Note: The String-Operations are O(1), so only O(numberOfCopiedBytes)
 --   is needed in term of computation.
-readInVAO :: ByteString -> IQMVertexArray -> IO IQMVertexArray
-readInVAO d (IQMVertexArray type' a format num offset ptr) =
+readInVAO :: ByteString -> Word32 -> IQMVertexArray -> IO IQMVertexArray
+readInVAO d vcount (IQMVertexArray type' a format num offset ptr) =
         do
         let
-            byteLen = fromIntegral num * vaSize format
+            byteLen = fromIntegral vcount * fromIntegral num * vaSize format
             data' = skipDrop (fromIntegral offset) byteLen d
 
         unless (ptr == nullPtr) $ error $ "Error reading Vertex-Array: Double Read of " ++ show type'
