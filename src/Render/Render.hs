@@ -287,7 +287,7 @@ initRendering = do
 renderIQM :: IQM -> L.V3 CFloat -> L.V3 CFloat -> IO ()
 renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
     bindVertexArrayObject $= Just (vertexArrayObject m)
-    let n = num_vertexes $ header m
+    let n = num_vertexes.header $ m
     glDrawArrays gl_TRIANGLES 0 (fromIntegral n)
     return ()
 

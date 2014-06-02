@@ -9,6 +9,7 @@ import Graphics.Rendering.OpenGL.GL.Texturing.Parameters (TextureFilter(..),text
 -- Monad-foo and higher functional stuff
 import           Control.Monad                        (unless, when, join)
 import           Control.Arrow                        ((***))
+import           Control.Lens                         ((^.), (.~), (%~))
 
 -- data consistency/conversion
 import           Control.Concurrent                   (threadDelay)
@@ -23,9 +24,6 @@ import qualified Data.HashMap.Strict                  as Map
 -- FFI
 import           Foreign.Marshal.Array                (pokeArray)
 import           Foreign.Marshal.Alloc                (allocaBytes)
-
--- Math
-import           Control.Lens                         ((^.), (.~), (%~))
 
 -- GUI
 import qualified Graphics.UI.SDL                      as SDL
