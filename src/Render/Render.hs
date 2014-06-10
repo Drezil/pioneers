@@ -325,7 +325,7 @@ drawMap = do
 
         glPatchParameteri gl_PATCH_VERTICES 3
 
-        cullFace $= Just Front
+        cullFace $= Nothing --Just Front
 
         glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
 
