@@ -10,7 +10,9 @@ import           Graphics.Rendering.OpenGL.GLU.Errors
 import           Graphics.UI.SDL.Types                      (Texture)
 import           System.IO                                  (hPutStrLn, stderr)
 import Linear
-import Foreign.C (CFloat)
+import Foreign.C (CFloat, CUChar)
+import Foreign.Marshal.Array (peekArray)
+import Foreign.Ptr (Ptr, castPtr)
 
 up :: V3 CFloat
 up = V3 0 1 0
@@ -124,7 +126,13 @@ getCam (x',z') dist' xa' ya' = lookAt (cpos ^+^ at') at' up
 -- | Prints any Pointer as Float-Array with given number of elements. 
 printPtrAsFloatArray :: Ptr a -> Int -> IO ()
 printPtrAsFloatArray pointer num = do
-                        a <- peekArray num (castPtr pointer :: Ptr Float)
+                        a <- peekArray num (castPtr pointer :: Ptr CFloat)
+                        print a
+
+-- | Prints any Pointer as UByte-Array with given number of elements. 
+printPtrAsUByteArray :: Ptr a -> Int -> IO ()
+printPtrAsUByteArray pointer num = do
+                        a <- peekArray num (castPtr pointer :: Ptr CUChar)
                         print a
 
 curb :: Ord a => a -> a -> a -> a

@@ -31,6 +31,8 @@ import Foreign.Marshal.Utils
 
 import Prelude as P hiding (take, null)
 
+import Render.Misc (printPtrAsFloatArray, printPtrAsUByteArray)
+
 -- | helper-function for creating an integral out of [8-Bit Ints]
 _w8ToInt :: Integral a => a -> a -> a
 _w8ToInt i add = 256*i + add
@@ -271,14 +273,19 @@ readInVAO :: ByteString -> Word32 -> IQMVertexArray -> IO IQMVertexArray
 readInVAO d vcount (IQMVertexArray type' a format num offset ptr) =
         do
         let
-            byteLen = fromIntegral vcount * fromIntegral num * vaSize format
+            numElems = fromIntegral vcount * fromIntegral num
+            byteLen = numElems * vaSize format
             data' = skipDrop (fromIntegral offset) byteLen d
 
         unless (ptr == nullPtr) $ error $ "Error reading Vertex-Array: Double Read of " ++ show type'
         p <- mallocBytes byteLen
         putStrLn $ concat ["Allocating ", show vcount ,"x", show num,"x",show (vaSize format)," = ", show byteLen, " Bytes at ", show p, " for ", show type']
-        putStrLn $ concat ["Filling with: ", show data', " starting at ", show offset]
+        putStrLn $ concat ["Filling starting at ", show offset, " with: "]
         unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
+        case type' of
+            IQMBlendIndexes -> printPtrAsUByteArray p numElems
+            IQMBlendWeights -> printPtrAsUByteArray p numElems
+            _ -> printPtrAsFloatArray p numElems
         return $ IQMVertexArray type' a format num offset $ castPtr p
 
 -- | Real internal Parser.
