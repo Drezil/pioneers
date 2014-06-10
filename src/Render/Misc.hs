@@ -121,6 +121,12 @@ getCam (x',z') dist' xa' ya' = lookAt (cpos ^+^ at') at' up
                         xa    = realToFrac xa'
                         ya    = realToFrac ya'-}
 
+-- | Prints any Pointer as Float-Array with given number of elements. 
+printPtrAsFloatArray :: Ptr a -> Int -> IO ()
+printPtrAsFloatArray pointer num = do
+                        a <- peekArray num (castPtr pointer :: Ptr Float)
+                        print a
+
 curb :: Ord a => a -> a -> a -> a
 curb l h x
   | x < l     = l

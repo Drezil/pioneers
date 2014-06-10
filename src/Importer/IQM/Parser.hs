@@ -276,7 +276,7 @@ readInVAO d vcount (IQMVertexArray type' a format num offset ptr) =
 
         unless (ptr == nullPtr) $ error $ "Error reading Vertex-Array: Double Read of " ++ show type'
         p <- mallocBytes byteLen
-        putStrLn $ concat ["Allocating ", show num,"x",show (vaSize format)," = ", show byteLen, " Bytes at ", show p, " for ", show type']
+        putStrLn $ concat ["Allocating ", show vcount ,"x", show num,"x",show (vaSize format)," = ", show byteLen, " Bytes at ", show p, " for ", show type']
         putStrLn $ concat ["Filling with: ", show data', " starting at ", show offset]
         unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
         return $ IQMVertexArray type' a format num offset $ castPtr p
