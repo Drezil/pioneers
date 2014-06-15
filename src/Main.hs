@@ -44,7 +44,6 @@ import           UI.Callbacks
 import           Map.Graphics
 import           Map.Creation                          (exportedMap)
 import           Types
-import qualified UI.UIBase as UI
 import           Importer.IQM.Parser
 --import           Data.Attoparsec.Char8 (parseTest)
 --import qualified Data.ByteString as B
@@ -65,15 +64,18 @@ testParser a = print  =<< parseIQM a
 --------------------------------------------------------------------------------
 
 main :: IO ()
-main =
+main = do
+    let initialWidth = 1024
+        initialHeight = 600
     SDL.withInit [SDL.InitVideo, SDL.InitAudio, SDL.InitEvents, SDL.InitTimer] $ --also: InitNoParachute -> faster, without parachute!
-      SDL.withWindow "Pioneers" (SDL.Position 100 100) (SDL.Size 1024 600) [SDL.WindowOpengl     -- we want openGL
-                                                                             ,SDL.WindowShown      -- window should be visible
-                                                                             ,SDL.WindowResizable  -- and resizable
-                                                                             ,SDL.WindowInputFocus -- focused (=> active)
-                                                                             ,SDL.WindowMouseFocus -- Mouse into it
-                                                                             --,WindowInputGrabbed-- never let go of input (KB/Mouse)
-                                                                             ] $ \window' -> do
+      SDL.withWindow "Pioneers" (SDL.Position 100 100) (SDL.Size initialWidth initialHeight)
+          [SDL.WindowOpengl     -- we want openGL
+          ,SDL.WindowShown      -- window should be visible
+          ,SDL.WindowResizable  -- and resizable
+          ,SDL.WindowInputFocus -- focused (=> active)
+          ,SDL.WindowMouseFocus -- Mouse into it
+          --,WindowInputGrabbed-- never let go of input (KB/Mouse)
+          ] $ \window' -> do
        SDL.withOpenGL window' $ do
 
         --Create Renderbuffer & Framebuffer
@@ -114,7 +116,6 @@ main =
         let zDistClosest'  = 2
             zDistFarthest' = zDistClosest' + 10
             --TODO: Move near/far/fov to state for runtime-changability & central storage
-            (guiMap, guiRoots) = createGUI
             aks = ArrowKeyState {
                   _up       = False
                 , _down     = False
@@ -140,8 +141,7 @@ main =
               , _camera              = cam'
               , _camStack            = camStack'
               , _mouse               = MouseState
-                        { _isDown              = False
-                        , _isDragging          = False
+                        { _isDragging          = False
                         , _dragStartX          = 0
                         , _dragStartY          = 0
                         , _dragStartXAngle     = 0
@@ -161,12 +161,7 @@ main =
                         , _glFramebuffer       = frameBuffer
                         }
               , _game                = game'
-              , _ui                  = UIState
-                        { _uiHasChanged        = True
-                        , _uiMap = guiMap
-                        , _uiRoots = guiRoots
-                        , _uiButtonState = UI.UIButtonState 0 Nothing False
-                        }
+              , _ui                  = createGUI initialWidth initialHeight
               }
 
         putStrLn "init done."

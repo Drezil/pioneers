@@ -3,17 +3,17 @@ module UI.Callbacks where
 
 
 import qualified Graphics.Rendering.OpenGL.GL         as GL
-import           Control.Lens                         ((^.), (.~), (%~), (^?), at)
+import           Control.Lens                         ((^.), (.~), (%~), (^?), at, ix)
 import           Control.Monad                        (liftM, when, unless)
 import           Control.Monad.RWS.Strict             (ask, get, modify)
 import           Control.Monad.Trans                  (liftIO)
 import qualified Data.HashMap.Strict                  as Map
-import           Data.List                            (foldl')
+--import           Data.List                            (foldl')
 import           Data.Maybe
 import           Foreign.Marshal.Array                (pokeArray)
 import           Foreign.Marshal.Alloc                (allocaBytes)
 import qualified Graphics.UI.SDL                      as SDL
-import           Control.Concurrent.STM.TVar          (readTVar, readTVarIO, writeTVar)
+import           Control.Concurrent.STM.TVar          (readTVar, writeTVar)
 import           Control.Concurrent.STM               (atomically)
 
 
@@ -23,13 +23,19 @@ import UI.UIWidgets
 import UI.UIOperations
 
 -- TODO: define GUI positions in a file
-createGUI :: (Map.HashMap UIId (GUIWidget Pioneers), [UIId])
-createGUI = (Map.fromList [ (UIId 0, createPanel (0, 0, 0, 0) [UIId 1, UIId 2] 0)
-                          , (UIId 1, createContainer (30, 215, 100, 80) [] 1)
-                          , (UIId 2, createPanel (50, 40, 0, 0) [UIId 3, UIId 4] 3)
-                          , (UIId 3, createContainer (80, 15, 130, 90) [] 4 )
-                          , (UIId 4, createButton (10, 40, 60, 130) 2 testMessage)
-                          ], [UIId 0])
+createGUI :: ScreenUnit -> ScreenUnit -> UIState
+createGUI w h = UIState
+    { _uiHasChanged     = True
+    , _uiMap            = Map.fromList [ (UIId 0, createViewport LeftButton (0, 0, w, h) [UIId 1, UIId 2] 0) -- TODO: automatic resize
+                                       , (UIId 1, createContainer (30, 215, 100, 80) [] 1)
+                                       , (UIId 2, createPanel (50, 40, 0, 0) [UIId 3, UIId 4] 3)
+                                       , (UIId 3, createContainer (80, 15, 130, 90) [] 4 )
+                                       , (UIId 4, createButton (10, 40, 60, 130) 2 testMessage)
+                                       ]
+    , _uiObserverEvents = Map.fromList [(WindowEvent, [resizeToScreenHandler (UIId 0)])]
+    , _uiRoots          = [UIId 0]
+    , _uiButtonState    = UIButtonState 0 Nothing False
+    }
          
 getGUI :: Map.HashMap UIId (GUIWidget Pioneers) -> [GUIWidget Pioneers]
 getGUI = Map.elems
@@ -69,9 +75,10 @@ eventCallback :: SDL.Event -> Pioneers ()
 eventCallback e = do
         env <- ask
         case SDL.eventData e of
-            SDL.Window _ _ -> -- windowID event
-                -- TODO: resize GUI
-                return ()
+            SDL.Window _ ev -> -- windowID event
+                case ev of
+                     SDL.Resized (SDL.Size x y) -> windowResizeHandler x y
+                     _ -> return ()
             SDL.Keyboard movement _ _ key -> -- keyMovement windowID keyRepeat keySym
                      -- need modifiers? use "keyModifiers key" to get them
                 let aks = keyboard.arrowsPressed in
@@ -103,40 +110,15 @@ eventCallback e = do
                     _ ->
                         return ()
             SDL.MouseMotion _ _ _ (SDL.Position x y) _ _ -> -- windowID mouseID motionState motionPosition xrel yrel
-                do
-                state <- get
-                if state ^. mouse.isDown && not (state ^. mouse.isDragging)
-                  then
-                    do
-                    cam <- liftIO $ readTVarIO (state ^. camera)
-                    modify $ (mouse.isDragging .~ True)
-                           . (mouse.dragStartX .~ fromIntegral x)
-                           . (mouse.dragStartY .~ fromIntegral y)
-                           . (mouse.dragStartXAngle .~ (cam ^. xAngle))
-                           . (mouse.dragStartYAngle .~ (cam ^. yAngle))
-                    else mouseMoveHandler (x, y)
-                modify $ (mouse.mousePosition. Types._x .~ fromIntegral x)
-                       . (mouse.mousePosition. Types._y .~ fromIntegral y)
+                mouseMoveHandler (x, y)
+
             SDL.MouseButton _ _ button state (SDL.Position x y) -> -- windowID mouseID button buttonState buttonAt
-             do 
-                case button of
-                     SDL.LeftButton -> do
-                         let pressed = state == SDL.Pressed
-                         modify $ mouse.isDown .~ pressed
-                         if pressed 
-                           then mouseReleaseHandler LeftButton (x, y)
-                           else do
-                             st <- get
-                             if st ^. mouse.isDragging then
-                                 modify $ mouse.isDragging .~ False
-                             else do
-                                 mousePressHandler LeftButton (x, y)
-                     _ -> case state of
-                               SDL.Pressed -> maybe (return ()) (`mousePressHandler` (x, y)) $ transformButton button
-                               SDL.Released -> maybe (return ()) (`mouseReleaseHandler` (x, y)) $ transformButton button
-                               _ -> return ()
+               case state of
+                    SDL.Pressed -> maybe (return ()) (`mousePressHandler` (x, y)) $ transformButton button
+                    SDL.Released -> maybe (return ()) (`mouseReleaseHandler` (x, y)) $ transformButton button
+                    _ -> return ()
             SDL.MouseWheel _ _ _ vscroll -> -- windowID mouseID hScroll vScroll
-                do
+                do -- TODO: MouseWheelHandler
                 state <- get
                 liftIO $ atomically $ do
                     cam <- readTVar (state ^. camera)
@@ -150,7 +132,18 @@ eventCallback e = do
             _ ->  liftIO $ putStrLn $ unwords ["Not processing Event:", show e]
 
 
-mouseButtonHandler :: (EventHandler Pioneers -> MouseButton -> Pixel -> GUIWidget Pioneers -> Pioneers (GUIWidget Pioneers))
+windowResizeHandler :: ScreenUnit -> ScreenUnit -> Pioneers ()
+windowResizeHandler x y = do
+    state <- get
+    case state ^. ui.uiObserverEvents.(at WindowEvent) of
+         Just evs -> let handle :: EventHandler Pioneers -> Pioneers (EventHandler Pioneers)
+                         handle (WindowHandler h _) = h x y
+                         handle h = return h -- TODO: may log invalid event mapping
+           in do newEvs <- mapM handle evs
+                 modify $ ui.uiObserverEvents.(ix WindowEvent) .~ newEvs
+         Nothing -> return ()
+
+mouseButtonHandler :: (WidgetEventHandler Pioneers -> MouseButton -> Pixel -> Bool -> GUIWidget Pioneers -> Pioneers (GUIWidget Pioneers))
                    -> MouseButton -> Pixel -> Pioneers ()
 mouseButtonHandler transFunc btn px = do
     state <- get
@@ -160,7 +153,7 @@ mouseButtonHandler transFunc btn px = do
          Just (wid, px') -> do
              let target = toGUIAny hMap wid
              target' <- case target ^. eventHandlers.(at MouseEvent) of
-                             Just ma -> transFunc ma btn (px -: px') target
+                             Just ma -> transFunc ma btn (px -: px') (state ^. ui.uiButtonState.mouseInside) target
                              Nothing  -> return target
              modify $ ui.uiMap %~ Map.insert wid target'
              return ()
@@ -229,7 +222,9 @@ mouseSetLeaving wid px = do
     modify $ ui.uiButtonState.mouseInside .~ False
     case target ^. eventHandlers.(at MouseMotionEvent) of --existing handler?
          Just ma -> do
-             target' <- fromJust (ma ^? onMouseLeave) px target --TODO unsafe fromJust
+             target_ <- fromJust (ma ^? onMouseLeave) px target --TODO unsafe fromJust
+             target' <- if state ^. ui.uiButtonState.mousePressed <= 0 then return target_
+                        else fromJust (ma ^? onMouseMove) px target_ --TODO unsafe fromJust
              modify $ ui.uiMap %~ Map.insert wid target'
          Nothing -> return ()
         
@@ -245,7 +240,7 @@ mouseMoveHandler px = do
                   Left b -> -- no child hit
                       if b == state ^. ui.uiButtonState.mouseInside then -- > moving inside or outside
                         case target ^. eventHandlers.(at MouseMotionEvent) of --existing handler?
-                             Just ma -> do target' <- fromJust (ma ^? onMouseMove) px' target
+                             Just ma -> do target' <- fromJust (ma ^? onMouseMove) (px -: px') target
                                            modify $ ui.uiMap %~ Map.insert wid target'
                              Nothing -> return () 
                       else if b then -- && not mouseInside --> entering
@@ -269,36 +264,6 @@ mouseMoveHandler px = do
              mouseSetMouseActive px
              
 
--- | Handler for UI-Inputs.
---   Indicates a primary click on something (e.g. left-click, touch on Touchpad, fire on Gamepad, ...
-clickHandler :: MouseButton -> Pixel -> Pioneers ()
-clickHandler btn pos@(x,y) = do
-  roots <- getRootIds
-  hits <- liftM concat $ mapM (getInsideId pos) roots
-  case hits of
-       [] -> liftIO $ putStrLn $ unwords [show btn ++ ":press on (",show x,",",show y,")"]
-       _  -> do
-         changes <- mapM (\(uid, pos') -> do
-           state <- get
-           let w = toGUIAny (state ^. ui.uiMap) uid
-               short = w ^. baseProperties.shorthand
-           bound <- w ^. baseProperties.boundary
-           prio <- w ^. baseProperties.priority
-           liftIO $ putStrLn $ "hitting(" ++ show btn ++ ") " ++ short ++ ": " ++ show bound ++ " "
-                             ++ show prio ++ " at [" ++ show x ++ "," ++ show y ++ "]"
-           case w ^. eventHandlers.(at MouseEvent) of
-                Just ma -> do w'  <- fromJust (ma ^? onMousePress) btn pos' w -- TODO unsafe fromJust
-                              w'' <- fromJust (ma ^? onMouseRelease) btn pos' w' -- TODO unsafe fromJust
-                              return $ Just (uid, w'')
-                Nothing  -> return Nothing
-           ) hits
-         state <- get
-         let hMap = state ^. ui.uiMap
-             newMap = foldl' (\hm (uid, w') -> Map.insert uid w' hm) hMap $ catMaybes changes
-         modify $ ui.uiMap .~ newMap
-         return ()
-         
-
 -- | informs the GUI to prepare a blitting of state ^. gl.glHud.hudTexture
 --
 --TODO: should be done asynchronously at one point.
@@ -320,7 +285,7 @@ prepareGUI = do
                 modify $ ui.uiHasChanged .~ False
 
 --TODO: Perform border-checking ... is xoff + width and yoff+height inside the screen-coordinates..
-copyGUI :: GL.TextureObject -> Pixel -- ^current view's offset
+copyGUI :: GL.TextureObject -> Pixel -- ^current view’s offset
         -> GUIWidget Pioneers -- ^the widget to draw
         -> Pioneers ()
 copyGUI tex (vX, vY) widget = do
@@ -332,6 +297,7 @@ copyGUI tex (vX, vY) widget = do
                             --temporary color here. lateron better some getData-function to
                             --get a list of pixel-data or a texture.
                             color = case widget ^. baseProperties.shorthand of
+                                "VWP" -> [0,128,128,0]
                                 "CNT" -> [255,0,0,128]
                                 "BTN" -> [255,255,0,255]
                                 "PNL" -> [128,128,128,128]

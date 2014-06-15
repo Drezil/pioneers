@@ -62,8 +62,7 @@ data GameState = GameState
     }
 
 data MouseState = MouseState
-    { _isDown              :: !Bool
-    , _isDragging          :: !Bool
+    { _isDragging          :: !Bool
     , _dragStartX          :: !Double
     , _dragStartY          :: !Double
     , _dragStartXAngle     :: !Double
@@ -172,9 +171,10 @@ data GLState = GLState
 
 data UIState = UIState
     { _uiHasChanged        :: !Bool
-    , _uiMap               :: Map.HashMap UIId (GUIWidget Pioneers)
-    , _uiRoots             :: [UIId]
-    , _uiButtonState       :: UIButtonState
+    , _uiMap               :: !(Map.HashMap UIId (GUIWidget Pioneers))
+    , _uiObserverEvents    :: !(Map.HashMap EventKey [EventHandler Pioneers])
+    , _uiRoots             :: !([UIId])
+    , _uiButtonState       :: !UIButtonState
     }
 
 data State = State
