@@ -137,6 +137,7 @@ main = do
               , _io                  = IOState
                         { _clock               = now
                         , _tessClockFactor     = 0
+                        , _tessClockTime       = now
                         }
               , _camera              = cam'
               , _camStack            = camStack'
@@ -234,32 +235,40 @@ run = do
       }
     -}
 
-    (mt,tc,sleepAmount,frameTime) <- liftIO $ do
+    (mt,tc,sleepAmount,frameTime,hC) <- liftIO $ do
         let double = fromRational.toRational :: (Real a) => a -> Double
             targetFramerate = 60.0
             targetFrametime = 1.0/targetFramerate
         --targetFrametimeμs = targetFrametime * 1000000.0
         now <- getCurrentTime
-        let diff  = diffUTCTime now (state ^. io.clock) -- get time-diffs
-            title = unwords ["Pioneers @ ",show ((round . double $ 1.0/diff)::Int),"fps"]
-            ddiff = double diff
+        let diff       = diffUTCTime now (state ^. io.clock) -- get time-diffs
+            updatediff = diffUTCTime now (state ^. io.tessClockTime) -- get diff to last update
+            title      = unwords ["Pioneers @ ",show ((round . double $ 1.0/diff)::Int),"fps"]
+            ddiff      = double diff
         SDL.setWindowTitle (env ^. windowObject) title
         let     sleepAmount = floor ((targetFrametime - double diff)*1000000) :: Int -- get time until next frame in microseconds
                 clockFactor = (state ^. io.tessClockFactor)
-                tessChange
-                    | (clockFactor < (75*targetFrametime)) && (state ^. gl.glMap.stateTessellationFactor < 5) = ((+)1 :: Int -> Int)
+                noChange    = ((+)0 ::  Int -> Int)
+                (tessChange, hasChanged)
+                    | updatediff < 5 = (noChange,False) -- at least 5 sec since last update
+                    | (clockFactor < (75*targetFrametime)) && (state ^. gl.glMap.stateTessellationFactor < 5) = (((+)1 :: Int -> Int),True)
                                                 -- > last 100 frames had > 25% leftover (on avg.)
-                    | (clockFactor > (110*targetFrametime)) && (state ^. gl.glMap.stateTessellationFactor > 1) = (flip (-) 1 :: Int -> Int)
+                    | (clockFactor > (110*targetFrametime)) && (state ^. gl.glMap.stateTessellationFactor > 1) = ((flip (-) 1 :: Int -> Int),True)
                                                 -- > last 100 frames had < 90% of target-fps
-                    | otherwise = ((+)0 :: Int -> Int)              -- 0ms > x > 10% -> keep settings
+                    | otherwise = (noChange,False)              -- 0ms > x > 10% -> keep settings
         when (sleepAmount > 0) $ threadDelay sleepAmount
         now' <- getCurrentTime
-        return (now',tessChange,sleepAmount,ddiff)
+        return (now',tessChange,sleepAmount,ddiff,hasChanged)
     -- set state with new clock-time
     --liftIO $ putStrLn $ unwords ["clockFactor:",show (state ^. io.tessClockFactor),"\ttc:", show (tc (state ^. gl.glMap.stateTessellationFactor)),"\tsleep ",show frameTime,"ms"]
-    modify $ (io.clock .~ mt)
+    if hC then
+        modify $ (io.clock .~ mt)
            . (gl.glMap.stateTessellationFactor %~ tc)
            . (io.tessClockFactor %~ (((+) frameTime).((*) 0.99)))
+           . (io.tessClockTime .~ mt)
+    else
+        modify $ (io.clock .~ mt)
+
     -- liftIO $ putStrLn $ concat $ ["TessFactor at: ",show (state ^. gl.glMap.stateTessellationFactor), " - slept for ",show sleepAmount, "μs."]
     shouldClose' <- return $ state ^. window.shouldClose
     unless shouldClose' run
