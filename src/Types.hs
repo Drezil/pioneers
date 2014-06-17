@@ -10,10 +10,12 @@ import           Data.Time                            (UTCTime)
 import Linear.Matrix (M44)
 import Linear (V3)
 import Control.Monad.RWS.Strict (RWST, liftIO, get)
+import Control.Monad.Writer.Strict
 import Control.Monad (when)
 import Control.Lens
 import Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
 import Render.Types
+import System.IO
 import Importer.IQM.Types
 import UI.UIBase
 import Map.Types (PlayMap)
@@ -190,6 +192,12 @@ data State = State
     , _ui                  :: !UIState
     }
 
+data Entry = Log {msg::String} deriving Eq
+
+instance Show Entry where
+  show (Log s) = s
+
+type Logger = WriterT [Entry] IO Handle
 
 type Pioneers = RWST Env () State IO
 
