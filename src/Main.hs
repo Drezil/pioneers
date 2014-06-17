@@ -262,13 +262,15 @@ run = do
     -- set state with new clock-time
     --liftIO $ putStrLn $ unwords ["clockFactor:",show (state ^. io.tessClockFactor),"\ttc:", show (tc (state ^. gl.glMap.stateTessellationFactor)),"\tsleep ",show frameTime,"ms"]
     if hC then
-        modify $ (io.clock .~ mt)
-           . (gl.glMap.stateTessellationFactor %~ tc)
-           . (io.tessClockFactor %~ (((+) frameTime).((*) 0.99)))
-           . (io.tessClockTime .~ mt)
+        do
+            liftIO $ putStrLn $ unwords ["modifying TessFactor to",show $ tc $ state ^. gl.glMap.stateTessellationFactor]
+            modify $ (io.clock .~ mt)
+               . (gl.glMap.stateTessellationFactor %~ tc)
+               . (io.tessClockFactor %~ (((+) frameTime).((*) 0.99)))
+               . (io.tessClockTime .~ mt)
     else
         modify $ (io.clock .~ mt)
-
+               . (io.tessClockFactor %~ (((+) frameTime).((*) 0.99)))
     -- liftIO $ putStrLn $ concat $ ["TessFactor at: ",show (state ^. gl.glMap.stateTessellationFactor), " - slept for ",show sleepAmount, "μs."]
     shouldClose' <- return $ state ^. window.shouldClose
     unless shouldClose' run
