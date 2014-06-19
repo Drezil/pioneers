@@ -14,7 +14,7 @@ import           Control.Lens                         ((^.), (.~), (%~))
 -- data consistency/conversion
 import           Control.Concurrent                   (threadDelay)
 import           Control.Concurrent.STM               (TQueue, newTQueueIO, atomically)
-import           Control.Concurrent.STM.TVar          (newTVarIO, writeTVar, readTVar)
+import           Control.Concurrent.STM.TVar          (newTVarIO, writeTVar, readTVar, readTVarIO)
 
 import           Control.Monad.RWS.Strict             (ask, evalRWST, get, liftIO, modify)
 import           Data.Functor                         ((<$>))
@@ -89,7 +89,8 @@ main = do
         initRendering
         --generate map vertices
         curMap <- exportedMap
-        glMap' <- initMapShader 4 =<< getMapBufferObject curMap
+        (glMap', tex) <- initMapShader 4 =<< getMapBufferObject curMap
+        tex' <- newTVarIO tex
         eventQueue <- newTQueueIO :: IO (TQueue SDL.Event)
         now <- getCurrentTime
         --font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
@@ -140,6 +141,7 @@ main = do
                         , _tessClockTime       = now
                         }
               , _camera              = cam'
+              , _mapTexture          = tex'
               , _camStack            = camStack'
               , _mouse               = MouseState
                         { _isDragging          = False
@@ -325,8 +327,8 @@ adjustWindow = do
 
 
                    let hudtexid = state ^. gl.glHud.hudTexture
-                       maptexid = state ^. gl.glMap.renderedMapTexture
                        smaptexid = state ^. gl.glMap.shadowMapTexture
+                   maptexid <- liftIO $ readTVarIO (state ^. mapTexture)
                    allocaBytes (fbWidth*fbHeight*4) $ \ptr -> do
                                                                --default to ugly pink to see if
                                                                --somethings go wrong.

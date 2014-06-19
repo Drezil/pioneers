@@ -11,7 +11,7 @@ import Linear.Matrix (M44)
 import Linear (V3)
 import Control.Monad.RWS.Strict (RWST, liftIO, get)
 import Control.Monad.Writer.Strict
-import Control.Monad (when)
+--import Control.Monad (when)
 import Control.Lens
 import Graphics.Rendering.OpenGL.GL.Texturing.Objects (TextureObject)
 import Render.Types
@@ -111,7 +111,6 @@ data GLMapState = GLMapState
     , _stateMap             :: !GL.BufferObject
     , _mapVert              :: !GL.NumArrayIndices
     , _mapProgram           :: !GL.Program
-    , _renderedMapTexture   :: !TextureObject --TODO: Probably move to UI?
     , _overviewTexture      :: !TextureObject
     , _shadowMapTexture     :: !TextureObject
     , _mapTextures          :: ![TextureObject] --TODO: Fix size on list?
@@ -174,8 +173,8 @@ data GLState = GLState
 
 data UIState = UIState
     { _uiHasChanged        :: !Bool
-    , _uiMap               :: !(Map.HashMap UIId (GUIWidget Pioneers))
-    , _uiObserverEvents    :: !(Map.HashMap EventKey [EventHandler Pioneers])
+    , _uiMap               :: Map.HashMap UIId (GUIWidget Pioneers)
+    , _uiObserverEvents    :: Map.HashMap EventKey [EventHandler Pioneers]
     , _uiRoots             :: !([UIId])
     , _uiButtonState       :: !UIButtonState
     }
@@ -183,6 +182,7 @@ data UIState = UIState
 data State = State
     { _window              :: !WindowState
     , _camera              :: TVar CameraState
+    , _mapTexture          :: TVar TextureObject
     , _camStack            :: TVar (Map.HashMap UIId (CameraState, TextureObject))
     , _io                  :: !IOState
     , _mouse               :: !MouseState
