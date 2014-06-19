@@ -26,11 +26,12 @@ import UI.UIOperations
 createGUI :: ScreenUnit -> ScreenUnit -> UIState
 createGUI w h = UIState
     { _uiHasChanged     = True
-    , _uiMap            = Map.fromList [ (UIId 0, createViewport LeftButton (0, 0, w, h) [UIId 1, UIId 2] 0) -- TODO: automatic resize
-                                       , (UIId 1, createContainer (30, 215, 100, 80) [] 1)
-                                       , (UIId 2, createPanel (50, 40, 0, 0) [UIId 3, UIId 4] 3)
+    , _uiMap            = Map.fromList [ (UIId 0, createViewport LeftButton (0, 0, w, h) [UIId 1, UIId 2, UIId 5] 0) -- TODO: automatic resize
+                                       , (UIId 1, createContainer (30, 415, 100, 80) [] 1)
+                                       , (UIId 2, createPanel (50, 240, 0, 0) [UIId 3, UIId 4] 3)
                                        , (UIId 3, createContainer (80, 15, 130, 90) [] 4 )
                                        , (UIId 4, createButton (10, 40, 60, 130) 2 testMessage)
+                                       , (UIId 5, createViewport LeftButton (10, 10, 300, 200) [] 0)
                                        ]
     , _uiObserverEvents = Map.fromList [(WindowEvent, [resizeToScreenHandler (UIId 0)])]
     , _uiRoots          = [UIId 0]

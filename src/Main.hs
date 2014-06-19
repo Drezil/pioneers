@@ -210,7 +210,7 @@ run = do
             targetFrametime = 1.0/targetFramerate
         --targetFrametimeμs = targetFrametime * 1000000.0
         now <- getCurrentTime
-        let diff       = diffUTCTime now (state ^. io.clock) -- get time-diffs
+        let diff       = max 0.001 $ diffUTCTime now (state ^. io.clock) -- get time-diffs
             updatediff = diffUTCTime now (state ^. io.tessClockTime) -- get diff to last update
             title      = unwords ["Pioneers @ ",show ((round . double $ 1.0/diff)::Int),"fps"]
             ddiff      = double diff
