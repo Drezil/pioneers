@@ -143,17 +143,6 @@ main = do
               , _camera              = cam'
               , _mapTexture          = tex'
               , _camStack            = camStack'
-              , _mouse               = MouseState
-                        { _isDragging          = False
-                        , _dragStartX          = 0
-                        , _dragStartY          = 0
-                        , _dragStartXAngle     = 0
-                        , _dragStartYAngle     = 0
-                        , _mousePosition       = Types.Position
-                                         { Types.__x  = 5
-                                         , Types.__y  = 5
-                                         }
-                        }
               , _keyboard            = KeyboardState
                         { _arrowsPressed       = aks
                         }
@@ -190,28 +179,6 @@ run = do
     -- update State
 
     state <- get
-    -- change in camera-angle
-    when (state ^. mouse.isDragging) $ do
-          let sodx  = state ^. mouse.dragStartX
-              sody  = state ^. mouse.dragStartY
-              sodxa = state ^. mouse.dragStartXAngle
-              sodya = state ^. mouse.dragStartYAngle
-              x'    = state ^. mouse.mousePosition._x
-              y'    = state ^. mouse.mousePosition._y
-              myrot = (x' - sodx) / 2
-              mxrot = (y' - sody) / 2
-              newXAngle  = curb (pi/12) (0.45*pi) newXAngle'
-              newXAngle' = sodxa + mxrot/100
-              newYAngle
-                  | newYAngle' > pi    = newYAngle' - 2 * pi
-                  | newYAngle' < (-pi) = newYAngle' + 2 * pi
-                  | otherwise          = newYAngle'
-              newYAngle' = sodya + myrot/100
-
-          liftIO $ atomically $ do
-              cam <- readTVar (state ^. camera)
-              cam' <- return $ (xAngle .~ newXAngle) . (yAngle .~ newYAngle) $ cam
-              writeTVar (state ^. camera) cam'
 
     -- get cursor-keys - if pressed
     --TODO: Add sin/cos from stateYAngle

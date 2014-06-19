@@ -64,15 +64,6 @@ data GameState = GameState
     { _currentMap          :: !PlayMap
     }
 
-data MouseState = MouseState
-    { _isDragging          :: !Bool
-    , _dragStartX          :: !Double
-    , _dragStartY          :: !Double
-    , _dragStartXAngle     :: !Double
-    , _dragStartYAngle     :: !Double
-    , _mousePosition       :: !Position --TODO: Get rid of mouse-prefix
-    }
-
 data ArrowKeyState = ArrowKeyState {
          _up      :: !Bool
         ,_down    :: !Bool
@@ -185,7 +176,6 @@ data State = State
     , _mapTexture          :: TVar TextureObject
     , _camStack            :: TVar (Map.HashMap UIId (CameraState, TextureObject))
     , _io                  :: !IOState
-    , _mouse               :: !MouseState
     , _keyboard            :: !KeyboardState
     , _gl                  :: !GLState
     , _game                :: TVar GameState
@@ -208,7 +198,6 @@ $(makeLenses ''GLMapState)
 $(makeLenses ''GLHud)
 $(makeLenses ''KeyboardState)
 $(makeLenses ''ArrowKeyState)
-$(makeLenses ''MouseState)
 $(makeLenses ''GameState)
 $(makeLenses ''IOState)
 $(makeLenses ''CameraState)
