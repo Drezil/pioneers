@@ -112,7 +112,7 @@ main = do
         game' <- newTVarIO GameState
                         { _currentMap          = curMap
                         }
-        camStack' <- newTVarIO Map.empty
+        let camStack' = Map.empty
         glHud' <- initHud
         let zDistClosest'  = 2
             zDistFarthest' = zDistClosest' + 10
