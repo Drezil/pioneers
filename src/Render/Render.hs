@@ -326,6 +326,7 @@ drawMap = do
         glPatchParameteri gl_PATCH_VERTICES 3
 
         cullFace $= Nothing --Just Front
+        polygonMode $= (Line,Line)
 
         glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
 
@@ -490,6 +491,7 @@ render = do
         -- Drawing HUD
         clear [ColorBuffer, DepthBuffer]
         checkError "clear buffer"
+        polygonMode $= (Fill,Fill)
 
         let hud    = state ^. gl.glHud
             stride = fromIntegral $ sizeOf (undefined::GLfloat) * 2
