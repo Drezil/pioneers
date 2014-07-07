@@ -26,11 +26,12 @@ import UI.UIOperations
 createGUI :: ScreenUnit -> ScreenUnit -> UIState
 createGUI w h = UIState
     { _uiHasChanged     = True
-    , _uiMap            = Map.fromList [ (UIId 0, createViewport LeftButton (0, 0, w, h) [UIId 1, UIId 2] 0) -- TODO: automatic resize
-                                       , (UIId 1, createContainer (30, 215, 100, 80) [] 1)
-                                       , (UIId 2, createPanel (50, 40, 0, 0) [UIId 3, UIId 4] 3)
+    , _uiMap            = Map.fromList [ (UIId 0, createViewport (camera) LeftButton (0, 0, w, h) [UIId 1, UIId 2, UIId 5] 0) -- TODO: automatic resize
+                                       , (UIId 1, createContainer (30, 415, 100, 80) [] 1)
+                                       , (UIId 2, createPanel (50, 240, 0, 0) [UIId 3, UIId 4] 3)
                                        , (UIId 3, createContainer (80, 15, 130, 90) [] 4 )
                                        , (UIId 4, createButton (10, 40, 60, 130) 2 testMessage)
+                                       , (UIId 5, createViewport (camera) LeftButton (10, 10, 300, 200) [] 5) -- TODO: wrong camera
                                        ]
     , _uiObserverEvents = Map.fromList [(WindowEvent, [resizeToScreenHandler (UIId 0)])]
     , _uiRoots          = [UIId 0]
@@ -311,6 +312,10 @@ copyGUI tex (vX, vY) widget = do
                                         (GL.TexturePosition2D (int (vX + xoff)) (int (vY + yoff)))
                                         (GL.TextureSize2D (int wWidth) (int wHeight))
                                         (GL.PixelData GL.RGBA GL.UnsignedByte ptr)
+                        prio <- widget ^. baseProperties.priority
+                        when (widget ^. baseProperties.shorthand == "VWP" && prio == 5) $ do
+                          -- copy camera texture on screen
+                          return ()
                         nextChildrenIds <- widget ^. baseProperties.children
                         mapM_ (copyGUI tex (vX+xoff, vY+yoff)) $ toGUIAnys hMap nextChildrenIds
 

@@ -2,8 +2,9 @@
 
 module UI.UIWidgets (module UI.UIWidgets, module UI.UIBase) where
 
-import           Control.Concurrent.STM.TVar          (readTVarIO)
-import           Control.Lens                         ((^.), (.~), (%~), (&))
+import           Control.Concurrent.STM               (atomically)
+import           Control.Concurrent.STM.TVar          (readTVarIO, writeTVar, TVar())
+import           Control.Lens                         ((^.), (.~), (%~), (&), (^?), at, Getting())
 import           Control.Monad
 import           Control.Monad.IO.Class               (liftIO)
 import           Control.Monad.RWS.Strict             (get, modify)
@@ -11,7 +12,8 @@ import           Data.List
 import           Data.Maybe
 import qualified Data.HashMap.Strict as Map
 
-import           Types
+import Types
+import Render.Misc                          (curb)
 import UI.UIBase
 import UI.UIOperations
 
@@ -46,39 +48,68 @@ createButton bnd prio action = Widget (rectangularBase bnd [] prio "BTN")
                                       (Map.fromList [(MouseStateKey, initialMouseState)]) -- widget states
                                       (Map.fromList [(MouseEvent, buttonMouseActions action)]) -- event handlers
 
-createViewport :: MouseButton -- ^ button to drag with
+createViewport :: Getting (TVar CameraState) State (TVar CameraState)
+--Setting (->) State State (TVar CameraState) (TVar CameraState) -- ^ lens to connected @TVar CameraState@
+               -> MouseButton -- ^ button to drag with
                -> (ScreenUnit, ScreenUnit, ScreenUnit, ScreenUnit) -> [UIId] -> Int -> GUIWidget Pioneers
-createViewport btn bnd chld prio = Widget (rectangularBase bnd chld prio "VWP")
+createViewport thelens btn bnd chld prio = Widget (rectangularBase bnd chld prio "VWP")
                                     emptyGraphics
-                                    Map.empty -- widget states
+                                    (Map.fromList [(ViewportStateKey, initialViewportState)]) -- widget states
                                     (Map.fromList [(MouseEvent, viewportMouseAction)
                                                   ,(MouseMotionEvent, viewportMouseMotionAction)]) -- event handlers
   where
+    updateCamera :: Double -> Double -> Double -> Double -> Double -> Double -> CameraState -> CameraState
+    updateCamera xStart' yStart' x y sodxa sodya cam =
+        let myrot = (x - xStart') / 2
+            mxrot = (y - yStart') / 2
+            newXAngle' = sodxa + mxrot/100
+            newXAngle  = curb (pi/12) (0.45*pi) newXAngle'
+            newYAngle' = sodya + myrot/100
+            newYAngle
+                 | newYAngle' > pi    = newYAngle' - 2 * pi
+                 | newYAngle' < (-pi) = newYAngle' + 2 * pi
+                 | otherwise          = newYAngle'
+        in cam & (xAngle .~ newXAngle) . (yAngle .~ newYAngle)
+  
     viewportMouseAction :: WidgetEventHandler Pioneers
     viewportMouseAction =
         let press btn' (x, y) _ w =
-              do when (btn == btn') $ do
-                     state <- get
-                     cam <- liftIO $ readTVarIO (state ^. camera)
-                     modify $ mouse %~ (isDragging .~ True)
-                                     . (dragStartX .~ fromIntegral x)
-                                     . (dragStartY .~ fromIntegral y)
-                                     . (dragStartXAngle .~ (cam ^. xAngle))
-                                     . (dragStartYAngle .~ (cam ^. yAngle))
-                                     . (mousePosition.Types._x .~ fromIntegral x)
-                                     . (mousePosition.Types._y .~ fromIntegral y)
-                 return w
-            release btn' _ _ w = do when (btn == btn') (modify $ mouse.isDragging .~ False)
-                                    return w
+              do if (btn == btn') 
+                  then do state <- get
+                          let camT = state ^. thelens
+                          cam <- liftIO $ readTVarIO camT
+                          let sodxa = cam ^. xAngle
+                              sodya = cam ^. yAngle
+                          liftIO $ atomically $ writeTVar camT $
+                            updateCamera (fromIntegral x) (fromIntegral y) (fromIntegral x) (fromIntegral y) sodxa sodya cam
+                          return $ w & widgetStates . at ViewportStateKey .~
+                              Just (ViewportState True (fromIntegral x) (fromIntegral y) sodxa sodya)
+                  else return w
+            release btn' _ _ w = if (btn' == btn)
+              then
+                -- modify ViewportState to "not dragging" or recreate ViewportState state if not present
+                return $ w & widgetStates . at ViewportStateKey %~
+                    maybe (Just $ initialViewportState) (\s -> Just (s & isDragging .~ False))
+              else return w
         in MouseHandler press release
     
     viewportMouseMotionAction :: WidgetEventHandler Pioneers
     viewportMouseMotionAction =
         let move (x, y) w =
-              do state <- get
-                 when (state ^. mouse.isDragging) $
-                        modify $ mouse %~ (mousePosition.Types._x .~ fromIntegral x)
-                                        . (mousePosition.Types._y .~ fromIntegral y)
+              do let mbPosState = w ^. widgetStates.(at ViewportStateKey)
+                 case mbPosState of
+                      Just posState ->
+                        when (maybe False id (posState ^? isDragging)) $ do
+                          state <- get
+                          let camT = state ^. thelens
+                          cam <- liftIO $ readTVarIO camT
+                          let xS = fromJust $ posState ^? dragStartX -- fromJust is safe
+                              yS = fromJust $ posState ^? dragStartY -- fromJust is safe
+                              sodxa = fromJust $ posState ^? dragAngleX -- fromJust is safe
+                              sodya = fromJust $ posState ^? dragAngleY -- fromJust is safe
+                          liftIO $ atomically $ writeTVar camT $
+                            updateCamera xS yS (fromIntegral x) (fromIntegral y) sodxa sodya cam
+                      Nothing -> return ()
                  return w
         in emptyMouseMotionHandler & onMouseMove .~ move
         

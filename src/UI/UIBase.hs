@@ -63,7 +63,7 @@ instance Hashable MouseButton where -- TODO: generic deriving creates functions 
 --- widget state
 ---------------------------
 -- |A key to reference a specific type of 'WidgetState'.
-data WidgetStateKey = MouseStateKey
+data WidgetStateKey = MouseStateKey | ViewportStateKey
     deriving (Eq, Ord, Enum, Ix, Bounded, Generic, Show, Read)
 
 instance Hashable WidgetStateKey where -- TODO: generic deriving creates functions that run forever
@@ -83,8 +83,9 @@ data UIButtonState = UIButtonState
 -- |The button dependant state of a 'MouseState'.
 data MouseButtonState = MouseButtonState
     { _mouseIsDragging      :: Bool -- ^firing if pressed but not confirmed
-    , _mouseIsDeferred    :: Bool
+    , _mouseIsDeferred      :: Bool
       -- ^deferred if e. g. dragging but outside component
+    , _dragStart            :: (ScreenUnit, ScreenUnit)
     } deriving (Eq, Show)
  
 -- |An applied state a widget may take, depending on its usage and event handlers. Corresponding Key: 'WidgetStateKey'.
@@ -94,6 +95,15 @@ data WidgetState =
         { _mouseStates   :: Array MouseButton MouseButtonState
         , _mouseIsReady  :: Bool -- ^ready if mouse is above component
         , _mousePixel :: Pixel -- ^current local position of the mouse, only updated if widget is the mouse-active component
+        }
+    |
+    -- |A position to store screen units. Referenced by 'ViewportStateKey'.
+    ViewportState
+        { _isDragging :: Bool
+        , _dragStartX :: Double
+        , _dragStartY :: Double
+        , _dragAngleX :: Double
+        , _dragAngleY :: Double
         }
     deriving (Eq, Show)
 
@@ -176,7 +186,7 @@ instance Hashable EventKey where -- TODO: generic deriving creates functions tha
     hash = fromEnum
     hashWithSalt salt x = (salt * 16777619)  `xor` hash x
 
- -- |A handler to react on certain events. Corresponding key: 'EventKey'.
+-- |A handler to react on certain events. Corresponding key: 'EventKey'.
 data EventHandler (m :: * -> *) = 
     WindowHandler
         {
@@ -255,9 +265,12 @@ $(makeLenses ''GUIWidget)
 $(makeLenses ''GUIBaseProperties)
 $(makeLenses ''GUIGraphics)
 
+initialViewportState :: WidgetState
+initialViewportState = ViewportState False 0 0 0 0
+
 -- |Creates a default @MouseButtonState@.
 initialButtonState :: MouseButtonState
-initialButtonState = MouseButtonState False False
+initialButtonState = MouseButtonState False False (0, 0)
 {-# INLINE initialButtonState #-}
 
 -- |Creates a 'MouseState' its @_mouseStates@ are valid 'MouseButtonState's for any 'MouseButton'.

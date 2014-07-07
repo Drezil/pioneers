@@ -14,7 +14,7 @@ import           Control.Lens                         ((^.), (.~), (%~))
 -- data consistency/conversion
 import           Control.Concurrent                   (threadDelay)
 import           Control.Concurrent.STM               (TQueue, newTQueueIO, atomically)
-import           Control.Concurrent.STM.TVar          (newTVarIO, writeTVar, readTVar)
+import           Control.Concurrent.STM.TVar          (newTVarIO, writeTVar, readTVar, readTVarIO)
 
 import           Control.Monad.RWS.Strict             (ask, evalRWST, get, liftIO, modify)
 import           Data.Functor                         ((<$>))
@@ -89,7 +89,8 @@ main = do
         initRendering
         --generate map vertices
         curMap <- exportedMap
-        glMap' <- initMapShader 4 =<< getMapBufferObject curMap
+        (glMap', tex) <- initMapShader 4 =<< getMapBufferObject curMap
+        tex' <- newTVarIO tex
         eventQueue <- newTQueueIO :: IO (TQueue SDL.Event)
         now <- getCurrentTime
         --font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
@@ -111,7 +112,7 @@ main = do
         game' <- newTVarIO GameState
                         { _currentMap          = curMap
                         }
-        camStack' <- newTVarIO Map.empty
+        let camStack' = Map.empty
         glHud' <- initHud
         let zDistClosest'  = 2
             zDistFarthest' = zDistClosest' + 10
@@ -140,18 +141,8 @@ main = do
                         , _tessClockTime       = now
                         }
               , _camera              = cam'
+              , _mapTexture          = tex'
               , _camStack            = camStack'
-              , _mouse               = MouseState
-                        { _isDragging          = False
-                        , _dragStartX          = 0
-                        , _dragStartY          = 0
-                        , _dragStartXAngle     = 0
-                        , _dragStartYAngle     = 0
-                        , _mousePosition       = Types.Position
-                                         { Types.__x  = 5
-                                         , Types.__y  = 5
-                                         }
-                        }
               , _keyboard            = KeyboardState
                         { _arrowsPressed       = aks
                         }
@@ -188,28 +179,6 @@ run = do
     -- update State
 
     state <- get
-    -- change in camera-angle
-    when (state ^. mouse.isDragging) $ do
-          let sodx  = state ^. mouse.dragStartX
-              sody  = state ^. mouse.dragStartY
-              sodxa = state ^. mouse.dragStartXAngle
-              sodya = state ^. mouse.dragStartYAngle
-              x'    = state ^. mouse.mousePosition._x
-              y'    = state ^. mouse.mousePosition._y
-              myrot = (x' - sodx) / 2
-              mxrot = (y' - sody) / 2
-              newXAngle  = curb (pi/12) (0.45*pi) newXAngle'
-              newXAngle' = sodxa + mxrot/100
-              newYAngle
-                  | newYAngle' > pi    = newYAngle' - 2 * pi
-                  | newYAngle' < (-pi) = newYAngle' + 2 * pi
-                  | otherwise          = newYAngle'
-              newYAngle' = sodya + myrot/100
-
-          liftIO $ atomically $ do
-              cam <- readTVar (state ^. camera)
-              cam' <- return $ (xAngle .~ newXAngle) . (yAngle .~ newYAngle) $ cam
-              writeTVar (state ^. camera) cam'
 
     -- get cursor-keys - if pressed
     --TODO: Add sin/cos from stateYAngle
@@ -241,7 +210,7 @@ run = do
             targetFrametime = 1.0/targetFramerate
         --targetFrametimeμs = targetFrametime * 1000000.0
         now <- getCurrentTime
-        let diff       = diffUTCTime now (state ^. io.clock) -- get time-diffs
+        let diff       = max 0.001 $ diffUTCTime now (state ^. io.clock) -- get time-diffs
             updatediff = diffUTCTime now (state ^. io.tessClockTime) -- get diff to last update
             title      = unwords ["Pioneers @ ",show ((round . double $ 1.0/diff)::Int),"fps"]
             ddiff      = double diff
@@ -325,8 +294,8 @@ adjustWindow = do
 
 
                    let hudtexid = state ^. gl.glHud.hudTexture
-                       maptexid = state ^. gl.glMap.renderedMapTexture
                        smaptexid = state ^. gl.glMap.shadowMapTexture
+                   maptexid <- liftIO $ readTVarIO (state ^. mapTexture)
                    allocaBytes (fbWidth*fbHeight*4) $ \ptr -> do
                                                                --default to ugly pink to see if
                                                                --somethings go wrong.

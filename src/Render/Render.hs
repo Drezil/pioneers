@@ -62,7 +62,7 @@ initBuffer varray =
 initMapShader ::
                 Int                                -- ^ initial Tessallation-Factor
                 -> (BufferObject,NumArrayIndices)  -- ^ Buffer with Data and DataDescriptor
-                -> IO GLMapState
+                -> IO (GLMapState, TextureObject)
 initMapShader tessFac (buf, vertDes) = do
    ! vertexSource <- B.readFile mapVertexShaderFile
    ! tessControlSource <- B.readFile mapTessControlShaderFile
@@ -131,7 +131,7 @@ initMapShader tessFac (buf, vertDes) = do
    testobj <- parseIQM "models/box.iqm"
 
    let
-	objs = [MapObject testobj (L.V3 0 10 0) (MapObjectState ())]
+    objs = [MapObject testobj (L.V3 0 10 0) (MapObjectState ())]
 
    currentProgram $= Nothing
 
@@ -210,11 +210,10 @@ initMapShader tessFac (buf, vertDes) = do
             , shdrMOTessOuterIndex = UniformLocation 0 --tessLevelOuter'
             }
 
-   return GLMapState
+   return (GLMapState
         { _mapProgram         = program
         , _mapShaderData      = sdata
         , _mapObjectShaderData = smodata
-        , _renderedMapTexture = tex
         , _stateTessellationFactor = tessFac
         , _stateMap           = buf
         , _mapVert            = vertDes
@@ -224,7 +223,7 @@ initMapShader tessFac (buf, vertDes) = do
         , _mapObjects         = objs
         , _objectProgram      = objProgram
         , _shadowMapProgram   = shadowProgram
-        }
+        }, tex)
 
 initHud :: IO GLHud
 initHud = do
@@ -295,7 +294,7 @@ renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
 
 renderObject :: MapObject -> IO ()
 renderObject (MapObject model pos@(L.V3 x y z) _{-state-}) =
-	renderIQM model pos (L.V3 1 1 1)
+    renderIQM model pos (L.V3 1 1 1)
 
 drawMap :: Pioneers ()
 drawMap = do
@@ -445,12 +444,13 @@ render = do
 
         ---- RENDER MAP IN TEXTURE <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         -- COLORMAP
-        textureBinding Texture2D $= Just (state ^. gl.glMap.renderedMapTexture)
+        tex <- liftIO $ readTVarIO (state ^. mapTexture)
+        textureBinding Texture2D $= Just tex
         framebufferTexture2D
                 Framebuffer
                 (ColorAttachment 0)
                 Texture2D
-                (state ^. gl.glMap.renderedMapTexture)
+                tex
                 0
 
         -- Render to FrameBufferObject
@@ -503,7 +503,8 @@ render = do
         uniform (hud ^. hudTexIndex) $= Index1 (0::GLint)
 
         activeTexture  $= TextureUnit 1
-        textureBinding Texture2D $= Just (state ^. gl.glMap.renderedMapTexture)
+        tex <- liftIO $ readTVarIO (state ^. mapTexture)
+        textureBinding Texture2D $= Just tex
         uniform (hud ^. hudBackIndex) $= Index1 (1::GLint)
 
         bindBuffer ArrayBuffer $= Just (hud ^. hudVBO)
