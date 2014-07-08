@@ -288,7 +288,7 @@ renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
     bindVertexArrayObject $= Just (vertexArrayObject m)
     let n = num_vertexes.header $ m
     --print $ concat ["drawing ", show n," triangles from object ",show m]
-    glDrawArrays gl_TRIANGLES 0 (fromIntegral n)
+    drawArrays Triangles 0 (fromIntegral n)
     checkError "drawing model"
     return ()
 
@@ -472,6 +472,7 @@ render = do
     drawMap
     liftIO $ do
         ---- RENDER MAPOBJECTS --------------------------------------------
+        checkError "clear buffer"
         currentProgram $= Just (state ^. gl.glMap.objectProgram)
         checkError "setting up shadowmap-program"
         --set up projection (= copy from state)
