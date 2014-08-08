@@ -286,9 +286,9 @@ initRendering = do
 renderIQM :: IQM -> L.V3 CFloat -> L.V3 CFloat -> IO ()
 renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
     bindVertexArrayObject $= Just (vertexArrayObject m)
-    let n = num_vertexes.header $ m
-    --print $ concat ["drawing ", show n," triangles from object ",show m]
-    drawArrays Triangles 0 (fromIntegral n)
+    let n = fromIntegral.num_triangles.header $ m
+    --print $ concat ["drawing ", show n," triangles"]
+    drawElements Triangles n UnsignedInt (triangles m)
     checkError "drawing model"
     return ()
 
@@ -325,7 +325,7 @@ drawMap = do
         glPatchParameteri gl_PATCH_VERTICES 3
 
         cullFace $= Nothing --Just Front
-        polygonMode $= (Line,Line)
+        polygonMode $= (Fill,Fill)
 
         glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
 

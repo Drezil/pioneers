@@ -28,10 +28,11 @@ import Control.Monad
 import Foreign.Ptr
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Utils
+import Foreign.Storable (sizeOf)
 
 import Prelude as P hiding (take, null)
 
-import Render.Misc (printPtrAsFloatArray, printPtrAsUByteArray)
+import Render.Misc (printPtrAsFloatArray, printPtrAsUByteArray, printPtrAsWord32Array)
 
 -- | helper-function for creating an integral out of [8-Bit Ints]
 _w8ToInt :: Integral a => a -> a -> a
@@ -221,12 +222,16 @@ parseIQM a =
     let va = vertexArrays raw
     va' <- mapM (readInVAO f (num_vertexes.header $ raw)) va
     vbo <- mapM toVBOfromVAO va
+    tris <- copyTriangles raw f
     withVAO vao $ createVAO (zip va' vbo)
+    putStrLn "Triangles:"
+    printPtrAsWord32Array tris ((*3).fromIntegral.num_triangles.header $ raw) 3
     print raw
     return $ raw
         { vertexArrays = va'
-                , vertexBufferObjects = vbo
-                , vertexArrayObject = vao
+        , vertexBufferObjects = vbo
+        , vertexArrayObject = vao
+        , triangles = tris
         }
 
 createVAO :: [(IQMVertexArray, BufferObject)] -> IO ()
@@ -245,6 +250,17 @@ initVAO l t bo = do
 	bindBuffer (toBufferTargetfromVAType t) $= Just buf
 	vertexAttribArray l $= Enabled
 	vertexAttribPointer l $= (ToFloat, VertexArrayDescriptor num Float 0 nullPtr)
+
+copyTriangles :: IQM -> ByteString -> IO (Ptr Word32)
+copyTriangles i f =
+    do
+        let
+            len = fromIntegral $ num_triangles $ header i
+            byteLen = len * 3 * sizeOf (undefined :: Word32)
+            data' = skipDrop (fromIntegral $ ofs_triangles $ header i) byteLen f
+        p <- mallocBytes byteLen
+        unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
+        return $ castPtr p
 
 
 -- | Creates a BufferObject on the Graphicscard for each BufferObject
@@ -283,9 +299,10 @@ readInVAO d vcount (IQMVertexArray type' a format num offset ptr) =
         putStrLn $ concat ["Filling starting at ", show offset, " with: "]
         unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
         case type' of
-            IQMBlendIndexes -> printPtrAsUByteArray p numElems
-            IQMBlendWeights -> printPtrAsUByteArray p numElems
-            _ -> printPtrAsFloatArray p numElems
+            IQMBlendIndexes -> printPtrAsUByteArray p numElems 4
+            IQMBlendWeights -> printPtrAsUByteArray p numElems 4
+            IQMTexCoord     -> printPtrAsFloatArray p numElems 2
+            _ -> printPtrAsFloatArray p numElems 3
         return $ IQMVertexArray type' a format num offset $ castPtr p
 
 -- | Real internal Parser.
@@ -311,6 +328,7 @@ doIQMparse vao =
                     , vertexArrays = vaf
                     , vertexBufferObjects = [] --initialized later, after vaf get allocated.
                     , vertexArrayObject = vao
+                    , triangles = nullPtr      --initialized later, after memory gets allocated.
                     }
 
 -- | Helper-Function for Extracting a random substring out of a Bytestring

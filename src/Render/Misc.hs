@@ -3,6 +3,7 @@ module Render.Misc where
 import           Control.Monad
 import qualified Data.ByteString                            as B (ByteString)
 import           Data.Int                                   (Int8)
+import           Data.Word                                  (Word32)
 import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.StringQueries
@@ -78,7 +79,7 @@ createFrustum fov n' f' rat =
 
 -- | Creates an orthogonal frustum with given width, height, near and far-plane
 createFrustumOrtho :: Float -> Float -> Float -> Float -> M44 CFloat
-createFrustumOrtho w' h' n' f' = 
+createFrustumOrtho w' h' n' f' =
                  let [w,h,n,f] = map realToFrac [w',h',n',f']
                  in
                     V4 (V4 (0.5/w)    0        0        0)
@@ -123,17 +124,23 @@ getCam (x',z') dist' xa' ya' = lookAt (cpos ^+^ at') at' up
                         xa    = realToFrac xa'
                         ya    = realToFrac ya'-}
 
--- | Prints any Pointer as Float-Array with given number of elements. 
-printPtrAsFloatArray :: Ptr a -> Int -> IO ()
-printPtrAsFloatArray pointer num = do
+-- | Prints any Pointer as Float-Array with given number of elements and chunks.
+printPtrAsFloatArray :: Ptr a -> Int -> Int -> IO ()
+printPtrAsFloatArray pointer num co = do
                         a <- peekArray num (castPtr pointer :: Ptr CFloat)
-                        print a
+                        print $ chunksOf co a
 
--- | Prints any Pointer as UByte-Array with given number of elements. 
-printPtrAsUByteArray :: Ptr a -> Int -> IO ()
-printPtrAsUByteArray pointer num = do
+-- | Prints any Pointer as UByte-Array with given number of elements and chunks.
+printPtrAsUByteArray :: Ptr a -> Int -> Int -> IO ()
+printPtrAsUByteArray pointer num co = do
                         a <- peekArray num (castPtr pointer :: Ptr CUChar)
-                        print a
+                        print $ chunksOf co a
+
+-- | Prints any Pointer as Word32-Array with given number of elements and chunks.
+printPtrAsWord32Array :: Ptr a -> Int -> Int -> IO ()
+printPtrAsWord32Array pointer num co = do
+                        a <- peekArray num (castPtr pointer :: Ptr Word32)
+                        print $ chunksOf co a
 
 curb :: Ord a => a -> a -> a -> a
 curb l h x
@@ -152,3 +159,7 @@ genColorData ::      Int  -- ^ Amount
                 -> [Int8] -- ^ [r,g,b,a], [r,g,b] - whatever should be repeatet.
                 -> [Int8]
 genColorData n c = take (length c*n) (cycle c)
+
+chunksOf :: Int -> [a] -> [[a]]
+chunksOf _ [] = []
+chunksOf a xs = take a xs : chunksOf a (drop a xs)

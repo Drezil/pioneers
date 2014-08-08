@@ -112,6 +112,7 @@ data IQM = IQM
         , vertexArrays          :: [IQMVertexArray]
         , vertexBufferObjects   :: [BufferObject]
         , vertexArrayObject     :: VertexArrayObject
+        , triangles             :: Ptr Word32
         } deriving (Show, Eq)
 
 -- | Different Vertex-Array-Types in IQM
@@ -202,6 +203,6 @@ instance Show IQMVertexArray where
                                                         ", Format: " ++ show fo ++
                                                         ", NumComponents: " ++ show nc ++
                                                         ", Offset: " ++ show off ++
-							", Data at: " ++ show dat ++ 
+							", Data at: " ++ show dat ++
                                                         ")"
 
