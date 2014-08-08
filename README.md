@@ -9,19 +9,11 @@ Bugtracker/Wiki: http://redmine.pwning.de/projects/pioneers
 ## Compiling
 
 1. 	Clone this repository
-2. 	Set up cabal-sandbox
+2. 	install libraries `sudo apt-get install libsdl2 libsdl2-dev libghc-llvm-dev` - make sure libsdl2 is in version 2.0.1+ (shipped with Ubuntu since 14.04)
+3.  run `./build.sh`
+4. 	run `./Pioneers`
 
-		$ cabal sandbox init
-		$ cd deps
-		$ ./getDeps.sh
-		$ cd ..
-		$ cabal sandbox add-source deps/hsSDL2
-3. 	install libraries `sudo apt-get install libsdl2 libsdl2-dev libghc-llvm-dev` - make sure libsdl2 is in version 2.0.1+ (shipped with Ubuntu since 14.04)
-4. 	install dependencies `cabal install --only-dependencies`
-5. 	build `cabal build`
-6. 	run `./Pioneers`
-
-Step 2 is likely to break in the future due to restructuring in hsSDL2. This will be updated accordingly then.
+The script sets up a cabal sandbox, downloads some libraries and compiles them. Only tested under Ubuntu 14.04. Won't work with Ubuntu < 14.04 due to lacking libraries (libsdl2)
 
 ## Features
 
