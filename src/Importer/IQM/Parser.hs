@@ -19,6 +19,7 @@ import Graphics.Rendering.OpenGL.GL.BufferObjects
 import Graphics.Rendering.OpenGL.GL.VertexArrays
 import Graphics.Rendering.OpenGL.GL.VertexArrayObjects
 import Graphics.Rendering.OpenGL.GL.VertexSpec
+import Graphics.Rendering.OpenGL.GL.ObjectName
 import Data.Word
 import Data.Int
 import Unsafe.Coerce
@@ -213,8 +214,9 @@ parseIQM a =
     do
     f <- B.readFile a
     vao <- makeVAO (return ())
+    tbo <- genObjectName
     -- Parse Headers/Offsets
-    let result = parse (doIQMparse vao) f
+    let result = parse (doIQMparse vao tbo) f
     raw <- case result of
         Done _ x -> return x
         y -> error $ show y
@@ -222,7 +224,7 @@ parseIQM a =
     let va = vertexArrays raw
     va' <- mapM (readInVAO f (num_vertexes.header $ raw)) va
     vbo <- mapM toVBOfromVAO va
-    tris <- copyTriangles raw f
+    (tris, trisbo) <- copyTriangles raw f
     withVAO vao $ createVAO (zip va' vbo)
     putStrLn "Triangles:"
     printPtrAsWord32Array tris ((*3).fromIntegral.num_triangles.header $ raw) 3
@@ -232,6 +234,7 @@ parseIQM a =
         , vertexBufferObjects = vbo
         , vertexArrayObject = vao
         , triangles = tris
+        , triangleBufferObject = trisbo
         }
 
 createVAO :: [(IQMVertexArray, BufferObject)] -> IO ()
@@ -251,16 +254,20 @@ initVAO l t bo = do
 	vertexAttribArray l $= Enabled
 	vertexAttribPointer l $= (ToFloat, VertexArrayDescriptor num Float 0 nullPtr)
 
-copyTriangles :: IQM -> ByteString -> IO (Ptr Word32)
+copyTriangles :: IQM -> ByteString -> IO (Ptr Word32, BufferObject)
 copyTriangles i f =
     do
         let
             len = fromIntegral $ num_triangles $ header i
             byteLen = len * 3 * sizeOf (undefined :: Word32)
             data' = skipDrop (fromIntegral $ ofs_triangles $ header i) byteLen f
+            buf = triangleBufferObject i
         p <- mallocBytes byteLen
         unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
-        return $ castPtr p
+        bindBuffer ElementArrayBuffer $= Just buf
+        bufferData ElementArrayBuffer $= (fromIntegral len*3, p, StaticDraw)
+        bindBuffer ElementArrayBuffer $= Nothing
+        return $ (castPtr p, buf)
 
 
 -- | Creates a BufferObject on the Graphicscard for each BufferObject
@@ -309,8 +316,8 @@ readInVAO d vcount (IQMVertexArray type' a format num offset ptr) =
 --
 --   Consumes the String only once, thus in O(n). But all Data-Structures are
 --   not allocated and copied. readInVAO has to be called on each one.
-doIQMparse :: VertexArrayObject -> Parser IQM
-doIQMparse vao =
+doIQMparse :: VertexArrayObject -> BufferObject -> Parser IQM
+doIQMparse vao tbo =
     flip evalStateT 0 $ --evaluate parser with state starting at 0
         do
             h <- readHeader                                         --read header
@@ -329,6 +336,7 @@ doIQMparse vao =
                     , vertexBufferObjects = [] --initialized later, after vaf get allocated.
                     , vertexArrayObject = vao
                     , triangles = nullPtr      --initialized later, after memory gets allocated.
+                    , triangleBufferObject = tbo
                     }
 
 -- | Helper-Function for Extracting a random substring out of a Bytestring

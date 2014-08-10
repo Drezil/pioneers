@@ -113,6 +113,7 @@ data IQM = IQM
         , vertexBufferObjects   :: [BufferObject]
         , vertexArrayObject     :: VertexArrayObject
         , triangles             :: Ptr Word32
+        , triangleBufferObject  :: BufferObject
         } deriving (Show, Eq)
 
 -- | Different Vertex-Array-Types in IQM
