@@ -5,6 +5,8 @@ import Map.Types
 import Data.Array    (bounds, (!))
 import Data.List     (sort, group)
 
+import Debug.Trace
+
 -- WARNING: Does NOT Check for neighbours exceeding maximum map coordinates yet.
 unsafeGiveNeighbours :: (Int, Int)  -- ^ original coordinates
                      -> [(Int,Int)] -- ^ list of neighbours
@@ -33,7 +35,7 @@ giveNeighbourhood :: PlayMap      -- ^ map on which to find neighbourhood
                   -> (Int, Int)   -- ^ original coordinates
                   -> [(Int, Int)] -- ^ neighbourhood
 giveNeighbourhood _  0 (a,b) = [(a,b)]
-giveNeighbourhood mp n (a,b) = let ns = giveNeighbours mp (a,b) in 
+giveNeighbourhood mp n (a,b) = let ns = giveNeighbours mp (a,b) in
                              remdups . concat $ ns : map (giveNeighbourhood mp (n-1)) ns
 
 -- | Calculates the height of any given point on the map.
@@ -43,9 +45,20 @@ giveMapHeight :: PlayMap
              -> Double
 giveMapHeight mop (x, z)
   | outsideMap (x,z') = 0.0
-  | otherwise         = sum $ map (\(p,d) -> hlu p * (d / totald)) tups
+  | otherwise         = height --sum $ map (\(p,d) -> hlu p * (d / totald)) tups
   where
     z' = z * 2/ sqrt 3
+    rx = x  - (fromIntegral $ floor (x +0.5))
+    rz = z' - (fromIntegral $ floor (z'+0.5))
+
+    hoi = map (hlu . clmp . tadd (floor x, floor z')) mods
+      where
+        mods = [(0,0),(0,1),(1,0),(1,1)]
+        tadd (a,b) (c,d) = (a+c,b+d)
+
+    height = --trace (show [rx,rz] ++ show hoi)
+             rz     * (rx * (hoi !! 0) + (1-rx) * (hoi !! 2))
+           + (1-rz) * (rx * (hoi !! 1) + (1-rx) * (hoi !! 3))
 
     outsideMap :: (Double, Double) -> Bool
     outsideMap (mx, mz) = let ((a,b),(c,d)) = bounds mop
@@ -82,7 +95,7 @@ giveMapHeight mop (x, z)
 
     -- Real distance on PlayMap
     dist :: (Double, Double) -> (Int, Int) -> Double
-    dist (x1,z1) pmp = let xf = x1 - realx 
+    dist (x1,z1) pmp = let xf = x1 - realx
                            zf = z1 - realz
                        in  sqrt $ xf*xf + zf*zf
       where
