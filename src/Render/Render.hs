@@ -184,6 +184,9 @@ initMapShader tessFac (buf, vertDes) = do
    uni' <- get (activeUniforms objProgram)
    putStrLn $ unlines $ "Model-Uniforms: ":map show uni'
    putStrLn $ unlines $ ["Model-Indices: ", show (texIndex', normalIndex', vertexIndex')]
+   
+   currentProgram $= Nothing
+
    checkError "initShader"
    let sdata = MapShaderData
             { shdrVertexIndex      = vertexIndex
@@ -285,12 +288,12 @@ initRendering = do
 -- | renders an IQM-Model at Position with scaling
 renderIQM :: IQM -> L.V3 CFloat -> L.V3 CFloat -> IO ()
 renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
-    bindVertexArrayObject $= Just (vertexArrayObject m)
-    vertexAttribArray (AttribLocation 0) $= Enabled
-    bindBuffer ElementArrayBuffer $= Just (triangleBufferObject m)
-    let n = fromIntegral.num_triangles.header $ m
-    --print $ concat ["drawing ", show n," triangles"]
-    drawElements Triangles n UnsignedInt nullPtr
+    withVAO (vertexArrayObject m) $ do
+        vertexAttribArray (AttribLocation 0) $= Enabled
+        bindBuffer ElementArrayBuffer $= Just (triangleBufferObject m)
+        let n = fromIntegral.num_triangles.header $ m
+        --print $ concat ["drawing ", show n," triangles"]
+        drawElements Triangles n UnsignedInt nullPtr
     checkError "drawing model"
     return ()
 

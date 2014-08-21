@@ -33,7 +33,7 @@ import Foreign.Storable (sizeOf)
 
 import Prelude as P hiding (take, null)
 
-import Render.Misc (printPtrAsFloatArray, printPtrAsUByteArray, printPtrAsWord32Array)
+import Render.Misc (printPtrAsFloatArray, printPtrAsUByteArray, printPtrAsWord32Array, withVBO)
 
 -- | helper-function for creating an integral out of [8-Bit Ints]
 _w8ToInt :: Integral a => a -> a -> a
@@ -213,28 +213,58 @@ parseIQM :: String -> IO IQM
 parseIQM a =
     do
     f <- B.readFile a
-    vao <- makeVAO (return ())
-    tbo <- genObjectName
-    -- Parse Headers/Offsets
-    let result = parse (doIQMparse vao tbo) f
-    raw <- case result of
+    -- Parse Headers/Offsets to BareIQM
+    let result = parse doIQMparse f
+    bare <- case result of
         Done _ x -> return x
         y -> error $ show y
-    -- Fill Vertex-Arrays with data of Offsets
-    let va = vertexArrays raw
-    va' <- mapM (readInVAO f (num_vertexes.header $ raw)) va
-    vbo <- mapM toVBOfromVAO va
-    (tris, trisbo) <- copyTriangles raw f
-    withVAO vao $ createVAO (zip va' vbo)
+    -- Fill Vertex-Array with buffer objects and data of Offsets
+    va' <- mapM (readInVAO f (num_vertexes.bareheader $ bare)) (barevertexArrays bare)
+
+    -- create VAO with attached vbos
+    vao <- makeVAO $ do
+        -- generate array buffers
+        --
+        --for pos,normal,tex:
+        let initBuffer :: AttribLocation -> IQMVertexArrayType -> [IQMVertexArray] -> IO ()
+            initBuffer l t vas =
+                do
+                let (IQMVertexArray _ _ _ num _ dat) = case filter (\(IQMVertexArray ty _ _ _ _ _) -> ty == t) vas of
+                                                    [b] -> b
+                                                    _ -> error $ "Current object does not support " ++ (show t)
+                buf <- genObjectName
+                withVBO buf (toBufferTargetfromVAType t) $ do
+                    -- copy data
+                    bufferData (toBufferTargetfromVAType t) $= ((fromIntegral num),dat,StaticDraw)
+                    -- tell layout
+                    vertexAttribPointer l $= (ToFloat, VertexArrayDescriptor num Float 0 nullPtr)
+        initBuffer (AttribLocation 0) IQMPosition va'
+        initBuffer (AttribLocation 1) IQMNormal   va'
+        initBuffer (AttribLocation 2) IQMTexCoord va'
+
+    -- for indices
+    tbo <- genObjectName
+    tris <- withVBO tbo ArrayBuffer $ do
+        let
+            len = (fromIntegral.num_triangles.bareheader) bare
+            byteLen = len * 3 * sizeOf (undefined :: Word32)
+            data' = skipDrop ((fromIntegral.ofs_triangles.bareheader) bare) byteLen f
+        p <- mallocBytes byteLen
+        unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
+        bufferData ElementArrayBuffer $= (fromIntegral len*3, p, StaticDraw)
+        return $ castPtr p
     putStrLn "Triangles:"
-    printPtrAsWord32Array tris ((*3).fromIntegral.num_triangles.header $ raw) 3
-    print raw
-    return $ raw
-        { vertexArrays = va'
-        , vertexBufferObjects = vbo
-        , vertexArrayObject = vao
-        , triangles = tris
-        , triangleBufferObject = trisbo
+    printPtrAsWord32Array tris ((*3).fromIntegral.num_triangles.bareheader $ bare) 3
+    print bare
+    return $ IQM
+        { header               = bareheader bare
+        , texts                = baretexts bare
+        , meshes               = baremeshes bare
+        , vertexArrays         = va'
+        , vertexBufferObjects  = []
+        , vertexArrayObject    = vao
+        , triangles            = tris
+        , triangleBufferObject = tbo
         }
 
 createVAO :: [(IQMVertexArray, BufferObject)] -> IO ()
@@ -253,22 +283,6 @@ initVAO l t bo = do
 	bindBuffer (toBufferTargetfromVAType t) $= Just buf
 	vertexAttribArray l $= Enabled
 	vertexAttribPointer l $= (ToFloat, VertexArrayDescriptor num Float 0 nullPtr)
-
-copyTriangles :: IQM -> ByteString -> IO (Ptr Word32, BufferObject)
-copyTriangles i f =
-    do
-        let
-            len = fromIntegral $ num_triangles $ header i
-            byteLen = len * 3 * sizeOf (undefined :: Word32)
-            data' = skipDrop (fromIntegral $ ofs_triangles $ header i) byteLen f
-            buf = triangleBufferObject i
-        p <- mallocBytes byteLen
-        unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
-        bindBuffer ElementArrayBuffer $= Just buf
-        bufferData ElementArrayBuffer $= (fromIntegral len*3, p, StaticDraw)
-        bindBuffer ElementArrayBuffer $= Nothing
-        return $ (castPtr p, buf)
-
 
 -- | Creates a BufferObject on the Graphicscard for each BufferObject
 
@@ -316,8 +330,8 @@ readInVAO d vcount (IQMVertexArray type' a format num offset ptr) =
 --
 --   Consumes the String only once, thus in O(n). But all Data-Structures are
 --   not allocated and copied. readInVAO has to be called on each one.
-doIQMparse :: VertexArrayObject -> BufferObject -> Parser IQM
-doIQMparse vao tbo =
+doIQMparse :: Parser BareIQM
+doIQMparse =
     flip evalStateT 0 $ --evaluate parser with state starting at 0
         do
             h <- readHeader                                         --read header
@@ -328,15 +342,11 @@ doIQMparse vao tbo =
             meshes' <- readMeshes $ fromIntegral $ num_meshes h     --read meshes
             skipToCounter $ ofs_vertexarrays h            --skip 0-n bytes to get to Vertex-Arrays
             vaf <- readVAFs $ fromIntegral $ num_vertexarrays h     --read Vertex-Arrays
-            return IQM
-                    { header = h
-                    , texts = filter (not.null) (split (unsafeCoerce '\0') text)
-                    , meshes = meshes'
-                    , vertexArrays = vaf
-                    , vertexBufferObjects = [] --initialized later, after vaf get allocated.
-                    , vertexArrayObject = vao
-                    , triangles = nullPtr      --initialized later, after memory gets allocated.
-                    , triangleBufferObject = tbo
+            return BareIQM
+                    { bareheader = h
+                    , baretexts = filter (not.null) (split (unsafeCoerce '\0') text)
+                    , baremeshes = meshes'
+                    , barevertexArrays = vaf
                     }
 
 -- | Helper-Function for Extracting a random substring out of a Bytestring

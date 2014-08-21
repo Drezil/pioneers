@@ -8,6 +8,8 @@ import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.StringQueries
 import           Graphics.Rendering.OpenGL.GLU.Errors
+import           Graphics.Rendering.OpenGL.GL.VertexArrayObjects
+import           Graphics.Rendering.OpenGL.GL.BufferObjects
 import           Graphics.UI.SDL.Types                      (Texture)
 import           System.IO                                  (hPutStrLn, stderr)
 import Linear
@@ -163,3 +165,18 @@ genColorData n c = take (length c*n) (cycle c)
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
 chunksOf a xs = take a xs : chunksOf a (drop a xs)
+
+
+withVAO :: VertexArrayObject -> IO a -> IO a
+withVAO v a = do
+                bindVertexArrayObject $= Just v
+                ret <- a
+                bindVertexArrayObject $= Nothing
+                return ret
+
+withVBO :: BufferObject -> BufferTarget -> IO a -> IO a
+withVBO b t a = do
+                bindBuffer t $= Just b
+                ret <- a
+                bindBuffer t $= Nothing
+                return ret

@@ -116,6 +116,18 @@ data IQM = IQM
         , triangleBufferObject  :: BufferObject
         } deriving (Show, Eq)
 
+-- | Internal format of an unprocessed IQM
+--
+-- for internal and temporary use only
+
+data BareIQM = BareIQM
+             { bareheader           :: IQMHeader
+             , baretexts            :: [ByteString]
+             , baremeshes           :: [IQMMesh]
+             , barevertexArrays     :: [IQMVertexArray]
+             } deriving (Show, Eq)
+            
+
 -- | Different Vertex-Array-Types in IQM
 --
 --   Custom Types have to be > 0x10 as of specification
