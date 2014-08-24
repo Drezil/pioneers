@@ -15,6 +15,6 @@ out vec3 vNormal;
 
 void main () {
    vPosition = Position;
-   gl_Position = vec4(10*Position,1);//ProjectionMatrix * ViewMatrix * vec4(PositionOffset + Position, 1);
+   gl_Position = vec4(Position,1);//ProjectionMatrix * ViewMatrix * vec4(PositionOffset + Position, 1);
    vNormal = Normal;
 }
