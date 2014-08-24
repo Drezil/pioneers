@@ -458,9 +458,9 @@ render = do
         ---- RENDER MAP IN TEXTURE <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         -- COLORMAP
     liftIO $ do
-        bindFramebuffer Framebuffer $= defaultFramebufferObject
-        drawBuffer $= BackBuffers
-        {-tex <- liftIO $ readTVarIO (state ^. mapTexture)
+        {-bindFramebuffer Framebuffer $= defaultFramebufferObject
+        drawBuffer $= BackBuffers-}
+        tex <- liftIO $ readTVarIO (state ^. mapTexture)
         textureBinding Texture2D $= Just tex
         framebufferTexture2D
                 Framebuffer
@@ -470,7 +470,7 @@ render = do
                 0
 
         -- Render to FrameBufferObject
-        drawBuffers $= [FBOColorAttachment 0]-}
+        drawBuffers $= [FBOColorAttachment 0]
         checkError "setup Render-Target"
 
         clear [ColorBuffer, DepthBuffer]
@@ -502,7 +502,7 @@ render = do
 
         ---- COMPOSE RENDERING --------------------------------------------
         -- Render to BackBuffer (=Screen)
-        {-bindFramebuffer Framebuffer $= defaultFramebufferObject
+        bindFramebuffer Framebuffer $= defaultFramebufferObject
         drawBuffer $= BackBuffers
         -- Drawing HUD
         clear [ColorBuffer, DepthBuffer]
@@ -531,6 +531,6 @@ render = do
         drawElements TriangleStrip 4 UnsignedInt offset0
         
         bindBuffer ArrayBuffer $= Nothing
-        bindBuffer ElementArrayBuffer $= Nothing-}
+        bindBuffer ElementArrayBuffer $= Nothing
 
 
