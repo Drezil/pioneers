@@ -241,7 +241,7 @@ parseIQM a =
                     checkError "bufferData vao"
                     -- tell layout
                     vertexAttribPointer l $= (ToFloat, VertexArrayDescriptor num Float 0 nullPtr)
-        let len = (fromIntegral.num_triangles.bareheader) bare
+        let len = (fromIntegral.num_vertexes.bareheader) bare
         initBuffer (AttribLocation 0) IQMPosition va' len
         initBuffer (AttribLocation 1) IQMNormal   va' len
         initBuffer (AttribLocation 2) IQMTexCoord va' len
