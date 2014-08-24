@@ -180,7 +180,7 @@ initMapShader tessFac (buf, vertDes) = do
    putStrLn $ unlines $ "Model-Uniforms: ":map show uni'
    putStrLn $ unlines $ ["Model-Indices: ", show (texIndex', normalIndex', vertexIndex')]
    
-   testobj <- parseIQM "models/box.iqm"
+   testobj <- parseIQM "models/holzfaellerHaus1.iqm"
    let objs = [MapObject testobj (L.V3 0 10 0) (MapObjectState ())]
 
    currentProgram $= Nothing
@@ -288,10 +288,11 @@ renderIQM :: IQM -> L.V3 CFloat -> L.V3 CFloat -> IO ()
 renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
     withVAO (vertexArrayObject m) $ do
         vertexAttribArray (AttribLocation 0) $= Enabled
+        vertexAttribArray (AttribLocation 1) $= Enabled
         checkError "setting array to enabled"
         bindBuffer ElementArrayBuffer $= Just (triangleBufferObject m)
         checkError "bindBuffer"
-        let n = fromIntegral.num_triangles.header $ m
+        let n = fromIntegral.(*3).num_triangles.header $ m
         --print $ concat ["drawing ", show n," triangles"]
         drawElements Triangles n UnsignedInt nullPtr
         checkError "drawing model"
@@ -332,7 +333,7 @@ drawMap = do
 
         glPatchParameteri gl_PATCH_VERTICES 3
 
-        cullFace $= Nothing --Just Front
+        cullFace $= Just Front
         polygonMode $= (Fill,Fill)
 
         glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
@@ -491,11 +492,11 @@ render = do
         currentProgram $= Just (state ^. gl.glMap.objectProgram)
         checkError "setting up shadowmap-program"
         --set up projection (= copy from state)
-        {-mat44ToGPU frust projmo "mapObjects-projection"
+        mat44ToGPU frust projmo "mapObjects-projection"
         --set up camera
         mat44ToGPU cam' vmatmo "mapObjects-cam"
         --set up normal
-        mat33ToGPU nmap nmatmo "mapObjects-nmat"-}
+        mat33ToGPU nmap nmatmo "mapObjects-nmat"
 
         mapM_ renderObject (state ^. gl.glMap.mapObjects)
         checkError "draw mapobjects"

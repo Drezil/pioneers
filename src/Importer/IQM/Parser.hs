@@ -259,9 +259,9 @@ parseIQM a =
             bufferData ElementArrayBuffer $= (fromIntegral byteLen, p, StaticDraw)
         checkError "bufferData tris"
         return $ castPtr p
-    putStrLn "Triangles:"
-    printPtrAsWord32Array tris ((*3).fromIntegral.num_triangles.bareheader $ bare) 3
-    print bare
+    --putStrLn "Triangles:"
+    --printPtrAsWord32Array tris ((*3).fromIntegral.num_triangles.bareheader $ bare) 3
+    --print bare
     return $ IQM
         { header               = bareheader bare
         , texts                = baretexts bare
@@ -275,14 +275,14 @@ parseIQM a =
 
 createVAO :: [(IQMVertexArray, BufferObject)] -> IO ()
 createVAO bo = do
-        print bo
+        --print bo
         initVAO (AttribLocation 0) IQMPosition bo
         initVAO (AttribLocation 1) IQMNormal   bo
         initVAO (AttribLocation 2) IQMTexCoord bo
 
 initVAO :: AttribLocation -> IQMVertexArrayType -> [(IQMVertexArray, BufferObject)] -> IO ()
 initVAO l t bo = do
-	print $ concat ["adding ", show t, " to vertexBufferObject"]
+	--print $ concat ["adding ", show t, " to vertexBufferObject"]
 	let (IQMVertexArray _ _ _ num _ _,buf) = case filter (\(IQMVertexArray ty _ _ _ _ _, _) -> ty == t) bo of
 							[(a,b)] -> (a,b)
 							_ -> error "IQM-Object not render-able with current shader-mechanics"
@@ -325,11 +325,11 @@ readInVAO d vcount (IQMVertexArray type' a format num offset ptr) =
         putStrLn $ concat ["Allocating ", show vcount ,"x", show num,"x",show (vaSize format)," = ", show byteLen, " Bytes at ", show p, " for ", show type']
         putStrLn $ concat ["Filling starting at ", show offset, " with: "]
         unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
-        case type' of
+        {-case type' of
             IQMBlendIndexes -> printPtrAsUByteArray p numElems 4
             IQMBlendWeights -> printPtrAsUByteArray p numElems 4
             IQMTexCoord     -> printPtrAsFloatArray p numElems 2
-            _ -> printPtrAsFloatArray p numElems 3
+            _ -> printPtrAsFloatArray p numElems 3-}
         return $ IQMVertexArray type' a format num offset $ castPtr p
 
 -- | Real internal Parser.
