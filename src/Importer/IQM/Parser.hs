@@ -33,7 +33,7 @@ import Foreign.Storable (sizeOf)
 
 import Prelude as P hiding (take, null)
 
-import Render.Misc (printPtrAsFloatArray, printPtrAsUByteArray, printPtrAsWord32Array, withVBO)
+import Render.Misc (printPtrAsFloatArray, printPtrAsUByteArray, printPtrAsWord32Array, withVBO, checkError)
 
 -- | helper-function for creating an integral out of [8-Bit Ints]
 _w8ToInt :: Integral a => a -> a -> a
@@ -229,13 +229,16 @@ parseIQM a =
         let initBuffer :: AttribLocation -> IQMVertexArrayType -> [IQMVertexArray] -> IO ()
             initBuffer l t vas =
                 do
-                let (IQMVertexArray _ _ _ num _ dat) = case filter (\(IQMVertexArray ty _ _ _ _ _) -> ty == t) vas of
+                -- find array with type t, otherwise abort hard.
+                let (IQMVertexArray _ _ format num _ dat) = case filter (\(IQMVertexArray ty _ _ _ _ _) -> ty == t) vas of
                                                     [b] -> b
                                                     _ -> error $ "Current object does not support " ++ (show t)
                 buf <- genObjectName
+                -- create buffer and write data
                 withVBO buf (toBufferTargetfromVAType t) $ do
                     -- copy data
-                    bufferData (toBufferTargetfromVAType t) $= ((fromIntegral num),dat,StaticDraw)
+                    bufferData (toBufferTargetfromVAType t) $= (fromIntegral num * (fromIntegral.vaSize) format,dat,StaticDraw)
+                    checkError "bufferData vao"
                     -- tell layout
                     vertexAttribPointer l $= (ToFloat, VertexArrayDescriptor num Float 0 nullPtr)
         initBuffer (AttribLocation 0) IQMPosition va'
@@ -251,7 +254,9 @@ parseIQM a =
             data' = skipDrop ((fromIntegral.ofs_triangles.bareheader) bare) byteLen f
         p <- mallocBytes byteLen
         unsafeUseAsCString data' (\s -> copyBytes p s byteLen)
-        bufferData ElementArrayBuffer $= (fromIntegral len*3, p, StaticDraw)
+        withVBO tbo ElementArrayBuffer $ do
+            bufferData ElementArrayBuffer $= (fromIntegral byteLen, p, StaticDraw)
+        checkError "bufferData tris"
         return $ castPtr p
     putStrLn "Triangles:"
     printPtrAsWord32Array tris ((*3).fromIntegral.num_triangles.bareheader $ bare) 3

@@ -290,11 +290,15 @@ renderIQM :: IQM -> L.V3 CFloat -> L.V3 CFloat -> IO ()
 renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
     withVAO (vertexArrayObject m) $ do
         vertexAttribArray (AttribLocation 0) $= Enabled
+        checkError "setting array to enabled"
         bindBuffer ElementArrayBuffer $= Just (triangleBufferObject m)
+        checkError "bindBuffer"
         let n = fromIntegral.num_triangles.header $ m
         --print $ concat ["drawing ", show n," triangles"]
         drawElements Triangles n UnsignedInt nullPtr
-    checkError "drawing model"
+        checkError "drawing model"
+        bindBuffer ElementArrayBuffer $= Nothing
+        checkError "unbind buffer"
     return ()
 
 renderObject :: MapObject -> IO ()
