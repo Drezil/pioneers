@@ -226,8 +226,8 @@ parseIQM a =
         -- generate array buffers
         --
         --for pos,normal,tex:
-        let initBuffer :: AttribLocation -> IQMVertexArrayType -> [IQMVertexArray] -> IO ()
-            initBuffer l t vas =
+        let initBuffer :: AttribLocation -> IQMVertexArrayType -> [IQMVertexArray] -> Int -> IO ()
+            initBuffer l t vas len' =
                 do
                 -- find array with type t, otherwise abort hard.
                 let (IQMVertexArray _ _ format num _ dat) = case filter (\(IQMVertexArray ty _ _ _ _ _) -> ty == t) vas of
@@ -237,13 +237,14 @@ parseIQM a =
                 -- create buffer and write data
                 withVBO buf (toBufferTargetfromVAType t) $ do
                     -- copy data
-                    bufferData (toBufferTargetfromVAType t) $= (fromIntegral num * (fromIntegral.vaSize) format,dat,StaticDraw)
+                    bufferData (toBufferTargetfromVAType t) $= (fromIntegral len' * fromIntegral num * (fromIntegral.vaSize) format,dat,StaticDraw)
                     checkError "bufferData vao"
                     -- tell layout
                     vertexAttribPointer l $= (ToFloat, VertexArrayDescriptor num Float 0 nullPtr)
-        initBuffer (AttribLocation 0) IQMPosition va'
-        initBuffer (AttribLocation 1) IQMNormal   va'
-        initBuffer (AttribLocation 2) IQMTexCoord va'
+        let len = (fromIntegral.num_triangles.bareheader) bare
+        initBuffer (AttribLocation 0) IQMPosition va' len
+        initBuffer (AttribLocation 1) IQMNormal   va' len
+        initBuffer (AttribLocation 2) IQMTexCoord va' len
 
     -- for indices
     tbo <- genObjectName
@@ -299,7 +300,7 @@ toVBOfromVAO (IQMVertexArray type' _ _ num _ ptr) =
 
 toBufferTargetfromVAType :: IQMVertexArrayType -> BufferTarget
 toBufferTargetfromVAType IQMPosition      = ArrayBuffer
-toBufferTargetfromVAType IQMTexCoord      = TextureBuffer
+toBufferTargetfromVAType IQMTexCoord      = ArrayBuffer
 toBufferTargetfromVAType IQMNormal        = ArrayBuffer
 toBufferTargetfromVAType IQMBlendIndexes  = ElementArrayBuffer
 toBufferTargetfromVAType IQMBlendWeights  = ArrayBuffer

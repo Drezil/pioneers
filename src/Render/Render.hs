@@ -128,11 +128,6 @@ initMapShader tessFac (buf, vertDes) = do
 
    smap <- genObjectName
 
-   testobj <- parseIQM "models/box.iqm"
-
-   let
-    objs = [MapObject testobj (L.V3 0 10 0) (MapObjectState ())]
-
    currentProgram $= Nothing
 
    ! vertexSource' <- B.readFile objectVertexShaderFile
@@ -185,6 +180,9 @@ initMapShader tessFac (buf, vertDes) = do
    putStrLn $ unlines $ "Model-Uniforms: ":map show uni'
    putStrLn $ unlines $ ["Model-Indices: ", show (texIndex', normalIndex', vertexIndex')]
    
+   testobj <- parseIQM "models/box.iqm"
+   let objs = [MapObject testobj (L.V3 0 10 0) (MapObjectState ())]
+
    currentProgram $= Nothing
 
    checkError "initShader"
@@ -298,6 +296,7 @@ renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
         drawElements Triangles n UnsignedInt nullPtr
         checkError "drawing model"
         bindBuffer ElementArrayBuffer $= Nothing
+        vertexAttribArray (AttribLocation 0) $= Disabled
         checkError "unbind buffer"
     return ()
 
@@ -339,6 +338,10 @@ drawMap = do
         glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
 
         checkError "draw map"
+        bindBuffer ArrayBuffer $= Nothing
+        vertexAttribArray ci $= Disabled
+        vertexAttribArray ni $= Disabled
+        vertexAttribArray vi $= Disabled
 
         -- set sample 1 as target in renderbuffer
         {-framebufferRenderbuffer
@@ -401,6 +404,7 @@ render = do
                 (state ^. gl.glRenderbuffer)-}
 
         ---- RENDER SHADOWMAP <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+{-    liftIO $ do
         textureBinding Texture2D $= Just (state ^. gl.glMap.shadowMapTexture)
         framebufferTexture2D
                 Framebuffer
@@ -449,11 +453,14 @@ render = do
         mapM_ renderObject (state ^. gl.glMap.mapObjects)
         checkError "draw mapobjects"
 
-        checkError "draw ShadowMap"
+        checkError "draw ShadowMap"-}
 
         ---- RENDER MAP IN TEXTURE <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         -- COLORMAP
-        tex <- liftIO $ readTVarIO (state ^. mapTexture)
+    liftIO $ do
+        bindFramebuffer Framebuffer $= defaultFramebufferObject
+        drawBuffer $= BackBuffers
+        {-tex <- liftIO $ readTVarIO (state ^. mapTexture)
         textureBinding Texture2D $= Just tex
         framebufferTexture2D
                 Framebuffer
@@ -463,7 +470,7 @@ render = do
                 0
 
         -- Render to FrameBufferObject
-        drawBuffers $= [FBOColorAttachment 0]
+        drawBuffers $= [FBOColorAttachment 0]-}
         checkError "setup Render-Target"
 
         clear [ColorBuffer, DepthBuffer]
@@ -481,22 +488,21 @@ render = do
     drawMap
     liftIO $ do
         ---- RENDER MAPOBJECTS --------------------------------------------
-        checkError "clear buffer"
         currentProgram $= Just (state ^. gl.glMap.objectProgram)
         checkError "setting up shadowmap-program"
         --set up projection (= copy from state)
-        mat44ToGPU frust projmo "mapObjects-projection"
+        {-mat44ToGPU frust projmo "mapObjects-projection"
         --set up camera
         mat44ToGPU cam' vmatmo "mapObjects-cam"
         --set up normal
-        mat33ToGPU nmap nmatmo "mapObjects-nmat"
+        mat33ToGPU nmap nmatmo "mapObjects-nmat"-}
 
         mapM_ renderObject (state ^. gl.glMap.mapObjects)
         checkError "draw mapobjects"
 
         ---- COMPOSE RENDERING --------------------------------------------
         -- Render to BackBuffer (=Screen)
-        bindFramebuffer Framebuffer $= defaultFramebufferObject
+        {-bindFramebuffer Framebuffer $= defaultFramebufferObject
         drawBuffer $= BackBuffers
         -- Drawing HUD
         clear [ColorBuffer, DepthBuffer]
@@ -523,4 +529,8 @@ render = do
 
         bindBuffer ElementArrayBuffer $= Just (hud ^. hudEBO)
         drawElements TriangleStrip 4 UnsignedInt offset0
+        
+        bindBuffer ArrayBuffer $= Nothing
+        bindBuffer ElementArrayBuffer $= Nothing-}
+
 

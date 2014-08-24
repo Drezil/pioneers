@@ -78,6 +78,7 @@ main = do
           ] $ \window' -> do
        SDL.withOpenGL window' $ do
 
+        SDL.glSwapWindow window' -- swap to get the glew-stuff out of the way
         --Create Renderbuffer & Framebuffer
         -- We will render to this buffer to copy the result into textures
         renderBuffer <- GL.genObjectName
