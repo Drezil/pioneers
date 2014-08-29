@@ -9,6 +9,8 @@ import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.StringQueries
 import           Graphics.Rendering.OpenGL.GLU.Errors
 import           Graphics.Rendering.OpenGL.GL.VertexArrayObjects
+import           Graphics.Rendering.OpenGL.GL.VertexArrays
+import           Graphics.Rendering.OpenGL.GL.VertexSpec
 import           Graphics.Rendering.OpenGL.GL.BufferObjects
 import           Graphics.UI.SDL.Types                      (Texture)
 import           System.IO                                  (hPutStrLn, stderr)
@@ -179,4 +181,11 @@ withVBO b t a = do
                 bindBuffer t $= Just b
                 ret <- a
                 bindBuffer t $= Nothing
+                return ret
+
+withVAA :: [AttribLocation] -> IO a -> IO a
+withVAA atts action = do
+                mapM_ (\a -> vertexAttribArray a $= Enabled) atts
+                ret <- action
+                mapM_ (\a -> vertexAttribArray a $= Disabled) atts
                 return ret

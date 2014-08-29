@@ -287,18 +287,16 @@ initRendering = do
 renderIQM :: IQM -> L.V3 CFloat -> L.V3 CFloat -> IO ()
 renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
     withVAO (vertexArrayObject m) $ do
-        vertexAttribArray (AttribLocation 0) $= Enabled
-        vertexAttribArray (AttribLocation 1) $= Enabled
-        checkError "setting array to enabled"
-        bindBuffer ElementArrayBuffer $= Just (triangleBufferObject m)
-        checkError "bindBuffer"
-        let n = fromIntegral.(*3).num_triangles.header $ m
-        --print $ concat ["drawing ", show n," triangles"]
-        drawElements Triangles n UnsignedInt nullPtr
-        checkError "drawing model"
-        bindBuffer ElementArrayBuffer $= Nothing
-        vertexAttribArray (AttribLocation 0) $= Disabled
-        checkError "unbind buffer"
+        withVAA [(AttribLocation 0),(AttribLocation 1)] $ do
+            checkError "setting array to enabled"
+            bindBuffer ElementArrayBuffer $= Just (triangleBufferObject m)
+            checkError "bindBuffer"
+            let n = fromIntegral.(*3).num_triangles.header $ m
+            --print $ concat ["drawing ", show n," triangles"]
+            drawElements Triangles n UnsignedInt nullPtr
+            checkError "drawing model"
+            bindBuffer ElementArrayBuffer $= Nothing
+            checkError "unbind buffer"
     return ()
 
 renderObject :: MapObject -> IO ()
@@ -322,27 +320,21 @@ drawMap = do
         glUniform1f tli (fromIntegral tessFac)
         glUniform1f tlo (fromIntegral tessFac)
 
-        bindBuffer ArrayBuffer $= Just map'
-        vertexAttribPointer ci $= fgColorIndex
-        vertexAttribArray ci   $= Enabled
-        vertexAttribPointer ni $= fgNormalIndex
-        vertexAttribArray ni   $= Enabled
-        vertexAttribPointer vi $= fgVertexIndex
-        vertexAttribArray vi   $= Enabled
-        checkError "beforeDraw"
+        withVBO map' ArrayBuffer $ do
+            vertexAttribPointer ci $= fgColorIndex
+            vertexAttribPointer ni $= fgNormalIndex
+            vertexAttribPointer vi $= fgVertexIndex
+            withVAA [ci,ni,vi] $ do
+                checkError "beforeDraw"
 
-        glPatchParameteri gl_PATCH_VERTICES 3
+                glPatchParameteri gl_PATCH_VERTICES 3
 
-        cullFace $= Just Front
-        polygonMode $= (Fill,Fill)
+                cullFace $= Just Front
+                polygonMode $= (Fill,Fill)
 
-        glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
+                glDrawArrays gl_PATCHES 0 (fromIntegral numVert)
 
-        checkError "draw map"
-        bindBuffer ArrayBuffer $= Nothing
-        vertexAttribArray ci $= Disabled
-        vertexAttribArray ni $= Disabled
-        vertexAttribArray vi $= Disabled
+                checkError "draw map"
 
         -- set sample 1 as target in renderbuffer
         {-framebufferRenderbuffer
@@ -405,16 +397,16 @@ render = do
                 (state ^. gl.glRenderbuffer)-}
 
         ---- RENDER SHADOWMAP <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-{-    liftIO $ do
-        textureBinding Texture2D $= Just (state ^. gl.glMap.shadowMapTexture)
-        framebufferTexture2D
+    liftIO $ do
+--        textureBinding Texture2D $= Just (state ^. gl.glMap.shadowMapTexture)
+{-        framebufferTexture2D
                 Framebuffer
                 DepthAttachment
                 Texture2D
                 (state ^. gl.glMap.shadowMapTexture)
-                0
+                0-}
 
-        drawBuffer $= NoBuffers --color-buffer is not needed but must(?) be set up
+ --       drawBuffer $= NoBuffers --color-buffer is not needed but must(?) be set up
         checkError "setup Render-Target"
 
         clear [DepthBuffer]
@@ -432,9 +424,9 @@ render = do
         --TODO: needed?
         mat33ToGPU sunnmap nmat "nmat"
 
-    drawMap
+--    drawMap
 
-    liftIO $ do
+{-    liftIO $ do
         ---- RENDER MAPOBJECTS --------------------------------------------
         currentProgram $= Just (state ^. gl.glMap.objectProgram)
         checkError "setting up shadowmap-program"
@@ -454,7 +446,7 @@ render = do
         mapM_ renderObject (state ^. gl.glMap.mapObjects)
         checkError "draw mapobjects"
 
-        checkError "draw ShadowMap"-}
+        checkError "draw ShadowMap"--}
 
         ---- RENDER MAP IN TEXTURE <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         -- COLORMAP

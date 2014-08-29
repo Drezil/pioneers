@@ -308,11 +308,13 @@ adjustWindow = do
                         textureFilter  Texture2D GL.$= ((Linear', Nothing), Linear')
                         texImage2D Texture2D GL.NoProxy 0 RGBA8 (GL.TextureSize2D fbCWidth fbCHeight) 0
                                                 (GL.PixelData GL.RGBA GL.UnsignedByte ptr)
+                        textureBinding Texture2D GL.$= Nothing
                         -- MAP
                         textureBinding Texture2D GL.$= Just maptexid
                         textureFilter  Texture2D GL.$= ((Linear', Nothing), Linear')
                         texImage2D Texture2D GL.NoProxy 0 RGBA8 (GL.TextureSize2D fbCWidth fbCHeight) 0
                                                 (GL.PixelData GL.RGBA GL.UnsignedByte ptr)
+                        textureBinding Texture2D GL.$= Nothing
                    allocaBytes (2048*2048) $ \ptr -> do
                         let smapdata = genColorData (2048*2048) [0]
                         pokeArray ptr smapdata
@@ -320,6 +322,7 @@ adjustWindow = do
                         textureFilter  Texture2D GL.$= ((Nearest,Nothing), Nearest)
                         texImage2D Texture2D GL.NoProxy 0 GL.DepthComponent16 (GL.TextureSize2D 2048 2048) 0
                                                 (GL.PixelData GL.DepthComponent GL.UnsignedByte ptr)
+                        textureBinding Texture2D GL.$= Nothing
                    checkError "setting up HUD-Tex"
                    return renderBuffer
     modify $ gl.glRenderbuffer .~ rb
