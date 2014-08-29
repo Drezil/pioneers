@@ -3,7 +3,7 @@ module Render.Misc where
 import           Control.Monad
 import qualified Data.ByteString                            as B (ByteString)
 import           Data.Int                                   (Int8)
-import           Data.Word                                  (Word32)
+import           Data.Word                                  (Word32,Word8)
 import           Graphics.Rendering.OpenGL.GL.Shaders
 import           Graphics.Rendering.OpenGL.GL.StateVar
 import           Graphics.Rendering.OpenGL.GL.StringQueries
@@ -160,8 +160,8 @@ tryWithTexture t f fail' =
                 _ -> fail'
 
 genColorData ::      Int  -- ^ Amount
-                -> [Int8] -- ^ [r,g,b,a], [r,g,b] - whatever should be repeatet.
-                -> [Int8]
+                -> [Word8] -- ^ [r,g,b,a], [r,g,b] - whatever should be repeatet.
+                -> [Word8]
 genColorData n c = take (length c*n) (cycle c)
 
 chunksOf :: Int -> [a] -> [[a]]

@@ -117,7 +117,7 @@ eventCallback e = do
                case state of
                     SDL.Pressed -> maybe (return ()) (`mousePressHandler` (x, y)) $ transformButton button
                     SDL.Released -> maybe (return ()) (`mouseReleaseHandler` (x, y)) $ transformButton button
-                    _ -> return ()
+                    --_ -> return () -- causes "pattern match overlapped"
             SDL.MouseWheel _ _ _ vscroll -> -- windowID mouseID hScroll vScroll
                 do -- TODO: MouseWheelHandler
                 state <- get
