@@ -62,7 +62,7 @@ initBuffer varray =
 initMapShader ::
                 Int                                -- ^ initial Tessallation-Factor
                 -> (BufferObject,NumArrayIndices)  -- ^ Buffer with Data and DataDescriptor
-                -> IO (GLMapState, TextureObject)
+                -> IO (GLMapState, TextureObject, TextureObject)
 initMapShader tessFac (buf, vertDes) = do
    ! vertexSource <- B.readFile mapVertexShaderFile
    ! tessControlSource <- B.readFile mapTessControlShaderFile
@@ -122,6 +122,7 @@ initMapShader tessFac (buf, vertDes) = do
    putStrLn $ unlines ["Map-Indices: ", show (colorIndex, normalIndex, vertexIndex)]
 
    tex <- genObjectName
+   dtex <- genObjectName
    overTex <- genObjectName
 
    textures <- genObjectNames 6
@@ -224,7 +225,7 @@ initMapShader tessFac (buf, vertDes) = do
         , _mapObjects         = objs
         , _objectProgram      = objProgram
         , _shadowMapProgram   = shadowProgram
-        }, tex)
+        }, tex, dtex)
 
 initHud :: IO GLHud
 initHud = do
@@ -397,16 +398,16 @@ render = do
                 (state ^. gl.glRenderbuffer)-}
 
         ---- RENDER SHADOWMAP <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    liftIO $ do
---        textureBinding Texture2D $= Just (state ^. gl.glMap.shadowMapTexture)
-{-        framebufferTexture2D
+{-    liftIO $ do
+        textureBinding Texture2D $= Just (state ^. gl.glMap.shadowMapTexture)
+        framebufferTexture2D
                 Framebuffer
                 DepthAttachment
                 Texture2D
                 (state ^. gl.glMap.shadowMapTexture)
-                0-}
+                0
 
- --       drawBuffer $= NoBuffers --color-buffer is not needed but must(?) be set up
+        drawBuffer $= NoBuffers --color-buffer is not needed but must(?) be set up
         checkError "setup Render-Target"
 
         clear [DepthBuffer]
@@ -426,7 +427,7 @@ render = do
 
 --    drawMap
 
-{-    liftIO $ do
+    liftIO $ do
         ---- RENDER MAPOBJECTS --------------------------------------------
         currentProgram $= Just (state ^. gl.glMap.objectProgram)
         checkError "setting up shadowmap-program"
@@ -453,13 +454,21 @@ render = do
     liftIO $ do
         {-bindFramebuffer Framebuffer $= defaultFramebufferObject
         drawBuffer $= BackBuffers-}
-        tex <- liftIO $ readTVarIO (state ^. mapTexture)
-        textureBinding Texture2D $= Just tex
+        tex  <- readTVarIO (state ^. mapTexture)
+        dtex <- readTVarIO (state ^. mapDepthTexture)
+        -- add color to texture target
         framebufferTexture2D
                 Framebuffer
                 (ColorAttachment 0)
                 Texture2D
                 tex
+                0
+        -- add depth to texture target
+        framebufferTexture2D
+                Framebuffer
+                DepthAttachment
+                Texture2D
+                dtex
                 0
 
         -- Render to FrameBufferObject
@@ -512,7 +521,7 @@ render = do
         uniform (hud ^. hudTexIndex) $= Index1 (0::GLint)
 
         activeTexture  $= TextureUnit 1
-        tex <- liftIO $ readTVarIO (state ^. mapTexture)
+        tex <- readTVarIO (state ^. mapTexture)
         textureBinding Texture2D $= Just tex
         uniform (hud ^. hudBackIndex) $= Index1 (1::GLint)
 

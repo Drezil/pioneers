@@ -90,8 +90,9 @@ main = do
         initRendering
         --generate map vertices
         curMap <- exportedMap
-        (glMap', tex) <- initMapShader 4 =<< getMapBufferObject curMap
+        (glMap', tex, dtex) <- initMapShader 4 =<< getMapBufferObject curMap
         tex' <- newTVarIO tex
+        dtex' <- newTVarIO dtex
         eventQueue <- newTQueueIO :: IO (TQueue SDL.Event)
         now <- getCurrentTime
         --font <- TTF.openFont "fonts/ttf-04B_03B_/04B_03B_.TTF" 10
@@ -143,6 +144,7 @@ main = do
                         }
               , _camera              = cam'
               , _mapTexture          = tex'
+              , _mapDepthTexture     = dtex'
               , _camStack            = camStack'
               , _keyboard            = KeyboardState
                         { _arrowsPressed       = aks
@@ -296,7 +298,9 @@ adjustWindow = do
 
                    let hudtexid = state ^. gl.glHud.hudTexture
                        smaptexid = state ^. gl.glMap.shadowMapTexture
-                   maptexid <- liftIO $ readTVarIO (state ^. mapTexture)
+                   maptexid <- readTVarIO (state ^. mapTexture)
+                   mapdepthtexid <- readTVarIO (state ^. mapDepthTexture)
+                   -- create & clear textures for hud & background (map)
                    allocaBytes (fbWidth*fbHeight*4) $ \ptr -> do
                                                                --default to ugly pink to see if
                                                                --somethings go wrong.
@@ -315,6 +319,16 @@ adjustWindow = do
                         texImage2D Texture2D GL.NoProxy 0 RGBA8 (GL.TextureSize2D fbCWidth fbCHeight) 0
                                                 (GL.PixelData GL.RGBA GL.UnsignedByte ptr)
                         textureBinding Texture2D GL.$= Nothing
+                   -- create & clear map depth texture
+                   allocaBytes (fbWidth*fbHeight) $ \ptr -> do
+                        let smapdata = genColorData (fbWidth*fbHeight) [0]
+                        pokeArray ptr smapdata
+                        textureBinding Texture2D GL.$= Just mapdepthtexid
+                        textureFilter  Texture2D GL.$= ((Linear', Nothing), Linear')
+                        texImage2D Texture2D GL.NoProxy 0 GL.DepthComponent16 (GL.TextureSize2D fbCWidth fbCHeight) 0
+                                                (GL.PixelData GL.DepthComponent GL.UnsignedByte ptr)
+                        textureBinding Texture2D GL.$= Nothing
+                   -- create & clear depth texture for shadows
                    allocaBytes (2048*2048) $ \ptr -> do
                         let smapdata = genColorData (2048*2048) [0]
                         pokeArray ptr smapdata

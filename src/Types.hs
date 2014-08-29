@@ -174,6 +174,7 @@ data State = State
     { _window              :: !WindowState
     , _camera              :: TVar CameraState
     , _mapTexture          :: TVar TextureObject
+    , _mapDepthTexture     :: TVar TextureObject
     , _camStack            :: (Map.HashMap UIId (TVar CameraState, TVar TextureObject))
     , _io                  :: !IOState
     , _keyboard            :: !KeyboardState
