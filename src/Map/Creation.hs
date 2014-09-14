@@ -85,7 +85,3 @@ gaussMountain seed mp = aplByPlace (liftUp c) (\(_,_) -> True) mp
     liftUp (gx,gz) (Node (x,z) (rx,rz,y) _ b pl pa r s) = let y_neu = max y e
                                                           in  Node (x,z) (rx, rz, y_neu) (htt GrassIslandMap y_neu) b pl pa r s
       where e = gauss3Dgeneral amp (fromIntegral gx) (fromIntegral gz) sig sig rx rz
-
--- | Makes sure the edges of the Map are mountain-free
-makeIsland :: PlayMap -> PlayMap
-makeIsland = undefined -- tomorrow....
