@@ -96,18 +96,18 @@ data KeyboardState = KeyboardState
 
 
 data GLMapState = GLMapState
-    { _mapShaderData        :: !MapShaderData
-    , _mapObjectShaderData  :: !MapObjectShaderData
+    { _mapShaderData           :: !MapShaderData
+    , _mapObjectShaderData     :: !MapObjectShaderData
     , _stateTessellationFactor :: !Int
-    , _stateMap             :: !GL.BufferObject
-    , _mapVert              :: !GL.NumArrayIndices
-    , _mapProgram           :: !GL.Program
-    , _overviewTexture      :: !TextureObject
-    , _shadowMapTexture     :: !TextureObject
-    , _mapTextures          :: ![TextureObject] --TODO: Fix size on list?
-    , _objectProgram        :: !GL.Program
-    , _mapObjects           :: ![MapObject]
-    , _shadowMapProgram     :: !GL.Program
+    , _stateMap                :: !GL.BufferObject
+    , _mapVert                 :: !GL.NumArrayIndices
+    , _mapProgram              :: !GL.Program
+    , _overviewTexture         :: !TextureObject
+    , _shadowMapTexture        :: !TextureObject
+    , _mapTextures             :: ![TextureObject] --TODO: Fix size on list?
+    , _objectProgram           :: !GL.Program
+    , _mapObjects              :: ![MapObject]
+    , _shadowMapProgram        :: !GL.Program
     }
 
 data MapShaderData = MapShaderData
@@ -123,16 +123,18 @@ data MapShaderData = MapShaderData
     }
 
 data MapObjectShaderData = MapObjectShaderData
-    { shdrMOVertexIndex    :: !GL.AttribLocation
-    , shdrMOVertexOffsetIndex :: !GL.UniformLocation
-    , shdrMONormalIndex    :: !GL.AttribLocation
-    , shdrMOTexIndex       :: !GL.AttribLocation
-    , shdrMOProjMatIndex   :: !GL.UniformLocation
-    , shdrMOViewMatIndex   :: !GL.UniformLocation
-    , shdrMOModelMatIndex  :: !GL.UniformLocation
-    , shdrMONormalMatIndex :: !GL.UniformLocation
-    , shdrMOTessInnerIndex :: !GL.UniformLocation
-    , shdrMOTessOuterIndex :: !GL.UniformLocation
+    { shdrMOVertexIndex         :: !GL.AttribLocation
+    , shdrMOVertexOffsetIndex   :: !GL.UniformLocation
+    , shdrMONormalIndex         :: !GL.AttribLocation
+    , shdrMOTexIndex            :: !GL.AttribLocation
+    , shdrMOProjMatIndex        :: !GL.UniformLocation
+    , shdrMOViewMatIndex        :: !GL.UniformLocation
+    , shdrMOModelMatIndex       :: !GL.UniformLocation
+    , shdrMONormalMatIndex      :: !GL.UniformLocation
+    , shdrMOPositionOffsetIndex :: !GL.UniformLocation
+    , shdrMOScaleIndex          :: !GL.UniformLocation
+    , shdrMOTessInnerIndex      :: !GL.UniformLocation
+    , shdrMOTessOuterIndex      :: !GL.UniformLocation
     }
 
 

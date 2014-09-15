@@ -24,6 +24,8 @@ class GLCamera a where
   moveBy :: a -> (Position -> Position) -> PlayMap -> a
   -- | Moves the Camera-Target to an absoloute position
   move   :: a -> Position -> PlayMap -> a
+  -- | Gets the target point of a camera
+  getCamTarget :: a -> V3 CFloat
 
 -- | Alias for a camera-position onto the 2d-plane it moves on
 type Position = (Double, Double)
@@ -88,6 +90,14 @@ instance GLCamera Camera where
 					(x,z) = f (x', z')
 					y     = giveMapHeight map (x,z)
   move c (x', z') map = moveBy c (\(x,z) -> (x+x',z+z')) map
+  getCamTarget (Flat (x',z') y') =
+        V3 x y z
+        where 
+            x = realToFrac x'
+            y = realToFrac y'
+            z = realToFrac z'
+  getCamTarget (Sphere (inc', az') r') =
+        undefined
 
 -- | converting spherical to cartesian coordinates
 sphereToCart :: (Floating a) => a -> a -> a -> V3 a

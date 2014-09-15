@@ -9,9 +9,9 @@ import           Graphics.Rendering.OpenGL.Raw.Core31
 import           Graphics.Rendering.OpenGL.Raw.ARB.TessellationShader
 import           Graphics.GLUtil.BufferObjects
 import qualified Linear as L
-import           Control.Lens                               ((^.))
+import           Control.Lens                               ((^.),(%~))
 import           Control.Monad.RWS.Strict             (liftIO)
-import qualified Control.Monad.RWS.Strict as RWS      (get)
+import qualified Control.Monad.RWS.Strict as RWS      (get,modify)
 import           Control.Concurrent.STM               (readTVarIO)
 import           Data.Distributive                    (distribute, collect)
 -- FFI
@@ -166,6 +166,12 @@ initMapShader tessFac (buf, vertDes) = do
    normalMatrixIndex' <- get (uniformLocation objProgram "NormalMatrix")
    checkError "normalMat"
 
+   positionOffsetIndex' <- get (uniformLocation objProgram "PositionOffset")
+   checkError "PositionOffset"
+
+   scaleIndex' <- get (uniformLocation objProgram "Scale")
+   checkError "Scale"
+
    --tessLevelInner' <- get (uniformLocation objProgram "TessLevelInner")
    --checkError "TessLevelInner"
 
@@ -180,9 +186,12 @@ initMapShader tessFac (buf, vertDes) = do
    uni' <- get (activeUniforms objProgram)
    putStrLn $ unlines $ "Model-Uniforms: ":map show uni'
    putStrLn $ unlines $ ["Model-Indices: ", show (texIndex', normalIndex', vertexIndex')]
-   
+
    testobj <- parseIQM "models/holzfaellerHaus1.iqm"
-   let objs = [MapObject testobj (L.V3 0 10 0) (MapObjectState ())]
+   cube    <- parseIQM "models/box.iqm"
+   let objs = [ MapObject testobj (L.V3 20 3 20) (MapObjectState ())
+              , MapObject cube (L.V3 25 5 25) (MapObjectState ())
+              ]
 
    currentProgram $= Nothing
 
@@ -200,31 +209,33 @@ initMapShader tessFac (buf, vertDes) = do
             }
 
    let smodata = MapObjectShaderData
-            { shdrMOVertexIndex    = vertexIndex'
-            , shdrMOVertexOffsetIndex = vertexOffsetIndex'
-            , shdrMONormalIndex    = normalIndex'
-            , shdrMOTexIndex       = texIndex'
-            , shdrMOProjMatIndex   = projectionMatrixIndex'
-            , shdrMOViewMatIndex   = viewMatrixIndex'
-            , shdrMOModelMatIndex  = modelMatrixIndex'
-            , shdrMONormalMatIndex = normalMatrixIndex'
-            , shdrMOTessInnerIndex = UniformLocation 0 --tessLevelInner'
-            , shdrMOTessOuterIndex = UniformLocation 0 --tessLevelOuter'
+            { shdrMOVertexIndex         = vertexIndex'
+            , shdrMOVertexOffsetIndex   = vertexOffsetIndex'
+            , shdrMONormalIndex         = normalIndex'
+            , shdrMOTexIndex            = texIndex'
+            , shdrMOProjMatIndex        = projectionMatrixIndex'
+            , shdrMOViewMatIndex        = viewMatrixIndex'
+            , shdrMOModelMatIndex       = modelMatrixIndex'
+            , shdrMONormalMatIndex      = normalMatrixIndex'
+            , shdrMOPositionOffsetIndex = positionOffsetIndex'
+            , shdrMOScaleIndex          = scaleIndex'
+            , shdrMOTessInnerIndex      = UniformLocation 0 --tessLevelInner'
+            , shdrMOTessOuterIndex      = UniformLocation 0 --tessLevelOuter'
             }
 
    return (GLMapState
-        { _mapProgram         = program
-        , _mapShaderData      = sdata
-        , _mapObjectShaderData = smodata
+        { _mapProgram              = program
+        , _mapShaderData           = sdata
+        , _mapObjectShaderData     = smodata
         , _stateTessellationFactor = tessFac
-        , _stateMap           = buf
-        , _mapVert            = vertDes
-        , _overviewTexture    = overTex
-        , _mapTextures        = textures
-        , _shadowMapTexture   = smap
-        , _mapObjects         = objs
-        , _objectProgram      = objProgram
-        , _shadowMapProgram   = shadowProgram
+        , _stateMap                = buf
+        , _mapVert                 = vertDes
+        , _overviewTexture         = overTex
+        , _mapTextures             = textures
+        , _shadowMapTexture        = smap
+        , _mapObjects              = objs
+        , _objectProgram           = objProgram
+        , _shadowMapProgram        = shadowProgram
         }, tex, dtex)
 
 initHud :: IO GLHud
@@ -285,23 +296,31 @@ initRendering = do
 
 
 -- | renders an IQM-Model at Position with scaling
-renderIQM :: IQM -> L.V3 CFloat -> L.V3 CFloat -> IO ()
-renderIQM m p@(L.V3 x y z) s@(L.V3 sx sy sz) = do
-    withVAO (vertexArrayObject m) $ do
-        withVAA [(AttribLocation 0),(AttribLocation 1)] $ do
-            checkError "setting array to enabled"
-            bindBuffer ElementArrayBuffer $= Just (triangleBufferObject m)
-            checkError "bindBuffer"
-            let n = fromIntegral.(*3).num_triangles.header $ m
-            --print $ concat ["drawing ", show n," triangles"]
-            drawElements Triangles n UnsignedInt nullPtr
-            checkError "drawing model"
-            bindBuffer ElementArrayBuffer $= Nothing
-            checkError "unbind buffer"
-    return ()
+renderIQM :: IQM -> L.V3 CFloat -> L.V3 CFloat -> Pioneers ()
+renderIQM m (L.V3 x y z) (L.V3 sx sy sz) = do
+    state <- RWS.get
+    let
+        dmo      = state ^. gl.glMap.mapObjectShaderData
+        po       = shdrMOPositionOffsetIndex dmo
+        so       = shdrMOScaleIndex dmo
+    liftIO $ do
+        withVAO (vertexArrayObject m) $ do
+            withVAA [(AttribLocation 0),(AttribLocation 1)] $ do
+                uniform po $= Vertex3 x y z
+                uniform so $= Vertex3 sx sy sz
+                checkError "setting array to enabled"
+                bindBuffer ElementArrayBuffer $= Just (triangleBufferObject m)
+                checkError "bindBuffer"
+                let n = fromIntegral.(*3).num_triangles.header $ m
+                --print $ concat ["drawing ", show n," triangles"]
+                drawElements Triangles n UnsignedInt nullPtr
+                checkError "drawing model"
+                bindBuffer ElementArrayBuffer $= Nothing
+                checkError "unbind buffer"
+        return ()
 
-renderObject :: MapObject -> IO ()
-renderObject (MapObject model pos@(L.V3 x y z) _{-state-}) =
+renderObject :: MapObject -> Pioneers ()
+renderObject (MapObject model pos _{-state-}) =
     renderIQM model pos (L.V3 1 1 1)
 
 drawMap :: Pioneers ()
@@ -343,6 +362,7 @@ drawMap = do
                 (ColorAttachment 1)          --sample 1
                 Renderbuffer                 --const
                 rb                              --buffer-}
+
 mat44ToGPU :: L.M44 CFloat -> UniformLocation -> String -> IO ()
 mat44ToGPU mat (UniformLocation dest) name = do
         with (distribute mat) $ \ptr ->
@@ -386,6 +406,14 @@ render = do
                                          (Just a) -> a
                                          Nothing  -> L.eye3) :: L.M33 CFloat
         nmap = collect id normal' :: L.M33 CFloat --transpose...
+        camTarget = getCamTarget camPos
+        
+        moveTo :: L.V3 CFloat -> MapObject -> MapObject
+        moveTo p (MapObject o _ s) = MapObject o p s
+
+    -- TODO: remove hack for Target
+    RWS.modify $ gl.glMap.mapObjects %~ (\objs ->
+            head objs : [moveTo camTarget $ objs !! 1])
 
     liftIO $ do
 
@@ -499,7 +527,8 @@ render = do
         --set up normal
         mat33ToGPU nmap nmatmo "mapObjects-nmat"
 
-        mapM_ renderObject (state ^. gl.glMap.mapObjects)
+    mapM_ renderObject (state ^. gl.glMap.mapObjects)
+    liftIO $ do
         checkError "draw mapobjects"
 
         ---- COMPOSE RENDERING --------------------------------------------
@@ -531,7 +560,7 @@ render = do
 
         bindBuffer ElementArrayBuffer $= Just (hud ^. hudEBO)
         drawElements TriangleStrip 4 UnsignedInt offset0
-        
+
         bindBuffer ArrayBuffer $= Nothing
         bindBuffer ElementArrayBuffer $= Nothing
 
