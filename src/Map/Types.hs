@@ -11,6 +11,16 @@ type XCoord  = Double
 type ZCoord  = Double
 type YCoord  = Double
 
+data Node = Node { mapCoordinates    :: (Xindex, Zindex) 
+                 , actualCoordinates :: (XCoord, ZCoord, YCoord)
+                 , tiletype          :: TileType
+                 , buildinfo         :: BuildInfo
+                 , playerinfo        :: PlayerInfo
+                 , pathinfo          :: PathInfo
+                 , resinfo           :: ResInfo
+                 , storinfo          :: StorInfo
+                 } deriving (Show)
+
 data MapType    = GrassIslandMap
                 | DesertMap
 
@@ -65,10 +75,6 @@ data TileType   = Ocean
                 | Hill     -- ^ Accessible
                 | Mountain -- ^ Not accessible
                 deriving (Show, Eq)
-
--- TODO: Record Syntax?
-data Node = Node (Xindex, Zindex) (XCoord, ZCoord, YCoord) TileType BuildInfo PlayerInfo PathInfo ResInfo StorInfo
-          deriving (Show)
 
 data Structure = Flag           -- Flag
                | Woodcutter     -- Huts
