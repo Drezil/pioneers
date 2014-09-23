@@ -117,7 +117,7 @@ main = do
         let camStack' = Map.empty
         glHud' <- initHud
         let zDistClosest'  = 2
-            zDistFarthest' = zDistClosest' + 10
+            zDistFarthest' = zDistClosest' + 100
             --TODO: Move near/far/fov to state for runtime-changability & central storage
             aks = ArrowKeyState {
                   _up       = False
@@ -190,12 +190,13 @@ run = do
         cam <- readTVar (state ^. camera)
         game' <- readTVar (state ^. game)
         let
+            scrollFactor = 1
             multc = cos $ cam ^. yAngle
             mults = sin $ cam ^. yAngle
-            modx x' = x' - 0.2 * kxrot * multc
-                         - 0.2 * kyrot * mults
-            mody y' = y' + 0.2 * kxrot * mults
-                         - 0.2 * kyrot * multc
+            modx x' = x' - kxrot * multc * scrollFactor
+                         - kyrot * mults * scrollFactor
+            mody y' = y' + kxrot * mults * scrollFactor
+                         - kyrot * multc * scrollFactor
         cam' <- return $ camObject %~ (\c -> moveBy c (\(x,y) -> (modx x,mody y)) (game' ^. currentMap)) $ cam
         writeTVar (state ^. camera) cam'
 
@@ -232,7 +233,7 @@ run = do
         now' <- getCurrentTime
         return (now',tessChange,sleepAmount,ddiff,hasChanged)
     -- set state with new clock-time
-    --liftIO $ putStrLn $ unwords ["clockFactor:",show (state ^. io.tessClockFactor),"\ttc:", show (tc (state ^. gl.glMap.stateTessellationFactor)),"\tsleep ",show frameTime,"ms"]
+    --liftIO $ putStrLn $ unwords ["clockFactor:",show (state ^. io.tessClockFactor),"\ttc:", show (tc (state ^. gl.glMap.stateTessellationFactor)),"\tframe took ",show frameTime,"ms"]
     if hC then
         do
             liftIO $ putStrLn $ unwords ["modifying TessFactor to",show $ tc $ state ^. gl.glMap.stateTessellationFactor]
@@ -273,7 +274,7 @@ adjustWindow = do
         fbHeight = state ^. window.height
         fov           = 90  --field of view
         near          = 1   --near plane
-        far           = 100 --far plane
+        far           = 500 --far plane
         ratio         = fromIntegral fbWidth / fromIntegral fbHeight
         frust         = createFrustum fov near far ratio
     liftIO $ glViewport 0 0 (fromIntegral fbWidth) (fromIntegral fbHeight)

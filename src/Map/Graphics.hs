@@ -7,7 +7,8 @@ fgColorIndex,
 fgNormalIndex,
 fgVertexIndex,
 mapStride,
-getMapBufferObject
+getMapBufferObject,
+unitLength
 )
 where
 
@@ -38,6 +39,10 @@ type MapEntry = (
                 TileType
                 )
 type GraphicsMap = Array (Int, Int) MapEntry
+
+-- | length of 1 Unit in World-Coordinates
+unitLength :: Double
+unitLength = 10.0
 
 -- converts from classical x/z to striped version of a map
 convertToStripeMap :: PlayMap -> PlayMap
@@ -205,6 +210,8 @@ colorLookup hs t = if inRange (bounds hs) t then c else (0.0, 0.0, 0.0)
 coordLookup :: (Int,Int) -> GLfloat -> V3 GLfloat
 coordLookup (x,z) y =
                 if even x then
-                        V3 (fromIntegral $ x `div` 2) y (fromIntegral (2 * z) * lineHeight)
+                        (f unitLength) *^ V3 (fromIntegral $ x `div` 2) y (fromIntegral (2 * z) * lineHeight)
                 else
-                        V3 (fromIntegral (x `div` 2) + 0.5) y (fromIntegral (2 * z + 1) * lineHeight)
+                        (f unitLength) *^ V3 (fromIntegral (x `div` 2) + 0.5) y (fromIntegral (2 * z + 1) * lineHeight)
+                        where
+                            f = fromRational.toRational

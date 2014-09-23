@@ -123,7 +123,7 @@ eventCallback e = do
                 state <- get
                 liftIO $ atomically $ do
                     cam <- readTVar (state ^. camera)
-                    let zDist' = (cam ^. zDist) + realToFrac (negate vscroll)
+                    let zDist' = (cam ^. zDist) + 4*realToFrac (negate vscroll)
                         zDist'' = curb (env ^. zDistClosest) (env ^. zDistFarthest) zDist'
                     cam' <- return $ zDist .~ zDist'' $ cam
                     writeTVar (state ^. camera) cam'

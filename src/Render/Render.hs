@@ -189,7 +189,7 @@ initMapShader tessFac (buf, vertDes) = do
 
    testobj <- parseIQM "models/holzfaellerHaus1.iqm"
    cube    <- parseIQM "models/box.iqm"
-   let objs = [ MapObject testobj (L.V3 20 3 20) (MapObjectState ())
+   let objs = [ MapObject testobj (L.V3 20 10 20) (MapObjectState ())
               , MapObject cube (L.V3 25 5 25) (MapObjectState ())
               ]
 

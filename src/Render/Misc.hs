@@ -68,13 +68,14 @@ createProgramUsing shaders = do
 createFrustum :: Float -> Float -> Float -> Float -> M44 CFloat
 createFrustum fov n' f' rat =
                 let
-                    f = realToFrac f'
-                    n = realToFrac n'
-                    s = realToFrac $ recip (tan $ fov*0.5 * pi / 180)
+                    ff = fromRational.toRational
+                    f = ff f'
+                    n = ff n'
+                    s = ff $ recip (tan $ fov*0.5 * pi / 180)
                     (ratw,rath) = if rat > 1 then
-                                        (1,1/realToFrac rat)
+                                        (1,1/ff rat)
                                   else
-                                        (realToFrac rat,1)
+                                        (ff rat,1)
                 in
                     V4 (V4 (s/ratw)     0            0                   0)
                        (V4    0     (s/rath)         0                   0)

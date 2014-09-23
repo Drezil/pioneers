@@ -1,6 +1,7 @@
 module Map.Map where
 
 import Map.Types
+import Map.Graphics (unitLength)
 
 import Data.Array    (bounds, (!))
 import Data.List     (sort, group)
@@ -44,21 +45,23 @@ giveMapHeight :: PlayMap
              -> (Double, Double)
              -> Double
 giveMapHeight mop (x, z)
-  | outsideMap (x,z') = 0.0
-  | otherwise         = height --sum $ map (\(p,d) -> hlu p * (d / totald)) tups
+  | outsideMap (x/unitLength,z'/unitLength) = 0.0
+  | otherwise         = height' --sum $ map (\(p,d) -> hlu p * (d / totald)) tups
   where
     z' = z * 2/ sqrt 3
-    rx = x  - (fromIntegral $ floor (x +0.5))
-    rz = z' - (fromIntegral $ floor (z'+0.5))
+    rx = (x/unitLength)  - (fromIntegral $ floor (x/unitLength ))
+    rz = (z'/unitLength) - (fromIntegral $ floor (z'/unitLength))
 
-    hoi = map (hlu . clmp . tadd (floor x, floor z')) mods
+    hoi = map (hlu . clmp . tadd (floor (x/unitLength), floor (z'/unitLength))) mods
       where
         mods = [(0,0),(0,1),(1,0),(1,1)]
         tadd (a,b) (c,d) = (a+c,b+d)
 
+    height' = height*unitLength
+
     height = --trace (show [rx,rz] ++ show hoi)
-             rz     * (rx * (hoi !! 0) + (1-rx) * (hoi !! 2))
-           + (1-rz) * (rx * (hoi !! 1) + (1-rx) * (hoi !! 3))
+             (1-rz) * ((1-rx) * (hoi !! 0) + rx * (hoi !! 2))
+           + rz     * ((1-rx) * (hoi !! 1) + rx * (hoi !! 3))
 
     outsideMap :: (Double, Double) -> Bool
     outsideMap (mx, mz) = let ((a,b),(c,d)) = bounds mop

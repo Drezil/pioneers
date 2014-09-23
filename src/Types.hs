@@ -9,7 +9,7 @@ import qualified Data.HashMap.Strict                  as Map
 import           Data.Time                            (UTCTime)
 import Linear.Matrix (M44)
 import Linear (V3)
-import Control.Monad.RWS.Strict (RWST, liftIO, get)
+import Control.Monad.RWS.Strict (RWST, get)
 import Control.Monad.Writer.Strict
 --import Control.Monad (when)
 import Control.Lens
