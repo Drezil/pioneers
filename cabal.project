@@ -1,0 +1,17 @@
+packages: .
+
+source-repository-package
+  type: git
+  location: https://github.com/Lemmih/hsSDL2
+
+source-repository-package
+  type: git
+  location: https://github.com/osa1/hsSDL2-ttf
+
+source-repository-package
+  type: git
+  location: https://github.com/jdeseno/hs-sdl2-mixer
+
+source-repository-package
+  type: git
+  location: https://github.com/jdeseno/hs-sdl2-image

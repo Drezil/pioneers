@@ -1,12 +1,5 @@
 #!/bin/bash
-cabal sandbox init
+set -e
 
-cd deps
-./getDeps.sh
-cd ..
-
-cabal sandbox add-source deps/hsSDL2
-cabal sandbox add-source deps/hsSDL2-ttf
-cabal install --only-dependencies
-cabal configure
-cabal build
+cabal v2-update
+cabal v2-build
