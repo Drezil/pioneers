@@ -1,30 +1,15 @@
-# on ubuntu14.04 (trusty) and later
+# Building Pioneers
 
-just run 
-> ./build.sh
+Install SDL libraries (Ubuntu 14.04 or later):
 
-# manual installation
+    sudo apt-get install libsdl2-dev libsdl2-ttf-dev libsdl2-image-dev libsdl2-mixer-dev
 
-set up external dependencies:
+The project now uses cabal's v2-style commands with a `cabal.project` file. You can build either with cabal or stack:
 
-> sudo apt-get install libsdl2-dev libsdl2-ttf-dev libsdl2-image-dev libsdl2-mixer-dev
-> cd deps && ./getDeps.sh && cd ..
+    cabal v2-build
 
-NOTE: ubuntu saucy currently only has libsdl2-dev.2.0.0 in the repositories, but we need libsdl2-dev.2.0.1
-      Therefore the update-script gets the updated packages for trusty (which have the same dependencies)
-      and installs them.
-      PIONEERS WONT RUN WITH VERSION 2.0.0 OF LIBSDL2!
+or
 
-make sure the compiled files are in your PATH (e.g. include $HOME/.cabal/bin in your $PATH)
+    stack build
 
-install dependencies & configure app
-> cabal sandbox init
-> cabal sandbox add-source deps/hsSDL2
-> cabal sandbox add-source deps/hsSDL2-ttf
-> cabal install --only-dependencies
-> cabal configure
-
-build
-> cabal build
-
-run ./Pioneers (symlinked to dist/build/Pioneers/Pioneers)
+A helper script `build.sh` is provided which simply runs `cabal v2-build`.
