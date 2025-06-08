@@ -12,7 +12,7 @@ import           Graphics.Rendering.OpenGL.GL.VertexArrayObjects
 import           Graphics.Rendering.OpenGL.GL.VertexArrays
 import           Graphics.Rendering.OpenGL.GL.VertexSpec
 import           Graphics.Rendering.OpenGL.GL.BufferObjects
-import           Graphics.UI.SDL.Types                      (Texture)
+import           SDL                                         (Texture)
 import           System.IO                                  (hPutStrLn, stderr)
 import Linear
 import Foreign.C (CFloat, CUChar)

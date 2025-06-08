@@ -1,10 +1,7 @@
 module UI.GUIOverlay where
 
 import Data.Int
-import Graphics.UI.SDL.Surface
-import Graphics.UI.SDL.Color
-import Graphics.UI.SDL.Rect
-import Graphics.UI.SDL.Types
+import SDL
 import UI.UITypes
 
 --createRGBSurface :: Int32 -> Int32 -> Int32 -> Word32 -> Word32 -> Word32 -> Word32 -> IO Surface

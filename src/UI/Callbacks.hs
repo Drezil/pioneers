@@ -12,7 +12,7 @@ import qualified Data.HashMap.Strict                  as Map
 import           Data.Maybe
 import           Foreign.Marshal.Array                (pokeArray)
 import           Foreign.Marshal.Alloc                (allocaBytes)
-import qualified Graphics.UI.SDL                      as SDL
+import qualified SDL
 import           Control.Concurrent.STM.TVar          (readTVar, writeTVar)
 import           Control.Concurrent.STM               (atomically)
 

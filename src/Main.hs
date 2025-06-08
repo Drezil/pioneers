@@ -26,7 +26,7 @@ import           Foreign.Marshal.Array                (pokeArray)
 import           Foreign.Marshal.Alloc                (allocaBytes)
 
 -- GUI
-import qualified Graphics.UI.SDL                      as SDL
+import qualified SDL
 
 -- Render
 import qualified Graphics.Rendering.OpenGL.GL         as GL
