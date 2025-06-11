@@ -3,7 +3,7 @@ module Types where
 
 import           Control.Concurrent.STM               (TQueue, TVar, readTVar, writeTVar, atomically)
 import qualified Graphics.Rendering.OpenGL.GL         as GL
-import           Graphics.UI.SDL                      as SDL (Event, Window)
+import           SDL                                  (Event, Window)
 import           Foreign.C                            (CFloat)
 import qualified Data.HashMap.Strict                  as Map
 import           Data.Time                            (UTCTime)

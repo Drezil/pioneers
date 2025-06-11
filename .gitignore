@@ -4,7 +4,6 @@
 .cabal-sandbox
 *.trace
 cabal.sandbox.config
-deps/hsSDL2*
 deps/*.deb
 dist/*
 *.swp

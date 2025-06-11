@@ -25,7 +25,7 @@ executable Pioneers
                    UI.Callbacks,
                    Types
   main-is:         Main.hs
-  build-depends:   
+  build-depends:
                    base >=4.6,
                    OpenGL >=2.9,
                    bytestring >=0.10,
@@ -42,11 +42,21 @@ executable Pioneers
                    distributive >=0.3.2,
                    linear >=1.3.1, 
                    lens >=4.0,
-                   SDL2 >= 0.1.0,
+                   sdl2,
+                   sdl2-ttf,
+                   sdl2-image,
+                   sdl2-mixer,
                    time >=1.4.0,
                    GLUtil >= 0.7,
                    attoparsec >= 0.11.2,
                    attoparsec-binary >= 0.1
+  extra-libraries:
+                   GL,
+                   GLU,
+                   SDL2,
+                   SDL2_ttf,
+                   SDL2_image,
+                   SDL2_mixer
   Default-Language: Haskell2010
 
 test-suite MapTests
@@ -69,7 +79,10 @@ test-suite MapTests
                      distributive >=0.3.2,
                      linear >=1.3.1,
                      lens >=4.0,
-                     SDL2 >= 0.1.0,
+                     sdl2,
+                     sdl2-ttf,
+                     sdl2-image,
+                     sdl2-mixer,
                      time >=1.4.0,
                      GLUtil >= 0.7,
                      attoparsec >= 0.11.2,
@@ -78,4 +91,11 @@ test-suite MapTests
                      test-framework,
                      test-framework-th,
                      test-framework-quickcheck2
+  extra-libraries:
+                     GL,
+                     GLU,
+                     SDL2,
+                     SDL2_ttf,
+                     SDL2_image,
+                     SDL2_mixer
   Default-Language: Haskell2010
