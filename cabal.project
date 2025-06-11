@@ -1,1 +1,6 @@
 packages: .
+
+-- Allow building even when dependencies require versions newer than what is
+-- declared, so that cabal gives clearer error messages when resolving
+-- dependencies.
+allow-newer: all
